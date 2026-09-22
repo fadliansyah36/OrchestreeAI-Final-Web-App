@@ -25,6 +25,7 @@ from app.api.v1.prospects import router as prospects_router
 from app.api.v1.omnichannel import router as omnichannel_router, webhook_router as omnichannel_webhook_router
 from app.api.v1.commerce import router as commerce_router, webhook_router as commerce_webhook_router
 from app.api.v1.marketing import router as marketing_router, webhook_router as social_webhook_router
+from app.api.v1.service import router as service_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -80,6 +81,7 @@ app.include_router(commerce_router, prefix="/api/v1")
 app.include_router(commerce_webhook_router, prefix="/api/v1")
 app.include_router(marketing_router, prefix="/api/v1")
 app.include_router(social_webhook_router, prefix="/api/v1")
+app.include_router(service_router, prefix="/api/v1")
 
 
 @app.get("/")

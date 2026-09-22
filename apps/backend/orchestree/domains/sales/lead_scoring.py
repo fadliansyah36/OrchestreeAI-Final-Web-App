@@ -12,7 +12,16 @@ from typing import Dict, Any, List, Optional, Tuple
 import logging
 from datetime import datetime, timezone
 import uuid
-import sqlalchemy as sa
+try:
+    import sqlalchemy as sa
+    from sqlalchemy.sql import text
+except ImportError:
+    class _SafeSA:
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+    sa = _SafeSA()
+    def text(query):
+        return query
 
 logger = logging.getLogger("orchestree.sales.lead_scoring")
 

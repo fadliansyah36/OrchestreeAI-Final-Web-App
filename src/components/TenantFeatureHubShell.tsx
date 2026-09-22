@@ -23,6 +23,7 @@ import { IntelligenceHubScreen } from './IntelligenceHubScreen';
 import { HomeOverviewScreen } from './HomeOverviewScreen';
 import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 import { CampaignBuilderScreen } from './CampaignBuilderScreen';
+import { ServiceRequestScreen } from './ServiceRequestScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -141,7 +142,33 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/support') || activeRoute.startsWith('/service')) {
+    return (
+      <div className="min-h-screen bg-[#0B1220] text-white">
+        <div className="max-w-7xl mx-auto px-4 pt-6 pb-12">
+          <button
+            onClick={() => setActiveRoute('/hub')}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white mb-6 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Feature Hub
+          </button>
+          <ServiceRequestScreen
+            tenantId={tenant?.tenant_id || 'tenant-alpha-001'}
+            onOpenInbox={() => setActiveRoute('/channels/integrations')}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const categoryCards: CategoryCard[] = [
+    {
+      key: 'service',
+      label: 'Layanan Pelanggan & Pengawasan Refund',
+      icon: 'sparkles',
+      route: '/support/service-requests',
+      badgeCount: 2,
+    },
     {
       key: 'marketing',
       label: 'Pemasaran, Kalender Konten & Marketplace',
