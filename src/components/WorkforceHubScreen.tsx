@@ -24,11 +24,13 @@ import {
   Sparkles,
   RefreshCw,
   Kanban,
-  Fingerprint
+  Fingerprint,
+  TrendingUp
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
 import { KanbanBoardScreen } from './KanbanBoardScreen';
 import { WebAuthnAttendanceScreen } from './WebAuthnAttendanceScreen';
+import { HomeOverviewScreen } from './HomeOverviewScreen';
 
 interface WorkforceHubScreenProps {
   tenant: TenantRegistrationResponse | null;
@@ -97,7 +99,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   tenant,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hub' | 'departments' | 'staff' | 'agents' | 'org_chart' | 'kanban' | 'attendance'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'org_chart' | 'kanban' | 'attendance'>('hub');
   const [testRole, setTestRole] = useState<'TENANT_OWNER' | 'DEPT_MANAGER' | 'STAFF_HUMAN'>('TENANT_OWNER');
 
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
@@ -330,6 +332,12 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
 
   const categoryCards: CategoryCard[] = [
     {
+      key: 'performance',
+      label: 'Evaluasi & Skor Kinerja Tim',
+      icon: 'trending',
+      route: 'performance',
+    },
+    {
       key: 'kanban',
       label: 'Papan Tugas Kanban Realtime',
       icon: 'kanban',
@@ -542,6 +550,18 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('performance')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'performance'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Evaluasi & Skor Kinerja</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('kanban')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
               activeTab === 'kanban'
@@ -628,6 +648,14 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
             categoryCards={categoryCards}
             onNavigate={(route) => {
               setActiveTab(route as any);
+            }}
+          />
+        ) : activeTab === 'performance' ? (
+          <HomeOverviewScreen
+            tenant={tenant}
+            onNavigateDetail={(target) => {
+              if (target === 'kanban') setActiveTab('kanban');
+              else if (target === 'staff') setActiveTab('staff');
             }}
           />
         ) : activeTab === 'departments' ? (

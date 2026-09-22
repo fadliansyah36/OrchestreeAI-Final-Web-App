@@ -731,6 +731,14 @@ export class ModelRouterService {
   }
 }
 
+let modelRouterInstance: ModelRouterService | null = null;
+export function getModelRouter(pool?: pg.Pool | null): ModelRouterService {
+  if (!modelRouterInstance) {
+    modelRouterInstance = new ModelRouterService(pool || null);
+  }
+  return modelRouterInstance;
+}
+
 /**
  * Built-in MCP Tools
  */
@@ -2325,10 +2333,7 @@ export class MemoryHybridSearchService {
               action, query_text, similarity_score, abac_decision, context
             ) VALUES (
               $1, $2, $3, $4, 'search_read', $5, $6, 'ALLOW', $7::jsonb
-            );
-            UPDATE memory_documents
-            SET access_count = access_count + 1, last_accessed_at = now()
-            WHERE id = $2;`,
+            );`,
             [
               tenantId,
               res.document_id,
@@ -2338,6 +2343,13 @@ export class MemoryHybridSearchService {
               res.rrf_score,
               JSON.stringify({ similarity: res.similarity, category: res.category }),
             ]
+          );
+
+          await auditClient.query(
+            `UPDATE memory_documents
+             SET access_count = access_count + 1, last_accessed_at = now()
+             WHERE id = $1;`,
+            [res.document_id]
           );
         }
       } catch (logErr) {

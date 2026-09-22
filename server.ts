@@ -35,6 +35,11 @@ import {
 } from './src/server/cognitiveCore';
 import { checkAiDataPermission, checkDepartmentCap } from './src/server/abacService';
 import { createProactiveRouter } from './src/server/proactiveServer';
+import {
+  getPerformanceOverview,
+  monthlyScore,
+  computeDailyMetrics,
+} from './src/server/performanceScoring';
 
 let pool: pg.Pool | null = null;
 try {
@@ -1444,8 +1449,179 @@ app.post(ADMIN_MFA_PATH, async (req, res) => {
   });
 });
 
-// ==========================================
-// 14. KANBAN BOARDS, TASKS & REALTIME SYNC
+// ========================================================
+// 13B. WORKFORCE PERFORMANCE & MONTHLY SCORING (PRD v2.2 Bagian 6.3 & 22.3)
+// ========================================================
+
+// GET /api/v1/tenants/:tenantId/performance/overview
+app.get('/api/v1/tenants/:tenantId/performance/overview', async (req, res) => {
+  const { tenantId } = req.params;
+  const period = (req.query.period as string) || undefined;
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const overview = await getPerformanceOverview(pool, tenantId, period);
+    return res.json(overview);
+  } catch (err: any) {
+    console.error('Error fetching performance overview:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memuat ringkasan performa tim.' });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/performance/monthly
+app.get('/api/v1/tenants/:tenantId/performance/monthly', async (req, res) => {
+  const { tenantId } = req.params;
+  const period = (req.query.period as string) || new Date().toISOString().substring(0, 7);
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const scores = await monthlyScore(pool, tenantId, period);
+    const totalWorkers = scores.length;
+    const avgScore = totalWorkers > 0
+      ? Math.round((scores.reduce((acc, s) => acc + s.final_score, 0) / totalWorkers) * 100) / 100
+      : 0;
+    const totAssigned = scores.reduce((acc, s) => acc + s.total_assigned, 0);
+    const totCompleted = scores.reduce((acc, s) => acc + s.total_completed, 0);
+    const compRate = totAssigned > 0
+      ? Math.round((totCompleted / totAssigned) * 1000) / 10
+      : 100.0;
+
+    return res.json({
+      tenant_id: tenantId,
+      period,
+      query_key: `performance:monthly:${tenantId}:${period}`,
+      summary_sync: {
+        average_score: avgScore,
+        completion_rate: compRate,
+        total_completed: totCompleted,
+        total_assigned: totAssigned,
+        total_workers: totalWorkers,
+      },
+      scores,
+    });
+  } catch (err: any) {
+    console.error('Error fetching monthly scores:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memuat skor kinerja bulanan.' });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/performance/daily
+app.get('/api/v1/tenants/:tenantId/performance/daily', async (req, res) => {
+  const { tenantId } = req.params;
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const client = await pool.connect();
+    try {
+      const qRes = await client.query(
+        `SELECT
+           d.id, d.metric_date::text as metric_date, d.worker_type, d.membership_id, d.agent_id,
+           d.tasks_assigned, d.tasks_completed, d.tasks_overdue, d.tasks_reworked,
+           d.quality_score, d.collaboration_score, d.discipline_score, d.attendance_or_uptime_score,
+           d.metrics_payload,
+           COALESCE(m.full_name, a.display_name, 'Pekerja') as worker_name,
+           COALESCE(dept_m.name, dept_a.name, 'Operasional') as department_name
+         FROM performance_metrics_daily d
+         LEFT JOIN tenant_memberships m ON d.membership_id = m.id
+         LEFT JOIN departments dept_m ON m.department_id = dept_m.id
+         LEFT JOIN ai_agents a ON d.agent_id = a.id
+         LEFT JOIN departments dept_a ON a.department_id = dept_a.id
+         WHERE d.tenant_id = $1
+         ORDER BY d.metric_date DESC, d.tasks_completed DESC
+         LIMIT 100`,
+        [tenantId]
+      );
+      return res.json({
+        tenant_id: tenantId,
+        total_records: qRes.rows.length,
+        metrics: qRes.rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('Error fetching daily metrics:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memuat metrik harian.' });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/performance/scoring/trigger
+app.post('/api/v1/tenants/:tenantId/performance/scoring/trigger', async (req, res) => {
+  const { tenantId } = req.params;
+  const period = req.body?.period || new Date().toISOString().substring(0, 7);
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const scores = await monthlyScore(pool, tenantId, period);
+    return res.json({
+      status: 'success',
+      message: `Kalkulasi performa bulanan periode ${period} berhasil dieksekusi.`,
+      period,
+      total_workers_scored: scores.length,
+      scores,
+    });
+  } catch (err: any) {
+    console.error('Error triggering scoring:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memicu kalkulasi skor bulanan.' });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/performance/alerts
+app.get('/api/v1/tenants/:tenantId/performance/alerts', async (req, res) => {
+  const { tenantId } = req.params;
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const client = await pool.connect();
+    try {
+      const qRes = await client.query(
+        `SELECT id, worker_type, alert_type, severity, title, message, current_score, threshold_score, status, created_at
+         FROM performance_alerts
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [tenantId]
+      );
+      return res.json({
+        tenant_id: tenantId,
+        alerts: qRes.rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('Error listing performance alerts:', err);
+    return res.status(500).json({ error: err.message || 'Gagal memuat peringatan kinerja.' });
+  }
+});
+
+// PATCH /api/v1/tenants/:tenantId/performance/alerts/:alertId/acknowledge
+app.patch('/api/v1/tenants/:tenantId/performance/alerts/:alertId/acknowledge', async (req, res) => {
+  const { tenantId, alertId } = req.params;
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+
+  try {
+    const client = await pool.connect();
+    try {
+      const qRes = await client.query(
+        `UPDATE performance_alerts
+         SET status = 'acknowledged', resolved_at = NOW()
+         WHERE id = $1 AND tenant_id = $2
+         RETURNING id, status`,
+        [alertId, tenantId]
+      );
+      if (qRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Peringatan kinerja tidak ditemukan.' });
+      }
+      return res.json({ status: 'success', alert_id: qRes.rows[0].id, current_status: qRes.rows[0].status });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.error('Error acknowledging alert:', err);
+    return res.status(500).json({ error: err.message || 'Gagal mengonfirmasi peringatan kinerja.' });
+  }
+});
 // ==========================================
 
 // ==========================================
@@ -2714,7 +2890,65 @@ app.use(createProactiveRouter(pool, modelRouterService));
 // =========================================================================
 const memoryHybridSearchService = getMemoryHybridSearchService(pool);
 
-// Global Search Endpoint
+// Global Search Endpoint (GET)
+app.get('/api/v1/tenants/:tenant_id/memory/search', async (req, res) => {
+  const { tenant_id } = req.params;
+  const query = (req.query.q || req.query.query || '') as string;
+  const category = (req.query.category || undefined) as string | undefined;
+  const limit = Number(req.query.top_k || req.query.limit) || 5;
+
+  const user = (req as any).user || {
+    id: null,
+    tenant_id,
+    roles: ['TENANT_ADMIN', 'EMPLOYEE'],
+    actor_type: 'human_user',
+  };
+
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'Parameter query (?q= atau ?query=) wajib diisi string non-kosong.' });
+  }
+
+  const subject = {
+    tenant_id,
+    user_id: user.id || undefined,
+    roles: user.roles || ['EMPLOYEE'],
+    capabilities: ['memory.search', 'data.read'],
+    actor_type: user.actor_type || 'human_user',
+    agent_id: user.agent_id || undefined,
+  };
+
+  try {
+    const results = await memoryHybridSearchService.hybridSearch(
+      tenant_id,
+      query.trim(),
+      subject,
+      Number(limit) || 5,
+      category || undefined
+    );
+
+    return res.json({
+      query: query.trim(),
+      total_found: results.length,
+      results: results.map(r => ({
+        document_id: r.document_id,
+        chunk_id: r.chunk_id,
+        title: r.title,
+        content: r.content,
+        summary: r.summary,
+        category: r.category,
+        confidence: r.confidence,
+        rrf_score: r.rrf_score,
+        similarity: r.similarity,
+        metadata: r.metadata,
+      })),
+    });
+  } catch (err: any) {
+    console.error('Error during GET memory search:', err);
+    return res.status(500).json({ error: err.message || 'Gagal menjalankan hybrid memory search' });
+  }
+});
+
+// Global Search Endpoint (POST)
 app.post('/api/v1/tenants/:tenant_id/memory/search', async (req, res) => {
   const { tenant_id } = req.params;
   const { query, category, limit = 5 } = req.body;

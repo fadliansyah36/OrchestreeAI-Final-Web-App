@@ -20,6 +20,7 @@ import { WorkforceHubScreen } from './WorkforceHubScreen';
 import { BillingHubScreen } from './BillingHubScreen';
 import { ProactiveChannelsScreen } from './ProactiveChannelsScreen';
 import { IntelligenceHubScreen } from './IntelligenceHubScreen';
+import { HomeOverviewScreen } from './HomeOverviewScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -33,6 +34,25 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   onOpenOnboarding,
 }) => {
   const [activeRoute, setActiveRoute] = useState<string>('/hub');
+
+  if (activeRoute.startsWith('/performance') || activeRoute.startsWith('/overview')) {
+    return (
+      <div className="min-h-screen bg-[#0B1220] text-white">
+        <div className="max-w-7xl mx-auto px-4 pt-6 pb-12">
+          <button
+            onClick={() => setActiveRoute('/hub')}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white mb-6 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Feature Hub
+          </button>
+          <HomeOverviewScreen
+            tenant={tenant}
+            onNavigateDetail={(route) => setActiveRoute(route)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (activeRoute.startsWith('/workforce')) {
     return (
@@ -82,6 +102,12 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   }
 
   const categoryCards: CategoryCard[] = [
+    {
+      key: 'performance',
+      label: 'Evaluasi & Skor Kinerja (PRD 6.3)',
+      icon: 'trending',
+      route: '/performance',
+    },
     {
       key: 'team',
       label: 'Staf AI & Tenaga Kerja',

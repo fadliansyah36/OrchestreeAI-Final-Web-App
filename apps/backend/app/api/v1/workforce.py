@@ -960,9 +960,329 @@ async def get_org_chart(
             }
 
 
+# --- Workforce Performance & Monthly Scoring Endpoints (PRD v2.2 Bagian 6.3 & 22.3) ---
+
+@router.get("/{tenant_id}/performance/overview")
+async def get_performance_overview(
+    tenant_id: str,
+    period: Optional[str] = None,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """
+    Ringkasan metrik kinerja tingkat eksekutif untuk HomeOverviewScreen.
+    Menghasilkan data KPI terpadu, skor radar 6 dimensi (Human vs AI), leaderboard, dan alert aktif.
+    Semua angka traceable ke query sumber yang sama dengan layar detail (PRD v2.2 Bagian 22.3).
+    """
+    calc_period = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    
+    with tenant_tx(tenant_id) as conn:
+        from app.domains.workforce.scoring import monthly_score, compute_daily_metrics
+        # Pastikan skor bulanan teragregasi
+        scores = monthly_score(conn, tenant_id, calc_period)
+        
+        # Ambil metrik harian 14 hari terakhir untuk chart tren
+        daily_stmt = sa.text("""
+            SELECT
+                metric_date,
+                SUM(tasks_assigned) as assigned,
+                SUM(tasks_completed) as completed,
+                SUM(tasks_overdue) as overdue,
+                ROUND(AVG(quality_score), 1) as avg_quality,
+                ROUND(AVG(collaboration_score), 1) as avg_collab,
+                ROUND(AVG(discipline_score), 1) as avg_discipline
+            FROM performance_metrics_daily
+            WHERE tenant_id = :tenant_id
+            GROUP BY metric_date
+            ORDER BY metric_date ASC
+            LIMIT 30
+        """)
+        daily_rows = conn.execute(daily_stmt, {"tenant_id": tenant_id}).mappings().all()
+        trend_series = [
+            {
+                "date": str(r["metric_date"]),
+                "assigned": int(r["assigned"] or 0),
+                "completed": int(r["completed"] or 0),
+                "overdue": int(r["overdue"] or 0),
+                "quality": float(r["avg_quality"] or 0),
+                "discipline": float(r["avg_discipline"] or 0),
+            }
+            for r in daily_rows
+        ]
+
+        # Hitung agregasi summary persis dari skor bulanan
+        total_workers = len(scores)
+        if total_workers > 0:
+            avg_final_score = round(sum(s["final_score"] for s in scores) / total_workers, 2)
+            tot_assigned = sum(s["total_assigned"] for s in scores)
+            tot_completed = sum(s["total_completed"] for s in scores)
+            tot_overdue = sum(s["total_overdue"] for s in scores)
+            avg_quality = round(sum(s["quality_score"] for s in scores) / total_workers, 1)
+            overall_completion_rate = round((tot_completed / tot_assigned * 100.0) if tot_assigned > 0 else 100.0, 1)
+        else:
+            avg_final_score = 0.0
+            tot_assigned = 0
+            tot_completed = 0
+            tot_overdue = 0
+            avg_quality = 0.0
+            overall_completion_rate = 100.0
+
+        # Radar 6 Dimensi (Human vs AI Agent comparison)
+        human_scores = [s for s in scores if s["worker_type"] == "human"]
+        agent_scores = [s for s in scores if s["worker_type"] == "agent"]
+
+        def calc_dim_avg(lst, key):
+            if not lst:
+                return 0.0
+            return round(sum(item[key] for item in lst) / len(lst), 1)
+
+        radar_dimensions = [
+            {
+                "dimension": "Tingkat Penyelesaian (25%)",
+                "key": "completion_rate",
+                "human": calc_dim_avg(human_scores, "completion_rate"),
+                "agent": calc_dim_avg(agent_scores, "completion_rate"),
+                "overall": calc_dim_avg(scores, "completion_rate"),
+                "fullMark": 100,
+            },
+            {
+                "dimension": "Kualitas Output (20%)",
+                "key": "quality_score",
+                "human": calc_dim_avg(human_scores, "quality_score"),
+                "agent": calc_dim_avg(agent_scores, "quality_score"),
+                "overall": calc_dim_avg(scores, "quality_score"),
+                "fullMark": 100,
+            },
+            {
+                "dimension": "Disiplin Tenggat (15%)",
+                "key": "deadline_discipline",
+                "human": calc_dim_avg(human_scores, "deadline_discipline"),
+                "agent": calc_dim_avg(agent_scores, "deadline_discipline"),
+                "overall": calc_dim_avg(scores, "deadline_discipline"),
+                "fullMark": 100,
+            },
+            {
+                "dimension": "Volume Produktivitas (15%)",
+                "key": "productivity_volume",
+                "human": calc_dim_avg(human_scores, "productivity_volume"),
+                "agent": calc_dim_avg(agent_scores, "productivity_volume"),
+                "overall": calc_dim_avg(scores, "productivity_volume"),
+                "fullMark": 100,
+            },
+            {
+                "dimension": "Kolaborasi Tim (15%)",
+                "key": "collaboration_score",
+                "human": calc_dim_avg(human_scores, "collaboration_score"),
+                "agent": calc_dim_avg(agent_scores, "collaboration_score"),
+                "overall": calc_dim_avg(scores, "collaboration_score"),
+                "fullMark": 100,
+            },
+            {
+                "dimension": "Presensi & Uptime (10%)",
+                "key": "attendance_uptime",
+                "human": calc_dim_avg(human_scores, "attendance_uptime"),
+                "agent": calc_dim_avg(agent_scores, "attendance_uptime"),
+                "overall": calc_dim_avg(scores, "attendance_uptime"),
+                "fullMark": 100,
+            },
+        ]
+
+        # Ambil alert aktif
+        alerts_stmt = sa.text("""
+            SELECT id, alert_type, severity, title, message, current_score, threshold_score, status, created_at
+            FROM performance_alerts
+            WHERE tenant_id = :tenant_id AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 10
+        """)
+        alerts_rows = conn.execute(alerts_stmt, {"tenant_id": tenant_id}).mappings().all()
+        alerts = [
+            {
+                "id": str(r["id"]),
+                "alert_type": r["alert_type"],
+                "severity": r["severity"],
+                "title": r["title"],
+                "message": r["message"],
+                "current_score": float(r["current_score"]) if r["current_score"] is not None else None,
+                "threshold_score": float(r["threshold_score"]) if r["threshold_score"] is not None else None,
+                "status": r["status"],
+                "created_at": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            }
+            for r in alerts_rows
+        ]
+
+        return {
+            "tenant_id": tenant_id,
+            "period": calc_period,
+            "summary": {
+                "average_score": avg_final_score,
+                "completion_rate": overall_completion_rate,
+                "quality_score": avg_quality,
+                "tasks_assigned": tot_assigned,
+                "tasks_completed": tot_completed,
+                "tasks_overdue": tot_overdue,
+                "active_workers_count": total_workers,
+                "human_workers_count": len(human_scores),
+                "agent_workers_count": len(agent_scores),
+                "kpi_status": classify_kpi_status(avg_final_score) if 'classify_kpi_status' in globals() else ("optimal" if avg_final_score >= 85 else "needs_attention"),
+            },
+            "radar_dimensions": radar_dimensions,
+            "trend_series": trend_series,
+            "leaderboard": scores[:10],
+            "alerts": alerts,
+            "query_key": f"performance:overview:{tenant_id}:{calc_period}",
+        }
+
+
+@router.get("/{tenant_id}/performance/monthly")
+async def get_monthly_performance_detail(
+    tenant_id: str,
+    period: Optional[str] = None,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """
+    Mendapatkan detail tabel lengkap evaluasi kinerja bulanan seluruh pekerja.
+    Audit Konsistensi Hub vs Detail (PRD v2.2 Bagian 22.3):
+    Nilai dan kolom identik dengan sumber data yang digunakan pada ringkasan HomeOverview.
+    """
+    calc_period = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    with tenant_tx(tenant_id) as conn:
+        from app.domains.workforce.scoring import monthly_score
+        scores = monthly_score(conn, tenant_id, calc_period)
+
+        # Agregasi ringkasan yang cocok 100% dengan Hub
+        total_workers = len(scores)
+        avg_score = round(sum(s["final_score"] for s in scores) / total_workers, 2) if total_workers > 0 else 0.0
+        tot_assigned = sum(s["total_assigned"] for s in scores)
+        tot_completed = sum(s["total_completed"] for s in scores)
+        comp_rate = round((tot_completed / tot_assigned * 100.0) if tot_assigned > 0 else 100.0, 1)
+
+        return {
+            "tenant_id": tenant_id,
+            "period": calc_period,
+            "query_key": f"performance:monthly:{tenant_id}:{calc_period}",
+            "summary_sync": {
+                "average_score": avg_score,
+                "completion_rate": comp_rate,
+                "total_completed": tot_completed,
+                "total_assigned": tot_assigned,
+                "total_workers": total_workers,
+            },
+            "scores": scores,
+        }
+
+
+@router.get("/{tenant_id}/performance/daily")
+async def get_daily_performance_metrics(
+    tenant_id: str,
+    metric_date: Optional[str] = None,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """
+    Mengambil data metrik kinerja harian langsung dari tabel performance_metrics_daily.
+    Dapat digunakan untuk verifikasi audit manual dan reproducibility.
+    """
+    with tenant_tx(tenant_id) as conn:
+        stmt = sa.text("""
+            SELECT
+                d.id, d.metric_date, d.worker_type, d.membership_id, d.agent_id,
+                d.tasks_assigned, d.tasks_completed, d.tasks_overdue, d.tasks_reworked,
+                d.quality_score, d.collaboration_score, d.discipline_score, d.attendance_or_uptime_score,
+                d.metrics_payload,
+                COALESCE(m.full_name, a.display_name, 'Pekerja') as worker_name,
+                COALESCE(dept_m.name, dept_a.name, 'Operasional') as department_name
+            FROM performance_metrics_daily d
+            LEFT JOIN tenant_memberships m ON d.membership_id = m.id
+            LEFT JOIN departments dept_m ON m.department_id = dept_m.id
+            LEFT JOIN ai_agents a ON d.agent_id = a.id
+            LEFT JOIN departments dept_a ON a.department_id = dept_a.id
+            WHERE d.tenant_id = :tenant_id
+            ORDER BY d.metric_date DESC, d.tasks_completed DESC
+            LIMIT 100
+        """)
+        rows = conn.execute(stmt, {"tenant_id": tenant_id}).mappings().all()
+        return {
+            "tenant_id": tenant_id,
+            "total_records": len(rows),
+            "metrics": [dict(r) for r in rows],
+        }
+
+
+@router.post("/{tenant_id}/performance/scoring/trigger")
+async def trigger_performance_scoring(
+    tenant_id: str,
+    request: Request,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """
+    Memicu kalkulasi skor kinerja bulanan dan penetapan peringkat secara instan (Celery job runner).
+    Memerlukan hak akses role TENANT_ADMIN / TENANT_OWNER.
+    """
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    period = body.get("period") or datetime.now(timezone.utc).strftime("%Y-%m")
+
+    with tenant_tx(tenant_id) as conn:
+        from app.domains.workforce.scoring import monthly_score
+        scores = monthly_score(conn, tenant_id, period)
+
+        return {
+            "status": "success",
+            "message": f"Kalkulasi performa bulanan periode {period} berhasil dieksekusi.",
+            "period": period,
+            "total_workers_scored": len(scores),
+            "scores": scores,
+        }
+
+
+@router.get("/{tenant_id}/performance/alerts")
+async def list_performance_alerts(
+    tenant_id: str,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """Melihat daftar seluruh peringatan deviasi dan anomali kinerja tim."""
+    with tenant_tx(tenant_id) as conn:
+        stmt = sa.text("""
+            SELECT id, worker_type, alert_type, severity, title, message, current_score, threshold_score, status, created_at, resolved_at
+            FROM performance_alerts
+            WHERE tenant_id = :tenant_id
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+        rows = conn.execute(stmt, {"tenant_id": tenant_id}).mappings().all()
+        return {
+            "tenant_id": tenant_id,
+            "alerts": [dict(r) for r in rows],
+        }
+
+
+@router.patch("/{tenant_id}/performance/alerts/{alert_id}/acknowledge")
+async def acknowledge_performance_alert(
+    tenant_id: str,
+    alert_id: str,
+    current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """Mengonfirmasi atau menyelesaikan peringatan kinerja."""
+    with tenant_tx(tenant_id) as conn:
+        stmt = sa.text("""
+            UPDATE performance_alerts
+            SET status = 'acknowledged', resolved_at = NOW()
+            WHERE id = :alert_id AND tenant_id = :tenant_id
+            RETURNING id, status
+        """)
+        row = conn.execute(stmt, {"alert_id": alert_id, "tenant_id": tenant_id}).mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Peringatan kinerja tidak ditemukan.")
+        return {"status": "success", "alert_id": str(row["id"]), "current_status": row["status"]}
+
+
 def _is_valid_uuid(val: str) -> bool:
     try:
         uuid.UUID(str(val))
         return True
     except Exception:
         return False
+

@@ -205,6 +205,16 @@ export default function App() {
                 >
                   Kanal & Proaktif
                 </button>
+                <button
+                  onClick={() => setClientSubView('intelligence')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'intelligence'
+                      ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Company Brain
+                </button>
               </div>
             )}
             <button
@@ -292,6 +302,13 @@ export default function App() {
 
             {clientSubView === 'proactive' && (
               <ProactiveChannelsScreen
+                tenant={activeTenant}
+                onBack={() => setClientSubView('dashboard')}
+              />
+            )}
+
+            {clientSubView === 'intelligence' && (
+              <IntelligenceHubScreen
                 tenant={activeTenant}
                 onBack={() => setClientSubView('dashboard')}
               />

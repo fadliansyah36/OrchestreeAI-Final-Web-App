@@ -11,6 +11,13 @@ import { Activity, Sparkles, Building2 } from 'lucide-react';
 export default function ClientHomePage() {
   const categoryCards: CategoryCard[] = [
     {
+      key: 'overview',
+      label: 'Pusat Evaluasi Kinerja (Overview)',
+      icon: 'trending',
+      route: '/overview',
+      badgeCount: 0,
+    },
+    {
       key: 'workforce',
       label: 'Manajemen Tenaga Kerja',
       icon: 'users',

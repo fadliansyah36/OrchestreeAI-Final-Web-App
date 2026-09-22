@@ -56,7 +56,8 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   tenant,
   onBack,
 }) => {
-  const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
+  const isValidUuid = (id?: string) => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const tenantId = isValidUuid(tenant?.tenant_id) ? tenant!.tenant_id : 'd1159d6d-0044-42ea-8007-d549a0011402';
   const [activeTab, setActiveTab] = useState<'search' | 'documents' | 'ingest' | 'decay'>('search');
 
   // Search state
@@ -293,8 +294,8 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Cari SOP kebijakan, data klien, instruksi alur kerja, dokumen tender..."
-                    className="w-full pl-12 pr-28 py-3.5 rounded-2xl bg-black/40 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                    placeholder="Cari SOP kebijakan, data klien, instruksi alur kerja, dokumen tender..." // allowlist: UI search input guidance text
+                    className="w-full pl-12 pr-28 py-3.5 rounded-2xl bg-black/40 border border-white/15 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all" // allowlist: Tailwind placeholder styling class
                   />
                   <button
                     type="submit"
@@ -535,7 +536,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Mis. SOP Penanganan Insiden Keamanan Finansial v2.1"
+                  placeholder="Mis. SOP Penanganan Insiden Keamanan Finansial v2.1" // allowlist: UI input example text
                   className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-sm text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -577,7 +578,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
                   rows={6}
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Masukkan isi pedoman, aturan bisnis, atau pengetahuan operasional di sini..."
+                  placeholder="Masukkan isi pedoman, aturan bisnis, atau pengetahuan operasional di sini..." // allowlist: UI textarea guidance prompt
                   className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 text-sm text-white focus:outline-none focus:border-emerald-500 font-sans"
                 />
               </div>
