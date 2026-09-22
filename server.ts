@@ -17,6 +17,14 @@ const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:2Rup9JXRK
 const supabaseUrl = process.env.SUPABASE_URL || 'https://szvbcvmvrucqxfikgjlx.supabase.co';
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
 
+import {
+  ModelRouterService,
+  MCPToolRegistryService,
+  OrchestrationEngineService,
+  authorizePDP,
+  getContinuousLearningService,
+} from './src/server/cognitiveCore';
+
 let pool: pg.Pool | null = null;
 try {
   pool = new Pool({
@@ -29,6 +37,11 @@ try {
 } catch (e) {
   console.warn('PostgreSQL pool initialization deferred:', e);
 }
+
+const modelRouterService = new ModelRouterService(pool);
+const mcpRegistryService = new MCPToolRegistryService(pool);
+const orchestrationEngineService = new OrchestrationEngineService(pool, modelRouterService, mcpRegistryService);
+const continuousLearningService = getContinuousLearningService(pool);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -2023,6 +2036,260 @@ app.get('/api/v1/attendance/credentials', (req, res) => {
     creds = creds.filter(c => c.tenant_membership_id === tenant_membership_id);
   }
   return res.json(creds);
+});
+
+// ==========================================
+// 8. COGNITIVE CORE & ORCHESTRATION ENDPOINTS
+// ==========================================
+
+// GET /api/v1/admin/llm-providers
+app.get('/api/v1/admin/llm-providers', async (req, res) => {
+  try {
+    const providers = await modelRouterService.checkProvidersHealth();
+    return res.status(200).json({
+      status: 'success',
+      total_active: providers.filter(p => p.health_status === 'healthy').length,
+      providers,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ status: 'error', error: err.message || String(err) });
+  }
+});
+
+// GET /api/v1/admin/mcp-tools
+app.get('/api/v1/admin/mcp-tools', (req, res) => {
+  try {
+    const tools = mcpRegistryService.listTools();
+    return res.status(200).json({
+      status: 'success',
+      total: tools.length,
+      tools,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ status: 'error', error: err.message || String(err) });
+  }
+});
+
+// POST /api/v1/orchestration/workflows/dispatch
+app.post('/api/v1/orchestration/workflows/dispatch', async (req, res) => {
+  try {
+    const {
+      tenant_id,
+      intent_text,
+      workflow_definition_id,
+      actor_id,
+      roles,
+      capabilities,
+      is_mfa_verified,
+      context_data,
+    } = req.body;
+
+    if (!tenant_id || !intent_text) {
+      return res.status(400).json({
+        success: false,
+        error: 'tenant_id dan intent_text wajib disertakan.',
+      });
+    }
+
+    const headerRoles = req.headers['x-user-roles'] as string;
+    const headerCaps = req.headers['x-user-capabilities'] as string;
+    const headerMfa = req.headers['x-mfa-verified'] as string;
+
+    const parsedRoles = roles || (headerRoles ? headerRoles.split(',').map(r => r.trim()) : ['STAFF_AI']);
+    const parsedCaps = capabilities || (headerCaps ? headerCaps.split(',').map(c => c.trim()) : ['workflow.dispatch', 'workflow.node.execute', 'mcp.tool.invoke']);
+    const parsedMfa = is_mfa_verified ?? (headerMfa === 'true' || headerMfa === '1');
+
+    const result = await orchestrationEngineService.dispatch({
+      tenant_id,
+      intent_text,
+      workflow_definition_id,
+      actor_id: actor_id || (req.headers['x-user-id'] as string),
+      roles: parsedRoles,
+      capabilities: parsedCaps,
+      is_mfa_verified: parsedMfa,
+      context_data: context_data || {},
+    });
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    const isForbidden = err.message && err.message.includes('PDP Access Denied');
+    return res.status(isForbidden ? 403 : 500).json({
+      success: false,
+      error: err.message || String(err),
+    });
+  }
+});
+
+// GET /api/v1/orchestration/executions
+app.get('/api/v1/orchestration/executions', async (req, res) => {
+  const { tenant_id } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenant_id]);
+        const qRes = await client.query(
+          `SELECT id, tenant_id, workflow_definition_id, intent_text, status, current_node_id, context_data, output_payload, error_message, created_at, updated_at
+           FROM workflow_executions
+           WHERE tenant_id = $1
+           ORDER BY created_at DESC LIMIT 50;`,
+          [tenant_id]
+        );
+        return res.json(qRes.rows);
+      } finally {
+        client.release();
+      }
+    } catch (e: any) {
+      console.warn('DB query error for executions:', e);
+    }
+  }
+  return res.json([]);
+});
+
+// GET /api/v1/orchestration/executions/:id
+app.get('/api/v1/orchestration/executions/:id', async (req, res) => {
+  const { id } = req.params;
+  const { tenant_id } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenant_id]);
+        const execRes = await client.query(
+          `SELECT * FROM workflow_executions WHERE id = $1 AND tenant_id = $2;`,
+          [id, tenant_id]
+        );
+        if (execRes.rows.length === 0) {
+          return res.status(404).json({ error: 'Execution not found' });
+        }
+        const runsRes = await client.query(
+          `SELECT * FROM workflow_node_runs WHERE workflow_execution_id = $1 AND tenant_id = $2 ORDER BY started_at ASC;`,
+          [id, tenant_id]
+        );
+        return res.json({
+          execution: execRes.rows[0],
+          node_runs: runsRes.rows,
+        });
+      } finally {
+        client.release();
+      }
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || String(e) });
+    }
+  }
+  return res.status(404).json({ error: 'Database unavailable' });
+});
+
+// ============================================================================
+// CONTINUOUS LEARNING ENDPOINTS (PRD v2.2 Bagian 8.11 & Fase 5)
+// ============================================================================
+
+// GET /api/v1/learning/outcomes
+app.get('/api/v1/learning/outcomes', async (req, res) => {
+  const { tenant_id, limit = '50' } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+  try {
+    const outcomes = await continuousLearningService.getDecisionOutcomes(
+      tenant_id as string,
+      parseInt(limit as string, 10)
+    );
+    return res.json(outcomes);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// GET /api/v1/learning/confidence
+app.get('/api/v1/learning/confidence', async (req, res) => {
+  const { tenant_id } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+  try {
+    const confidences = await continuousLearningService.getSkillConfidences(tenant_id as string);
+    return res.json(confidences);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// GET /api/v1/learning/lessons
+app.get('/api/v1/learning/lessons', async (req, res) => {
+  const { tenant_id } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+  try {
+    const lessons = await continuousLearningService.getLessonsLearned(tenant_id as string);
+    return res.json(lessons);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// GET /api/v1/learning/growth
+app.get('/api/v1/learning/growth', async (req, res) => {
+  const { tenant_id, limit = '50' } = req.query;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id query param is required' });
+  }
+  try {
+    const growth = await continuousLearningService.getGrowthLogs(
+      tenant_id as string,
+      parseInt(limit as string, 10)
+    );
+    return res.json(growth);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// POST /api/v1/learning/feedback
+app.post('/api/v1/learning/feedback', async (req, res) => {
+  const { tenant_id, outcome_id, human_feedback_score, feedback_notes, actor_id } = req.body;
+  if (!tenant_id || !outcome_id) {
+    return res.status(400).json({ error: 'tenant_id and outcome_id are required' });
+  }
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenant_id]);
+        await client.query(
+          `UPDATE agent_decision_outcomes
+           SET human_feedback_score = $1,
+               evaluation_metrics = jsonb_set(
+                 coalesce(evaluation_metrics, '{}'::jsonb),
+                 '{human_feedback}',
+                 $2::jsonb
+               )
+           WHERE id = $3 AND tenant_id = $4;`,
+          [
+            human_feedback_score,
+            JSON.stringify({ notes: feedback_notes, reviewer: actor_id, at: new Date().toISOString() }),
+            outcome_id,
+            tenant_id,
+          ]
+        );
+        return res.json({ success: true, message: 'Feedback evaluasi tersimpan di Supabase' });
+      } finally {
+        client.release();
+      }
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || String(e) });
+    }
+  }
+  return res.status(500).json({ error: 'Database unavailable' });
 });
 
 // 9. Vite Middleware Setup
