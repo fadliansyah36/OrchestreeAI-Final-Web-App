@@ -14,6 +14,7 @@
     "ci:import-linter": "PYTHONPATH=apps/backend lint-imports --config apps/backend/.importlinter",
     "ci:backend-test": "PYTHONPATH=apps/backend pytest apps/backend/tests",
     "supabase:link": "python3 infra/supabase/link.py",
+    "supabase:db-push": "supabase db push",
     "db:migrate": "cd apps/backend && alembic upgrade head",
     "lint": "tsc --noEmit && node scripts/ci-content-gate.js"
   },

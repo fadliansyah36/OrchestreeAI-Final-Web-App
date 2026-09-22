@@ -8,10 +8,10 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
-        '@orchestree/ui': path.resolve(__dirname, 'packages/ui/src/index.ts'),
-        '@orchestree/design-tokens': path.resolve(__dirname, 'packages/design-tokens/src/index.ts'),
-        '@orchestree/api-types': path.resolve(__dirname, 'packages/api-types/src/index.ts'),
+        '@': path.resolve(import.meta.dirname, '.'),
+        '@orchestree/ui': path.resolve(import.meta.dirname, 'packages/ui/src/index.ts'),
+        '@orchestree/design-tokens': path.resolve(import.meta.dirname, 'packages/design-tokens/src/index.ts'),
+        '@orchestree/api-types': path.resolve(import.meta.dirname, 'packages/api-types/src/index.ts'),
       },
     },
     server: {

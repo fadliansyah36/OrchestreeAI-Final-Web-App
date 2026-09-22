@@ -109,6 +109,14 @@ class OrchestrationEngine:
             ],
         )
 
+    async def run(self, req: WorkflowDispatchRequest) -> WorkflowDispatchResult:
+        """
+        Menjalankan alur kerja kognitif otonom (OrchestrationEngine.run).
+        Memanggil dispatch() dengan hook pembelajaran kontinu (ContinuousLearningEngine)
+        yang terpasang secara permanen pada setiap penyelesaian node workflow.
+        """
+        return await self.dispatch(req)
+
     async def dispatch(self, req: WorkflowDispatchRequest) -> WorkflowDispatchResult:
         """
         Pemicu eksekusi alur kerja kognitif otonom dari intent pengguna.

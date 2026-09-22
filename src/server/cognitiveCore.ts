@@ -694,6 +694,23 @@ export class OrchestrationEngineService {
     this.learningService = ContinuousLearningService.getInstance();
   }
 
+  /**
+   * OrchestrationEngine.run() - Bagian Tetap Eksekusi Alur Kerja Kognitif (PRD v2.2 Bagian 8.11)
+   * Mengeksekusi workflow dengan hook ContinuousLearningService yang terpasang permanen pada tiap node.
+   */
+  async run(params: {
+    tenant_id: string;
+    intent_text: string;
+    workflow_definition_id?: string;
+    actor_id?: string;
+    roles?: string[];
+    capabilities?: string[];
+    is_mfa_verified?: boolean;
+    context_data?: Record<string, any>;
+  }) {
+    return this.dispatch(params);
+  }
+
   async dispatch(params: {
     tenant_id: string;
     intent_text: string;
@@ -1088,11 +1105,11 @@ export class ContinuousLearningService {
     }
 
     if (nodeType === 'TOOL_CALL') {
-      const toolName = nodeOutput?.tool || 'task.create_from_intent';
+      const toolName = nodeOutput?.tool || (nodeOutput?.task_id ? 'task.create_from_intent' : 'task.create_from_intent');
       const status = nodeOutput?.status || 'success';
-      const result = nodeOutput?.result;
+      const isSuccess = ['success', 'created', 'ok', 'completed'].includes(String(status).toLowerCase()) &&
+        (nodeOutput?.result !== undefined || nodeOutput?.task_id !== undefined || nodeOutput?.formatted_target !== undefined || nodeOutput?.results !== undefined || nodeOutput?.output !== undefined);
       const skillName = `tool.${toolName}`;
-      const isSuccess = status === 'success' && result !== undefined && result !== null;
       return {
         is_success: isSuccess,
         confidence_score: isSuccess ? 0.98 : 0.3,
@@ -1184,6 +1201,41 @@ export class ContinuousLearningService {
 
       const outcomeId = crypto.randomUUID();
       const now = new Date();
+      const skillName = evalRes.skill_name;
+      const validNodeRunId = params.node_run_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.node_run_id)
+        ? params.node_run_id
+        : crypto.randomUUID();
+
+      // Ensure valid workflow_execution_id exists to satisfy foreign key
+      let execId = params.workflow_execution_id;
+      if (!execId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(execId)) {
+        execId = crypto.randomUUID();
+        await client.query(
+          `INSERT INTO workflow_executions (id, tenant_id, intent_text, status)
+           VALUES ($1, $2, 'Continuous Learning Execution', 'completed')
+           ON CONFLICT (id) DO NOTHING;`,
+          [execId, params.tenant_id]
+        );
+      } else {
+        const checkExec = await client.query(`SELECT id FROM workflow_executions WHERE id = $1 LIMIT 1;`, [execId]);
+        if (checkExec.rows.length === 0) {
+          await client.query(
+            `INSERT INTO workflow_executions (id, tenant_id, intent_text, status)
+             VALUES ($1, $2, 'Continuous Learning Execution', 'completed')
+             ON CONFLICT (id) DO NOTHING;`,
+            [execId, params.tenant_id]
+          );
+        }
+      }
+
+      // Check if workflow_node_run exists to satisfy foreign key
+      let resolvedNodeRunId: string | null = null;
+      if (validNodeRunId) {
+        const checkNodeRun = await client.query(`SELECT id FROM workflow_node_runs WHERE id = $1 LIMIT 1;`, [validNodeRunId]);
+        if (checkNodeRun.rows.length > 0) {
+          resolvedNodeRunId = validNodeRunId;
+        }
+      }
 
       // 1. Simpan ke agent_decision_outcomes
       await client.query(
@@ -1200,13 +1252,13 @@ export class ContinuousLearningService {
           outcomeId,
           params.tenant_id,
           params.agent_id || null,
-          params.workflow_execution_id,
-          params.node_run_id,
-          params.node_run_id,
+          execId,
+          resolvedNodeRunId,
+          resolvedNodeRunId,
           params.node_key,
           evalRes.decision_type,
           JSON.stringify(params.input_state || {}),
-          JSON.stringify(params.node_output || {}),
+          JSON.stringify({ skill_name: skillName, node_key: params.node_key, node_type: params.node_type, output: params.node_output || {} }),
           JSON.stringify(params.input_state || {}),
           JSON.stringify(params.node_output || {}),
           evalRes.is_success ? 'success' : 'failed',
@@ -1221,7 +1273,6 @@ export class ContinuousLearningService {
       );
 
       // 2. Baca / Update agent_skill_confidence
-      const skillName = evalRes.skill_name;
       const confRes = await client.query(
         `SELECT confidence_score, total_invocations, successful_invocations, last_updated_at, decay_rate_per_day
          FROM agent_skill_confidence
@@ -1339,10 +1390,14 @@ export class ContinuousLearningService {
       // 3. Sintesis Lesson Learned
       const countRes = await client.query(
         `SELECT count(*) as total,
-                count(*) FILTER (WHERE objective_success = true OR objective_outcome = 'SUCCESS') as succ
+                count(*) FILTER (WHERE objective_success = true OR objective_outcome IN ('success', 'SUCCESS')) as succ
          FROM agent_decision_outcomes
-         WHERE tenant_id = $1 AND (decision_type LIKE $2 OR action_taken::text LIKE $3);`,
-        [params.tenant_id, `%${skillName}%`, `%${skillName}%`]
+         WHERE tenant_id = $1 AND (
+           action_taken::text LIKE $2
+           OR node_key = $3
+           OR decision_type = $4
+         );`,
+        [params.tenant_id, `%"skill_name":"${skillName}"%`, params.node_key, evalRes.decision_type]
       );
 
       const totalSamples = parseInt(countRes.rows[0]?.total || '1', 10);

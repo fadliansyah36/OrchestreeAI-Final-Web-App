@@ -207,6 +207,10 @@ export default function App() {
                 onStartOnboarding={handleStartOnboarding}
                 onOpenLogin={() => setClientSubView('onboarding')}
                 onViewStartupGate={() => setActiveWorkspace('startup_gate')}
+                onLoginSuccess={(tenant) => {
+                  setActiveTenant(tenant);
+                  setClientSubView('dashboard');
+                }}
               />
             )}
 

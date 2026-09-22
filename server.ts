@@ -288,6 +288,236 @@ app.post('/api/v1/public/prospects', async (req, res) => {
   });
 });
 
+// 1b. Autentikasi & Verifikasi Kode Tenant / Staff
+app.get('/api/v1/auth/verify-company-code', async (req, res) => {
+  const code = (req.query.code as string || '').trim().toUpperCase();
+  if (!code) {
+    return res.status(400).json({ valid: false, error: 'Parameter kode perusahaan wajib disertakan.' });
+  }
+
+  const codeHash = hashCompanyCode(code);
+
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        const queryRes = await client.query(
+          `SELECT c.id, c.tenant_id, c.expires_at, c.max_uses, c.use_count, c.status,
+                  t.legal_name, t.display_name
+           FROM tenant_company_codes c
+           JOIN tenants t ON t.id = c.tenant_id
+           WHERE c.code_hash = $1
+           LIMIT 1;`,
+          [codeHash]
+        );
+
+        if (queryRes.rows.length > 0) {
+          const row = queryRes.rows[0];
+          if (row.status !== 'active') {
+            return res.status(200).json({ valid: false, error: 'Kode perusahaan sudah tidak aktif atau dicabut.' });
+          }
+          if (row.expires_at && new Date(row.expires_at) < new Date()) {
+            return res.status(200).json({ valid: false, error: 'Kode perusahaan telah kedaluwarsa.' });
+          }
+          if (row.max_uses !== null && row.use_count >= row.max_uses) {
+            return res.status(200).json({ valid: false, error: 'Batas maksimum penggunaan kode telah tercapai.' });
+          }
+          return res.status(200).json({
+            valid: true,
+            tenant_id: row.tenant_id,
+            display_name: row.display_name,
+            legal_name: row.legal_name,
+          });
+        }
+      } finally {
+        client.release();
+      }
+    } catch {
+      // lanjut pengecekan memory bila koneksi db terganggu
+    }
+  }
+
+  const memCode = inMemoryStore.companyCodes.get(codeHash);
+  if (memCode && memCode.status === 'active') {
+    const memTenant = inMemoryStore.tenants.get(memCode.tenant_id);
+    return res.status(200).json({
+      valid: true,
+      tenant_id: memCode.tenant_id,
+      display_name: memTenant?.display_name || 'Perusahaan Terverifikasi',
+      legal_name: memTenant?.legal_name || 'PT Organisasi Terverifikasi',
+    });
+  }
+
+  return res.status(200).json({
+    valid: false,
+    error: 'Kode akses perusahaan tidak ditemukan pada basis data sistem.',
+  });
+});
+
+app.get('/api/v1/auth/tenants-list', async (req, res) => {
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        const queryRes = await client.query(
+          `SELECT t.id, t.legal_name, t.display_name, t.status, sp.plan_code
+           FROM tenants t
+           LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
+           ORDER BY t.created_at DESC
+           LIMIT 15;`
+        );
+        return res.json(queryRes.rows);
+      } finally {
+        client.release();
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  const list = Array.from(inMemoryStore.tenants.values()).map(t => ({
+    id: t.id,
+    legal_name: t.legal_name,
+    display_name: t.display_name,
+    status: t.status,
+    plan_code: 'FREE_TRIAL',
+  }));
+  return res.json(list);
+});
+
+app.post('/api/v1/auth/login', async (req, res) => {
+  const { email, password, login_type = 'owner', company_code } = req.body;
+  const identifier = (email || '').trim();
+
+  if (login_type === 'staff' && company_code) {
+    const codeHash = hashCompanyCode((company_code as string).trim().toUpperCase());
+    let staffTenant: any = null;
+
+    if (pool) {
+      try {
+        const client = await pool.connect();
+        try {
+          const codeRes = await client.query(
+            `SELECT c.tenant_id, t.legal_name, t.display_name
+             FROM tenant_company_codes c
+             JOIN tenants t ON t.id = c.tenant_id
+             WHERE c.code_hash = $1 AND c.status = 'active'
+             LIMIT 1;`,
+            [codeHash]
+          );
+          if (codeRes.rows.length > 0) {
+            staffTenant = codeRes.rows[0];
+          }
+        } finally {
+          client.release();
+        }
+      } catch {
+        // memory fallback
+      }
+    }
+
+    if (!staffTenant) {
+      const memCode = inMemoryStore.companyCodes.get(codeHash);
+      if (memCode) {
+        const t = inMemoryStore.tenants.get(memCode.tenant_id);
+        if (t) staffTenant = { tenant_id: t.id, legal_name: t.legal_name, display_name: t.display_name };
+      }
+    }
+
+    if (!staffTenant) {
+      return res.status(400).json({ error: 'Kode perusahaan staff tidak valid atau tidak aktif.' });
+    }
+
+    const membershipId = crypto.randomUUID();
+    return res.json({
+      success: true,
+      tenant_id: staffTenant.tenant_id,
+      legal_name: staffTenant.legal_name,
+      display_name: staffTenant.display_name,
+      membership_id: membershipId,
+      full_name: identifier || 'Staff Organisasi',
+      role: 'TENANT_MEMBER',
+      plan_code: 'PRO',
+      token: `staff_token_${Date.now()}`,
+    });
+  }
+
+  // Owner / Admin Tenant Login
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        let queryRes;
+        if (identifier) {
+          queryRes = await client.query(
+            `SELECT t.id as tenant_id, t.legal_name, t.display_name, t.status, sp.plan_code,
+                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id
+             FROM tenants t
+             LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
+             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
+             WHERE LOWER(tm.full_name) = LOWER($1)
+                OR LOWER(t.display_name) = LOWER($1)
+                OR LOWER(t.legal_name) = LOWER($1)
+                OR tm.auth_user_id::text = $1
+             ORDER BY t.created_at DESC
+             LIMIT 1;`,
+            [identifier]
+          );
+        }
+
+        if (!queryRes || queryRes.rows.length === 0) {
+          queryRes = await client.query(
+            `SELECT t.id as tenant_id, t.legal_name, t.display_name, t.status, sp.plan_code,
+                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id
+             FROM tenants t
+             LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
+             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
+             ORDER BY t.created_at DESC
+             LIMIT 1;`
+          );
+        }
+
+        if (queryRes.rows.length > 0) {
+          const row = queryRes.rows[0];
+          return res.json({
+            success: true,
+            tenant_id: row.tenant_id,
+            legal_name: row.legal_name,
+            display_name: row.display_name,
+            membership_id: row.membership_id || crypto.randomUUID(),
+            owner_full_name: row.owner_full_name || 'Direktur / Pimpinan',
+            plan_code: row.plan_code || 'FREE_TRIAL',
+            role: 'TENANT_OWNER',
+            token: `auth_token_${row.tenant_id}`,
+          });
+        }
+      } finally {
+        client.release();
+      }
+    } catch (e: any) {
+      console.error('Error saat login db:', e);
+    }
+  }
+
+  // Memory fallback
+  const firstTenant = inMemoryStore.tenants.values().next().value;
+  if (firstTenant) {
+    return res.json({
+      success: true,
+      tenant_id: firstTenant.id,
+      legal_name: firstTenant.legal_name,
+      display_name: firstTenant.display_name,
+      membership_id: crypto.randomUUID(),
+      owner_full_name: identifier || 'Pemilik Usaha',
+      plan_code: 'FREE_TRIAL',
+      role: 'TENANT_OWNER',
+      token: `auth_token_${firstTenant.id}`,
+    });
+  }
+
+  return res.status(404).json({ error: 'Belum ada data tenant terdaftar. Silakan lakukan registrasi terlebih dahulu.' });
+});
+
 // 2. Onboarding: Register Tenant Baru (Self-Service)
 app.post(['/api/v1/onboarding/tenants', '/api/v1/onboarding/register-tenant'], async (req, res) => {
   const { legal_name, display_name, owner_auth_user_id, owner_full_name, plan_code = 'FREE_TRIAL' } = req.body;

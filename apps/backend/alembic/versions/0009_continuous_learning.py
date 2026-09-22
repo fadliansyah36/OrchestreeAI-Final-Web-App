@@ -112,6 +112,9 @@ def upgrade() -> None:
     UPDATE agent_skill_confidence SET skill_key = skill_name WHERE skill_key IS NULL;
     UPDATE agent_skill_confidence SET current_confidence = confidence_score WHERE current_confidence IS NULL;
 
+    ALTER TABLE agent_skill_confidence DROP CONSTRAINT IF EXISTS agent_skill_confidence_tenant_id_agent_id_skill_name_key;
+    ALTER TABLE agent_skill_confidence ADD CONSTRAINT agent_skill_confidence_tenant_id_agent_id_skill_name_key UNIQUE NULLS NOT DISTINCT (tenant_id, agent_id, skill_name);
+
     CREATE INDEX IF NOT EXISTS idx_agent_skill_confidence_lookup ON agent_skill_confidence(tenant_id, skill_name);
     """)
 
