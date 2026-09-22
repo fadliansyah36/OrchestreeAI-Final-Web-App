@@ -43,6 +43,8 @@ import {
 import { IntelligenceService } from './src/server/intelligenceService';
 import { IntegrationsService } from './src/server/integrationsService';
 import { WebIntegrityService } from './src/server/webIntegrityService';
+import { CrmLeadService } from './src/server/crmLeadService';
+import { CommerceService } from './src/server/commerceService';
 import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
 
 let pool: pg.Pool | null = null;
@@ -66,6 +68,8 @@ const intelligenceService = new IntelligenceService(pool!, modelRouterService);
 const integrationsService = new IntegrationsService(pool);
 const webIntegrityService = new WebIntegrityService(pool);
 const trialAllocationService = new TrialAllocationService(pool!);
+const crmLeadService = new CrmLeadService(pool);
+const commerceService = new CommerceService(pool!);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -4266,6 +4270,411 @@ app.get('/api/v1/tenants/:tenantId/integrations/sync-logs', async (req, res) => 
       parseInt(String(limit), 10)
     );
     return res.json({ data: logs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// F.01-CRM, Dynamic Lead Scoring, and Persona Handoff Endpoints (PRD v2.2 Bagian 11.12.6, 12.4, 14)
+// ============================================================================
+
+// GET /api/v1/tenants/:tenantId/crm/pipeline
+app.get('/api/v1/tenants/:tenantId/crm/pipeline', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const data = await crmLeadService.getPipelineBoard(tenantId);
+    return res.json({ status: 'ok', data });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/crm/leads
+app.post('/api/v1/tenants/:tenantId/crm/leads', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const lead = await crmLeadService.createLead(tenantId, req.body);
+    return res.status(201).json({ status: 'created', data: lead });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/crm/leads/:leadId
+app.get('/api/v1/tenants/:tenantId/crm/leads/:leadId', async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const data = await crmLeadService.getLeadDetail(tenantId, leadId);
+    return res.json({ status: 'ok', data });
+  } catch (err: any) {
+    return res.status(404).json({ error: err.message });
+  }
+});
+
+// PATCH /api/v1/tenants/:tenantId/crm/leads/:leadId/stage
+app.patch('/api/v1/tenants/:tenantId/crm/leads/:leadId/stage', async (req, res) => {
+  const { leadId } = req.params;
+  const { stage } = req.body;
+  if (!stage) {
+    return res.status(400).json({ error: 'Field "stage" diperlukan.' });
+  }
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const result = await crmLeadService.updateLeadStage(tenantId, leadId, stage);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/crm/leads/:leadId/qualification
+app.post('/api/v1/tenants/:tenantId/crm/leads/:leadId/qualification', async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const result = await crmLeadService.recordQualificationAnswer(tenantId, leadId, req.body);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/crm/leads/:leadId/recalculate
+app.post('/api/v1/tenants/:tenantId/crm/leads/:leadId/recalculate', async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const result = await crmLeadService.recalculateLeadScoreManual(tenantId, leadId);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/crm/leads/:leadId/timeline
+app.get('/api/v1/tenants/:tenantId/crm/leads/:leadId/timeline', async (req, res) => {
+  const { leadId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const timeline = await crmLeadService.getActivityTimeline(tenantId, leadId);
+    return res.json({ status: 'ok', data: timeline });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/crm/personas
+app.get('/api/v1/tenants/:tenantId/crm/personas', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const personas = await crmLeadService.getPersonas(tenantId);
+    return res.json({ status: 'ok', data: personas });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/v1/tenants/:tenantId/crm/personas/:agentId/config
+app.patch('/api/v1/tenants/:tenantId/crm/personas/:agentId/config', async (req, res) => {
+  const { agentId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const updated = await crmLeadService.updatePersonaConfig(tenantId, agentId, req.body);
+    return res.json({ status: 'ok', data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/crm/persona-rules
+app.get('/api/v1/tenants/:tenantId/crm/persona-rules', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const rules = await crmLeadService.getPersonaHandoffRules(tenantId);
+    return res.json({ status: 'ok', data: rules });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/crm/persona-rules
+app.post('/api/v1/tenants/:tenantId/crm/persona-rules', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const rule = await crmLeadService.savePersonaHandoffRule(tenantId, req.body);
+    return res.json({ status: 'ok', data: rule });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/tenants/:tenantId/crm/persona-rules/:ruleId
+app.delete('/api/v1/tenants/:tenantId/crm/persona-rules/:ruleId', async (req, res) => {
+  const { ruleId } = req.params;
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const deleted = await crmLeadService.deletePersonaHandoffRule(tenantId, ruleId);
+    return res.json({ status: 'ok', deleted });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/crm/persona-handovers
+app.get('/api/v1/tenants/:tenantId/crm/persona-handovers', async (req, res) => {
+  const limit = parseInt(String(req.query.limit || 50), 10);
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const handovers = await crmLeadService.getPersonaHandovers(tenantId, limit);
+    return res.json({ status: 'ok', data: handovers });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/crm/persona-handovers
+app.post('/api/v1/tenants/:tenantId/crm/persona-handovers', async (req, res) => {
+  try {
+    const tenantId = await crmLeadService.resolveTenantUuid(req.params.tenantId);
+    const result = await crmLeadService.triggerPersonaHandoff(tenantId, req.body);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// COMMERCE DOMAIN API ENDPOINTS (PRD v2.2 Bagian 12)
+// ==========================================
+
+// GET /api/v1/tenants/:tenantId/commerce/products
+app.get('/api/v1/tenants/:tenantId/commerce/products', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { status, search } = req.query as { status?: string; search?: string };
+    const products = await commerceService.getProducts(tenantId, { status, search });
+    return res.json({ status: 'ok', data: products });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/products
+app.post('/api/v1/tenants/:tenantId/commerce/products', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const product = await commerceService.createProduct(tenantId, req.body);
+    return res.status(201).json({ status: 'ok', data: product });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/tenants/:tenantId/commerce/products/:productId
+app.put('/api/v1/tenants/:tenantId/commerce/products/:productId', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const updated = await commerceService.updateProduct(tenantId, req.params.productId, req.body);
+    return res.json({ status: 'ok', data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/tenants/:tenantId/commerce/products/:productId/stock
+app.put('/api/v1/tenants/:tenantId/commerce/products/:productId/stock', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { quantity } = req.body;
+    const result = await commerceService.updateStock(tenantId, req.params.productId, Number(quantity));
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/commerce/promotions
+app.get('/api/v1/tenants/:tenantId/commerce/promotions', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const promos = await commerceService.getPromotions(tenantId);
+    return res.json({ status: 'ok', data: promos });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/promotions
+app.post('/api/v1/tenants/:tenantId/commerce/promotions', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const promo = await commerceService.createPromotion(tenantId, req.body);
+    return res.status(201).json({ status: 'ok', data: promo });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/commerce/carts/:customerId
+app.get('/api/v1/tenants/:tenantId/commerce/carts/:customerId', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const conversationId = req.query.conversation_id as string | undefined;
+    const cart = await commerceService.getOrCreateCart(tenantId, req.params.customerId, conversationId);
+    return res.json({ status: 'ok', data: cart });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/carts/:cartId/items
+app.post('/api/v1/tenants/:tenantId/commerce/carts/:cartId/items', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const result = await commerceService.addItemToCart(tenantId, req.params.cartId, req.body);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/tenants/:tenantId/commerce/carts/:cartId/items/:itemId
+app.delete('/api/v1/tenants/:tenantId/commerce/carts/:cartId/items/:itemId', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const result = await commerceService.removeCartItem(tenantId, req.params.cartId, req.params.itemId);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/carts/:cartId/quotation
+app.post('/api/v1/tenants/:tenantId/commerce/carts/:cartId/quotation', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const quotation = await commerceService.createQuotationFromCart(tenantId, req.params.cartId, req.body.notes);
+    return res.status(201).json({ status: 'ok', data: quotation });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/carts/:cartId/checkout
+app.post('/api/v1/tenants/:tenantId/commerce/carts/:cartId/checkout', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const order = await commerceService.createOrderFromCart(tenantId, {
+      cart_id: req.params.cartId,
+      shipping_address: req.body.shipping_address,
+      billing_address: req.body.billing_address,
+      shipping_cost: req.body.shipping_cost,
+      promotion_code: req.body.promotion_code,
+    });
+    return res.status(201).json({ status: 'ok', data: order });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/commerce/orders
+app.get('/api/v1/tenants/:tenantId/commerce/orders', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { status, payment_status } = req.query as { status?: string; payment_status?: string };
+    const orders = await commerceService.getOrders(tenantId, { status, paymentStatus: payment_status });
+    return res.json({ status: 'ok', data: orders });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/orders/:orderId/waybill
+app.post('/api/v1/tenants/:tenantId/commerce/orders/:orderId/waybill', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { courier_code, courier_service, shipping_cost } = req.body;
+    const shipment = await commerceService.createWaybill(
+      tenantId,
+      req.params.orderId,
+      courier_code || 'JNE',
+      courier_service || 'REG',
+      Number(shipping_cost || 12000)
+    );
+    return res.status(201).json({ status: 'ok', data: shipment });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/webhooks/payment/:gateway
+// Endpoint resmi webhook pembayaran (Midtrans / Xendit) dengan signature validation
+app.post('/api/v1/webhooks/payment/:gateway', async (req, res) => {
+  try {
+    const gateway = req.params.gateway;
+    const headers = req.headers as Record<string, string>;
+    const result = await commerceService.handlePaymentWebhook(gateway, req.body, headers);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/commerce/shipping/rates
+app.get('/api/v1/tenants/:tenantId/commerce/shipping/rates', async (req, res) => {
+  try {
+    const { origin_postal, destination_postal, weight_grams } = req.query as any;
+    const rates = await commerceService.calculateShippingRates(
+      origin_postal || '10110',
+      destination_postal || '12345',
+      Number(weight_grams || 1000)
+    );
+    return res.json({ status: 'ok', data: rates });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/commerce/shipping/tracking
+app.get('/api/v1/tenants/:tenantId/commerce/shipping/tracking', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { conversation_id, customer_id, order_number } = req.query as any;
+    const result = await commerceService.answerWhereIsMyOrder(tenantId, {
+      conversation_id,
+      customer_id,
+      order_number,
+    });
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/validate-grounding
+app.post('/api/v1/tenants/:tenantId/commerce/validate-grounding', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { text, conversation_id } = req.body;
+    const result = await commerceService.validateAndEnforceGrounding(tenantId, text, conversation_id);
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/commerce/sales-stage
+app.post('/api/v1/tenants/:tenantId/commerce/sales-stage', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { conversation_id, stage } = req.body;
+    const result = await commerceService.updateSalesStage(tenantId, conversation_id, stage);
+    return res.json({ status: 'ok', data: result });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

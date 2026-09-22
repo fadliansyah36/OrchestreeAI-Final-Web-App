@@ -1282,6 +1282,10 @@ export class OrchestrationEngineService {
 
           nodeOutput = await this.mcpRegistry.invokeTool(targetTool, subject, toolInput, executionId);
           currentContext.tool_result = nodeOutput;
+        } else if (node.type === 'PERSONA_HANDOFF') {
+          nodeOutput = await this.executePersonaHandoff(tenant_id, node, currentContext, executionId);
+          currentContext.handoff = nodeOutput;
+          currentContext.active_persona = nodeOutput.target_persona;
         } else if (node.type === 'DELIVER') {
           nodeOutput = {
             success: true,
@@ -1459,6 +1463,138 @@ export class OrchestrationEngineService {
     } catch (e) {
       console.warn('[OrchestrationEngine] Save node run failed:', e);
     }
+  }
+
+  /**
+   * Mengeksekusi transisi Persona Handoff (PRD v2.2 Bagian 11.12 & 14)
+   * Menyimpan histori ke conversation_handovers dan mempertahankan thread percakapan utuh.
+   */
+  async executePersonaHandoff(
+    tenant_id: string,
+    node: any,
+    currentContext: any,
+    executionId: string
+  ): Promise<any> {
+    const fromPersona = node.config?.from_persona || currentContext.active_persona || 'Receptionist';
+    let targetPersona = node.config?.target_persona;
+    let reason = node.config?.reason || 'Evaluasi kualifikasi lead memicu pergantian persona otomatis';
+    const conversationId = currentContext.conversation_id || node.config?.conversation_id || currentContext.lead?.conversation_id;
+    const handoverId = crypto.randomUUID();
+
+    if (this.pool) {
+      try {
+        const client = await this.pool.connect();
+        try {
+          await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenant_id]);
+
+          // Jika targetPersona belum ditentukan, evaluasi aturan persona_handoff_rules
+          if (!targetPersona) {
+            const rulesRes = await client.query(
+              `SELECT target_persona_type, condition_type, condition_config
+               FROM persona_handoff_rules
+               WHERE tenant_id = $1 AND is_active = true
+               ORDER BY priority ASC;`,
+              [tenant_id]
+            );
+            for (const r of rulesRes.rows) {
+              const condType = r.condition_type;
+              const cfg = r.condition_config || {};
+              if (condType === 'LEAD_SCORE_THRESHOLD') {
+                const minScore = Number(cfg.min_score || 70.0);
+                const leadScore = Number(currentContext.lead_score || currentContext.lead?.lead_score || 0.0);
+                if (leadScore >= minScore) {
+                  targetPersona = r.target_persona_type;
+                  reason = `Skor lead (${leadScore.toFixed(1)}) mencapai batas (${minScore.toFixed(1)})`;
+                  break;
+                }
+              } else if (condType === 'STAGE_CHANGE') {
+                const expectedStage = cfg.stage;
+                const currStage = currentContext.lead_stage || currentContext.lead?.stage;
+                if (currStage === expectedStage) {
+                  targetPersona = r.target_persona_type;
+                  reason = `Tahap lead berubah menjadi ${currStage}`;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!targetPersona) {
+            targetPersona = 'SDR';
+          }
+
+          const summaryContext =
+            node.config?.summary_context ||
+            `Handover dari persona ${fromPersona} ke ${targetPersona} pada eksekusi workflow ${executionId}.`;
+
+          // Jika ada conversationId, catat ke conversation_handovers dan kirimkan system message
+          if (conversationId) {
+            await client.query(
+              `INSERT INTO conversation_handovers (
+                id, tenant_id, conversation_id, from_agent_type, to_agent_type,
+                handover_reason, summary_context, status, created_at, resolved_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACCEPTED', now(), now());`,
+              [
+                handoverId,
+                tenant_id,
+                conversationId,
+                fromPersona,
+                targetPersona,
+                reason,
+                summaryContext,
+              ]
+            );
+
+            // Tambahkan pesan sistem pencatatan handover ke thread
+            await client.query(
+              `INSERT INTO conversation_messages (
+                id, tenant_id, conversation_id, direction, sender_type,
+                content_text, delivery_status, created_at
+              ) VALUES (
+                gen_random_uuid(), $1, $2, 'OUTBOUND', 'SYSTEM',
+                $3, 'SENT', now()
+              );`,
+              [
+                tenant_id,
+                conversationId,
+                `[Handover Persona]: Percakapan dialihkan dari ${fromPersona} ke ${targetPersona}. Riwayat dan kualifikasi tetap terjaga dalam thread ini.`,
+              ]
+            );
+
+            // Update conversation last_message_preview & metadata
+            await client.query(
+              `UPDATE conversations
+               SET last_message_preview = $1,
+                   metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{active_persona}', $2::jsonb, true),
+                   updated_at = now()
+               WHERE id = $3 AND tenant_id = $4;`,
+              [
+                `[Handover ke ${targetPersona}]`,
+                JSON.stringify(targetPersona),
+                conversationId,
+                tenant_id,
+              ]
+            );
+          }
+        } finally {
+          client.release();
+        }
+      } catch (err) {
+        console.warn('[OrchestrationEngine] executePersonaHandoff error:', err);
+      }
+    }
+
+    if (!targetPersona) targetPersona = 'SDR';
+
+    return {
+      handover_id: handoverId,
+      conversation_id: conversationId,
+      from_persona: fromPersona,
+      target_persona: targetPersona,
+      reason,
+      preserved_thread: true,
+      status: 'ACCEPTED',
+    };
   }
 }
 

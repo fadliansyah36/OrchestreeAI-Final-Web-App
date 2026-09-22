@@ -369,8 +369,9 @@ class OrchestrationEngine:
                     )
                     break
                 elif node.type == "PERSONA_HANDOFF":
-                    node_output = {"handed_off_to": node.config.get("target_persona", "GENERAL_ASSISTANT")}
+                    node_output = await self._execute_persona_handoff(req, node, context, execution_id)
                     context["handoff"] = node_output
+                    context["active_persona"] = node_output.get("target_persona")
                 elif node.type == "DELIVER":
                     node_output = await self._execute_deliver(req, context)
                     final_output = node_output
@@ -589,6 +590,130 @@ class OrchestrationEngine:
             "classification": classification,
             "tool_result": tool_result,
             "completed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def _execute_persona_handoff(
+        self, req: WorkflowDispatchRequest, node: WorkflowNodeSpec, context: Dict[str, Any], execution_id: str
+    ) -> Dict[str, Any]:
+        """
+        Mengeksekusi transisi Persona Handoff (PRD v2.2 Bagian 11.12 & 14):
+        - Evaluasi target persona berdasarkan config atau persona_handoff_rules
+        - Rekam perpindahan ke conversation_handovers
+        - Update metadata thread conversation agar percakapan tetap berada dalam thread yang sama
+        - Tambahkan pesan sistem ke conversation_messages
+        """
+        engine = get_engine()
+        tenant_id = req.tenant_id
+        from_persona = node.config.get("from_persona") or context.get("active_persona") or "Receptionist"
+        target_persona = node.config.get("target_persona")
+        reason = node.config.get("reason") or "Evaluasi kualifikasi lead memicu pergantian persona otomatis"
+        conversation_id = context.get("conversation_id") or node.config.get("conversation_id")
+        handover_id = str(uuid.uuid4())
+
+        async with engine.begin() as conn:
+            # Jika target_persona belum ditentukan, evaluasi aturan persona_handoff_rules
+            if not target_persona:
+                rules_res = await conn.execute(
+                    sa.text("""
+                        SELECT target_persona_type, condition_type, condition_config
+                        FROM persona_handoff_rules
+                        WHERE tenant_id = :tenant_id AND is_active = true
+                        ORDER BY priority ASC;
+                    """),
+                    {"tenant_id": tenant_id},
+                )
+                rules = [dict(r) for r in rules_res.mappings().all()]
+                for r in rules:
+                    cond_type = r["condition_type"]
+                    cfg = r["condition_config"] or {}
+                    if cond_type == "LEAD_SCORE_THRESHOLD":
+                        min_score = float(cfg.get("min_score", 70.0))
+                        lead_score = float(context.get("lead_score") or 0.0)
+                        if lead_score >= min_score:
+                            target_persona = r["target_persona_type"]
+                            reason = f"Skor lead ({lead_score:.1f}) memenuhi ambang batas ({min_score:.1f})"
+                            break
+                    elif cond_type == "STAGE_CHANGE":
+                        expected_stage = cfg.get("stage")
+                        curr_stage = context.get("lead_stage")
+                        if curr_stage == expected_stage:
+                            target_persona = r["target_persona_type"]
+                            reason = f"Tahap lead berubah menjadi {curr_stage}"
+                            break
+
+            if not target_persona:
+                target_persona = "SDR"
+
+            summary_context = node.config.get("summary_context") or f"Handover dari {from_persona} ke {target_persona} pada alur kerja {execution_id}."
+
+            # Jika ada conversation_id, rekam ke conversation_handovers & pertahankan satu thread percakapan utuh
+            if conversation_id:
+                insert_handover = sa.text("""
+                    INSERT INTO conversation_handovers (
+                        id, tenant_id, conversation_id, from_agent_type, to_agent_type,
+                        handover_reason, summary_context, status, created_at, resolved_at
+                    ) VALUES (
+                        :id, :tenant_id, :conversation_id, :from_agent, :to_agent,
+                        :reason, :summary_context, 'ACCEPTED', now(), now()
+                    );
+                """)
+                await conn.execute(
+                    insert_handover,
+                    {
+                        "id": handover_id,
+                        "tenant_id": tenant_id,
+                        "conversation_id": conversation_id,
+                        "from_agent": from_persona,
+                        "to_agent": target_persona,
+                        "reason": reason,
+                        "summary_context": summary_context,
+                    },
+                )
+
+                # Tambahkan pesan sistem pencatatan handover ke thread
+                sys_msg_query = sa.text("""
+                    INSERT INTO conversation_messages (
+                        id, tenant_id, conversation_id, direction, sender_type,
+                        content_text, delivery_status, created_at
+                    ) VALUES (
+                        gen_random_uuid(), :tenant_id, :conversation_id, 'OUTBOUND', 'SYSTEM',
+                        :content, 'SENT', now()
+                    );
+                """)
+                await conn.execute(
+                    sys_msg_query,
+                    {
+                        "tenant_id": tenant_id,
+                        "conversation_id": conversation_id,
+                        "content": f"[Handover Persona]: Percakapan dialihkan dari {from_persona} ke {target_persona}. Riwayat interaksi tetap terjaga dalam thread ini.",
+                    },
+                )
+
+                # Update conversation last_message_preview & metadata
+                await conn.execute(
+                    sa.text("""
+                        UPDATE conversations
+                        SET last_message_preview = :preview,
+                            metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{active_persona}', :target_json, true),
+                            updated_at = now()
+                        WHERE id = :conversation_id AND tenant_id = :tenant_id;
+                    """),
+                    {
+                        "preview": f"[Handover ke {target_persona}]",
+                        "target_json": json.dumps(target_persona),
+                        "conversation_id": conversation_id,
+                        "tenant_id": tenant_id,
+                    },
+                )
+
+        return {
+            "handover_id": handover_id,
+            "conversation_id": conversation_id,
+            "from_persona": from_persona,
+            "target_persona": target_persona,
+            "reason": reason,
+            "preserved_thread": True,
+            "status": "ACCEPTED",
         }
 
     # --- DB Checkpointing Helpers ---

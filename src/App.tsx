@@ -23,12 +23,16 @@ import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { StartupGateReport } from './components/StartupGateReport';
 import { ProactiveChannelsScreen } from './components/ProactiveChannelsScreen';
 import { IntelligenceHubScreen } from './components/IntelligenceHubScreen';
+import { LeadPipelineScreen } from './components/LeadPipelineScreen';
+import { PersonaConfigurationScreen } from './components/PersonaConfigurationScreen';
+import { ProductCatalogScreen } from './components/ProductCatalogScreen';
+import { OrderManagementScreen } from './components/OrderManagementScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -215,6 +219,46 @@ export default function App() {
                 >
                   Company Brain
                 </button>
+                <button
+                  onClick={() => setClientSubView('crm_pipeline')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'crm_pipeline'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Pipeline CRM
+                </button>
+                <button
+                  onClick={() => setClientSubView('crm_personas')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'crm_personas'
+                      ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Persona AI
+                </button>
+                <button
+                  onClick={() => setClientSubView('commerce_catalog')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'commerce_catalog'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Katalog Produk
+                </button>
+                <button
+                  onClick={() => setClientSubView('commerce_orders')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'commerce_orders'
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Pesanan Pelanggan
+                </button>
               </div>
             )}
             <button
@@ -312,6 +356,42 @@ export default function App() {
                 tenant={activeTenant}
                 onBack={() => setClientSubView('dashboard')}
               />
+            )}
+
+            {clientSubView === 'crm_pipeline' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <LeadPipelineScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                  onOpenPersonas={() => setClientSubView('crm_personas')}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'crm_personas' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <PersonaConfigurationScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                  onBackToPipeline={() => setClientSubView('crm_pipeline')}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'commerce_catalog' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <ProductCatalogScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                  onOpenOrders={() => setClientSubView('commerce_orders')}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'commerce_orders' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <OrderManagementScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                  onOpenCatalog={() => setClientSubView('commerce_catalog')}
+                />
+              </div>
             )}
           </div>
         )}
