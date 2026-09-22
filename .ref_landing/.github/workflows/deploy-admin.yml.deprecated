@@ -1,0 +1,139 @@
+name: Build & Deploy Admin Dashboard to Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Gate 1 - Verify Zero LLM API Keys in Admin Dashboard
+        run: |
+          echo ">>> Gate 1: Scanning for forbidden direct LLM API Keys in Admin Dashboard <<<"
+          # Admin Dashboard must never invoke LLMs directly; all AI calls must be routed via Backend Server
+          FORBIDDEN_KEYS=$(grep -rniE "sk-or-v1-[a-zA-Z0-9]{20,}|gsk_[a-zA-Z0-9]{20,}|AIzaSy[a-zA-Z0-9_-]{33}|OPENROUTER_API_KEY\s*=|GROQ_API_KEY\s*=|DEEPSEEK_API_KEY\s*=|ANTHROPIC_API_KEY\s*=|OPENAI_API_KEY\s*=" . \
+            --exclude-dir=node_modules --exclude-dir=dist || true)
+          if [ -n "$FORBIDDEN_KEYS" ]; then
+            echo "::error::CRITICAL VIOLATION: Direct LLM API Keys detected in Admin Dashboard!"
+            echo "$FORBIDDEN_KEYS"
+            exit 1
+          fi
+          echo "✅ Gate 1 PASSED: Zero direct LLM keys detected."
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Gate 2 - Verify BACKEND_API_BASE_URL Configuration
+        env:
+          VITE_BACKEND_API_URL: ${{ secrets.VITE_BACKEND_API_URL || 'https://api.orchestree.biz.id/api/v1' }}
+        run: |
+          echo ">>> Gate 2: Verifying Backend API Base URL configuration <<<"
+          if [ -z "$VITE_BACKEND_API_URL" ]; then
+            echo "::error::VITE_BACKEND_API_URL is empty! Must be set to https://api.orchestree.biz.id"
+            exit 1
+          fi
+          if [[ "$VITE_BACKEND_API_URL" == *"localhost"* ]] || [[ "$VITE_BACKEND_API_URL" == *"127.0.0.1"* ]]; then
+            echo "::error::VITE_BACKEND_API_URL cannot point to localhost ($VITE_BACKEND_API_URL)!"
+            exit 1
+          fi
+          echo "✅ Gate 2 PASSED: Backend API URL verified as $VITE_BACKEND_API_URL"
+
+      - name: Run Tests
+        run: npm run test
+
+      - name: Build Dashboard
+        env:
+          VITE_BACKEND_API_URL: ${{ secrets.VITE_BACKEND_API_URL || 'https://api.orchestree.biz.id/api/v1' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://exfvfyiwftywqjcsofgf.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder' }}
+        run: npm run build
+
+      - name: Gate 3 - Scan Build Output for Hardcoded Credentials
+        run: |
+          echo ">>> Gate 3: Scanning build output (dist/) for leaked private credentials <<<"
+          LEAKED_CREDS=$(grep -rniE "service_role|BEGIN PRIVATE KEY|ghp_|xoxb-|xapp-" dist/ || true)
+          if [ -n "$LEAKED_CREDS" ]; then
+            echo "::error::CRITICAL VIOLATION: Private service credentials found in production build artifacts (dist/)!"
+            echo "$LEAKED_CREDS"
+            exit 1
+          fi
+          echo "✅ Gate 3 PASSED: Build artifacts are clean of sensitive credentials."
+
+      - name: Verify Google Cloud Auth Credentials
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] && [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
+            echo "::error::Both GCP_SA_KEY and WIF_PROVIDER are empty! Exactly one authentication credential must be provided."
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud via Service Account Key
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.GCP_SA_KEY != ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.GCP_SA_KEY == '' && secrets.WIF_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev,gcr.io --quiet
+
+      - name: Build & Push Image with Build Arguments
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://exfvfyiwftywqjcsofgf.supabase.co' }}
+          VITE_BACKEND_API_URL: ${{ secrets.VITE_BACKEND_API_URL || 'https://api.orchestree.biz.id/api/v1' }}
+        run: |
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID || 'orchestree-ai' }}"
+          IMAGE_TAG="asia-southeast1-docker.pkg.dev/$PROJECT_ID/orchestreeai-images/admin-dashboard:${{ github.sha }}"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          docker build \
+            --build-arg VITE_SUPABASE_ANON_KEY="$VITE_SUPABASE_ANON_KEY" \
+            --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+            --build-arg VITE_BACKEND_API_URL="$VITE_BACKEND_API_URL" \
+            --build-arg NEXT_PUBLIC_BACKEND_API_URL="$VITE_BACKEND_API_URL" \
+            -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+
+      - name: Deploy to Cloud Run
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          gcloud run deploy orchestreeai-admin-dashboard \
+            --image "$IMAGE_TAG" \
+            --region asia-southeast1 \
+            --platform managed \
+            --allow-unauthenticated
+
+      - name: Verify Post-Deploy Health Check
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo ">>> Verifying Cloud Run service status <<<"
+          gcloud run services describe orchestreeai-admin-dashboard --region asia-southeast1 --format='value(status.url)'
+          echo ">>> Verifying https://admin.orchestree.biz.id health <<<"
+          curl -f https://admin.orchestree.biz.id || (echo "Health check failed for admin dashboard!" && exit 1)
+          echo "✅ Post-deploy health check verified successfully!"

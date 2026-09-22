@@ -1,0 +1,6 @@
+{
+  "name": "OrchestreeAI Admin Dashboard",
+  "description": "Super Admin platform for OrchestreeAI with workforce telemetry, LLM provider routing, credit metering, and system monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

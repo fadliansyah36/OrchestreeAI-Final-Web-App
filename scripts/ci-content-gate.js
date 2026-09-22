@@ -38,7 +38,8 @@ const IGNORED_DIRS = new Set([
   'tests',
   'test',
   'docs',
-  'scripts'
+  'scripts',
+  '.ref_landing'
 ]);
 
 const IGNORED_FILES = new Set([

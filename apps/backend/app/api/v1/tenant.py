@@ -406,3 +406,78 @@ def _is_valid_uuid(val: Optional[str]) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+@router.get(
+    "/members",
+    summary="Daftar Anggota Tenant Saat Ini"
+)
+async def list_current_tenant_members(
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """Mengambil daftar anggota tenant beserta perannya."""
+    return await list_tenant_members(tenant_id=context.tenant_id, context=context)
+
+
+@router.get(
+    "s/{tenant_id}/members",
+    summary="Daftar Anggota Tenant (Spesifik)"
+)
+async def list_tenant_members(
+    tenant_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Mengambil daftar anggota tenant beserta role yang aktif.
+    Dilindungi otorisasi tenant.members.view dan isolasi tenant.
+    """
+    subject = SubjectContext(
+        user_id=context.user_id,
+        tenant_id=context.tenant_id,
+        actor_type=context.actor_type,
+        roles=context.roles,
+        capabilities=context.capabilities,
+        is_mfa_verified=context.is_mfa_verified,
+    )
+    resource = ResourceContext(
+        resource_type="tenant_memberships",
+        owner_tenant_id=tenant_id,
+    )
+    authz = authorize(subject, "tenant.members.view", resource)
+    if not authz.is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Otorisasi ditolak: {authz.reason}"
+        )
+
+    with tenant_tx(tenant_id, user_id=context.user_id) as conn:
+        rows = conn.execute(
+            sa.text("""
+                SELECT tm.id, tm.tenant_id, tm.auth_user_id, tm.department_id,
+                       tm.full_name, tm.status, tm.created_at,
+                       COALESCE(r.role_code, 'STAFF_HUMAN') as role_code,
+                       COALESCE(r.description, 'Staf Karyawan') as role_description
+                FROM tenant_memberships tm
+                LEFT JOIN user_roles ur ON ur.tenant_membership_id = tm.id
+                LEFT JOIN roles r ON r.id = ur.role_id
+                WHERE tm.tenant_id = :tenant_id
+                ORDER BY tm.created_at ASC;
+            """),
+            {"tenant_id": tenant_id}
+        ).mappings().all()
+
+        results = []
+        for r in rows:
+            results.append({
+                "membership_id": str(r["id"]),
+                "tenant_id": str(r["tenant_id"]),
+                "auth_user_id": str(r["auth_user_id"]),
+                "department_id": str(r["department_id"]) if r["department_id"] else None,
+                "full_name": r["full_name"],
+                "status": r["status"],
+                "role": r["role_code"],
+                "role_description": r["role_description"],
+                "created_at": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+            })
+        return results
+

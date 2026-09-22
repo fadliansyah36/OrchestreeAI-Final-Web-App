@@ -1,0 +1,84 @@
+name: Deploy Production - OrchestreeAI Admin Dashboard
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with: { credentials_json: ${{ secrets.GCP_SA_KEY }} }
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Resolve and Validate GCP Project ID
+        id: resolve-project
+        run: |
+          echo ">>> Resolving and validating GCP Project ID <<<"
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "PROJECT_ID" ]; then
+            PROJECT_ID=$(gcloud config get-value project 2>/dev/null || true)
+          fi
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "PROJECT_ID" ]; then
+            PROJECT_ID="orchestree-ai"
+          fi
+
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "PROJECT_ID" ]; then
+            echo "::error::CRITICAL: GCP PROJECT_ID is empty or unresolved literal 'PROJECT_ID'! Build and deploy aborted."
+            exit 1
+          fi
+
+          echo "✅ GCP PROJECT_ID terverifikasi: $PROJECT_ID"
+          gcloud config set project "$PROJECT_ID"
+          echo "PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+          echo "IMAGE_URL=asia-southeast2-docker.pkg.dev/$PROJECT_ID/orchestreeai-images/admin-dashboard:${{ github.sha }}" >> "$GITHUB_ENV"
+
+      - name: Gate - No Hardcode Credential in Build Output
+        run: |
+          grep -rniE "claude-3|deepseek-chat|service_role" --include="*.ts" --include="*.tsx" src/ && exit 1 || exit 0
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker asia-southeast2-docker.pkg.dev --quiet
+
+      - name: Build & Push Image (tag versioned)
+        env:
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://exfvfyiwftywqjcsofgf.supabase.co' }}
+          VITE_BACKEND_API_URL: 'https://api.orchestree.biz.id/api/v1'
+        run: |
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "PROJECT_ID" ]; then
+            echo "::error::Pre-build check failed: PROJECT_ID is empty or unresolved literal 'PROJECT_ID'!"
+            exit 1
+          fi
+          echo "Building and pushing image with build-args: $IMAGE_URL"
+          docker build \
+            --build-arg VITE_SUPABASE_ANON_KEY="$VITE_SUPABASE_ANON_KEY" \
+            --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+            --build-arg VITE_BACKEND_API_URL="$VITE_BACKEND_API_URL" \
+            --build-arg NEXT_PUBLIC_BACKEND_API_URL="$VITE_BACKEND_API_URL" \
+            -t "$IMAGE_URL" .
+          docker push "$IMAGE_URL"
+
+      - name: Get GKE Credentials
+        run: gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }}
+
+      - name: Deploy to Production (UPDATE IMAGE SAJA — TIDAK MENYENTUH SERVICE/INGRESS/STATIC IP)
+        run: |
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "PROJECT_ID" ]; then
+            echo "::error::Pre-deploy check failed: PROJECT_ID is empty or unresolved literal 'PROJECT_ID'!"
+            exit 1
+          fi
+          echo "Updating deployment image to $IMAGE_URL"
+          kubectl set image deployment/admin-dashboard \
+            admin-dashboard="$IMAGE_URL" \
+            -n orchestreeai-admin
+          kubectl rollout status deployment/admin-dashboard -n orchestreeai-admin --timeout=180s
+
+      - name: Verify Production Health & Rollback on Failure (Cek KEDUA domain: Landing Page & Admin)
+        run: |
+          sleep 15
+          curl -f https://orchestree.biz.id || (kubectl rollout undo deployment/admin-dashboard -n orchestreeai-admin && exit 1)
+          curl -f https://admin.orchestree.biz.id || (kubectl rollout undo deployment/admin-dashboard -n orchestreeai-admin && exit 1)

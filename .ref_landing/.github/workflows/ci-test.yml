@@ -1,0 +1,30 @@
+name: CI Test - OrchestreeAI Admin Dashboard
+on:
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+
+      - name: Gate - No Hardcode Model/Credential in Frontend Code
+        run: |
+          grep -rniE "claude-3|deepseek-chat|service_role|nvidia_api_key|sk-or-" --include="*.ts" --include="*.tsx" src/ && exit 1 || exit 0
+
+      - name: Gate - No Hardcode/Mock/LocalStorage Auth
+        run: |
+          grep -rniE "mock|fake|dummy|hardcod|tenant-enterprise-001" \
+            --include="*.ts" --include="*.tsx" src/ --exclude-dir="landing" --exclude-dir="__tests__" && exit 1 || exit 0
+          grep -rn "localStorage.setItem.*password\|localStorage.setItem.*token" \
+            --include="*.tsx" src/ && exit 1 || exit 0
+
+      - name: Lint & Type Check
+        run: npm run lint && npm run type-check
+
+      - name: Unit Tests
+        run: npm run test

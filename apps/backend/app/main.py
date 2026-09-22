@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.api.v1.health import router as health_router
 from app.api.v1.tenant import router as tenant_router
 from app.api.v1.onboarding import router as onboarding_router
+from app.api.v1.public import router as public_router
 
 app = FastAPI(
     title="OrchestreeAI API",
@@ -33,6 +34,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(tenant_router)
 app.include_router(onboarding_router)
+app.include_router(public_router)
 
 
 @app.get("/")

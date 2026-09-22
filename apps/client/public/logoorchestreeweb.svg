@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1224" />
+      <stop offset="50%" stop-color="#070c18" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Green Glow Gradient -->
+    <linearGradient id="greenStemGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#00ff87" />
+    </linearGradient>
+
+    <!-- Blue/Purple Glow Gradient -->
+    <linearGradient id="blueStemGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+
+    <!-- Purple Neural Gradient -->
+    <linearGradient id="purpleNeuralGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="40%" stop-color="#818cf8" />
+      <stop offset="70%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+
+    <!-- Leaf Glow Gradient -->
+    <linearGradient id="leafGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#00ff87" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="neonGlowGreen" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur1" />
+      <feGaussianBlur stdDeviation="14" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="neonGlowBlue" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur1" />
+      <feGaussianBlur stdDeviation="14" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur2" />
+        <feMergeNode in="blur1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App Icon Squircle Background -->
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#bgGrad)" stroke="#1e293b" stroke-opacity="0.3" stroke-width="2" />
+
+  <!-- Ambient Glow Behind Tree -->
+  <circle cx="190" cy="220" r="130" fill="#00ff87" opacity="0.07" filter="url(#subtleGlow)" />
+  <circle cx="320" cy="220" r="130" fill="#a855f7" opacity="0.08" filter="url(#subtleGlow)" />
+
+  <!-- ==================== LEFT TRUNK & ROOT (GREEN) ==================== -->
+  <g filter="url(#neonGlowGreen)">
+    <!-- Left Root curving down-left -->
+    <path d="M 246,380 L 246,360 Q 246,395 210,405 T 165,410" fill="none" stroke="#00ff87" stroke-width="6.5" stroke-linecap="round" />
+    <path d="M 246,380 Q 242,400 230,412" fill="none" stroke="#00ff87" stroke-width="5" stroke-linecap="round" />
+
+    <!-- Left Trunk Line leading into central circular ring -->
+    <path d="M 246,360 L 246,285" fill="none" stroke="url(#greenStemGrad)" stroke-width="6.5" stroke-linecap="round" />
+    
+    <!-- Left half of central ring: radius 36 around center (256, 256) -->
+    <path d="M 246,285 A 36 36 0 0 1 246,227" fill="none" stroke="#00ff87" stroke-width="6.5" stroke-linecap="round" />
+    
+    <!-- Left trunk above ring -->
+    <path d="M 246,227 L 246,160" fill="none" stroke="#00ff87" stroke-width="6.5" stroke-linecap="round" />
+  </g>
+
+  <!-- ==================== RIGHT TRUNK & ROOT (BLUE/PURPLE) ==================== -->
+  <g filter="url(#neonGlowBlue)">
+    <!-- Right Root curving down-right -->
+    <path d="M 266,380 L 266,360 Q 266,395 302,405 T 347,410" fill="none" stroke="#3b82f6" stroke-width="6.5" stroke-linecap="round" />
+    <path d="M 266,380 Q 270,400 282,412" fill="none" stroke="#3b82f6" stroke-width="5" stroke-linecap="round" />
+
+    <!-- Right Trunk Line leading into central circular ring -->
+    <path d="M 266,360 L 266,285" fill="none" stroke="url(#blueStemGrad)" stroke-width="6.5" stroke-linecap="round" />
+    
+    <!-- Right half of central ring -->
+    <path d="M 266,285 A 36 36 0 0 0 266,227" fill="none" stroke="#3b82f6" stroke-width="6.5" stroke-linecap="round" />
+    
+    <!-- Right trunk above ring -->
+    <path d="M 266,227 L 266,160" fill="none" stroke="#60a5fa" stroke-width="6.5" stroke-linecap="round" />
+  </g>
+
+  <!-- Central inner core circle -->
+  <circle cx="256" cy="256" r="23" fill="#070d18" stroke="#1e293b" stroke-width="2" />
+
+  <!-- ==================== LEFT CANOPY: CIRCUITS & LEAVES (GREEN) ==================== -->
+  <g filter="url(#neonGlowGreen)">
+    <!-- Circuit Branch 1: lower left -->
+    <path d="M 246,270 L 210,270 L 180,240 L 160,240" fill="none" stroke="#00ff87" stroke-width="5.5" stroke-linejoin="round" />
+    <circle cx="160" cy="240" r="5" fill="#00ff87" />
+    <path d="M 180,240 L 180,215 L 155,215" fill="none" stroke="#00ff87" stroke-width="5" stroke-linejoin="round" />
+    <circle cx="155" cy="215" r="4.5" fill="#00ff87" />
+
+    <!-- Circuit Branch 2: mid left -->
+    <path d="M 246,240 L 215,240 L 195,260 L 165,260 L 150,275" fill="none" stroke="#10b981" stroke-width="5.5" stroke-linejoin="round" />
+    <circle cx="150" cy="275" r="5" fill="#00ff87" />
+
+    <!-- Circuit Branch 3: upper left from upper trunk -->
+    <path d="M 246,210 L 220,210 L 190,180 L 190,150" fill="none" stroke="#00ff87" stroke-width="5.5" stroke-linejoin="round" />
+    <circle cx="190" cy="150" r="5" fill="#00ff87" />
+
+    <path d="M 246,180 L 230,180 L 210,160 L 210,120" fill="none" stroke="#00ff87" stroke-width="5.5" stroke-linejoin="round" />
+    <circle cx="210" cy="120" r="5" fill="#00ff87" />
+
+    <!-- Sub circuit traces -->
+    <path d="M 220,210 L 205,225 L 180,225" fill="none" stroke="#00ff87" stroke-width="4.5" stroke-linejoin="round" />
+    <circle cx="180" cy="225" r="4" fill="#00ff87" />
+
+    <path d="M 246,160 L 250,140 L 240,110" fill="none" stroke="#00ff87" stroke-width="5.5" stroke-linejoin="round" />
+    <circle cx="240" cy="110" r="5" fill="#00ff87" />
+
+    <!-- Organic Leaves with Veins Attached to Circuits -->
+    <!-- Top Leaf -->
+    <g transform="translate(242, 105) rotate(-15)">
+      <path d="M 0,0 C -15,-25 -10,-45 0,-60 C 10,-45 15,-25 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4.5" />
+      <path d="M 0,0 L 0,-50" stroke="#00ff87" stroke-width="3" />
+      <path d="M 0,-20 L -6,-28 M 0,-32 L 6,-40" stroke="#00ff87" stroke-width="2.5" />
+    </g>
+
+    <!-- Top Left Leaf 1 -->
+    <g transform="translate(205, 115) rotate(-35)">
+      <path d="M 0,0 C -16,-22 -12,-42 0,-56 C 12,-42 16,-22 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4.5" />
+      <path d="M 0,0 L 0,-46" stroke="#00ff87" stroke-width="3" />
+      <path d="M 0,-18 L -6,-25 M 0,-30 L 6,-37" stroke="#00ff87" stroke-width="2.5" />
+    </g>
+
+    <!-- Upper Left Leaf 2 -->
+    <g transform="translate(170, 150) rotate(-60)">
+      <path d="M 0,0 C -16,-22 -12,-42 0,-56 C 12,-42 16,-22 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4.5" />
+      <path d="M 0,0 L 0,-46" stroke="#00ff87" stroke-width="3" />
+    </g>
+
+    <!-- Mid Left Leaf 3 -->
+    <g transform="translate(135, 195) rotate(-75)">
+      <path d="M 0,0 C -16,-22 -12,-42 0,-56 C 12,-42 16,-22 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4.5" />
+      <path d="M 0,0 L 0,-46" stroke="#00ff87" stroke-width="3" />
+    </g>
+
+    <!-- Lower Left Leaf 4 -->
+    <g transform="translate(130, 255) rotate(-100)">
+      <path d="M 0,0 C -16,-22 -12,-42 0,-54 C 12,-42 16,-22 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4.5" />
+      <path d="M 0,0 L 0,-44" stroke="#00ff87" stroke-width="3" />
+    </g>
+
+    <!-- Bottom Left Leaf 5 -->
+    <g transform="translate(150, 295) rotate(-130)">
+      <path d="M 0,0 C -15,-20 -10,-38 0,-48 C 10,-38 15,-20 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4" />
+      <path d="M 0,0 L 0,-38" stroke="#00ff87" stroke-width="2.5" />
+    </g>
+
+    <!-- Smaller Inner Leaves -->
+    <g transform="translate(175, 205) rotate(-45) scale(0.7)">
+      <path d="M 0,0 C -14,-18 -10,-35 0,-45 C 10,-35 14,-18 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4" />
+      <path d="M 0,0 L 0,-35" stroke="#00ff87" stroke-width="2.5" />
+    </g>
+    <g transform="translate(200, 235) rotate(-80) scale(0.65)">
+      <path d="M 0,0 C -14,-18 -10,-35 0,-45 C 10,-35 14,-18 0,0 Z" fill="url(#leafGrad)" stroke="#00ff87" stroke-width="4" />
+      <path d="M 0,0 L 0,-35" stroke="#00ff87" stroke-width="2.5" />
+    </g>
+  </g>
+
+  <!-- ==================== RIGHT CANOPY: NEURAL NETWORK & BRAIN GRAPH (PURPLE/BLUE) ==================== -->
+  <g filter="url(#neonGlowBlue)">
+    <!-- Neural Network Edges -->
+    <!-- Center to inner nodes -->
+    <line x1="266" y1="160" x2="280" y2="135" stroke="#60a5fa" stroke-width="5" />
+    <line x1="266" y1="180" x2="295" y2="175" stroke="#818cf8" stroke-width="5" />
+    <line x1="266" y1="210" x2="305" y2="215" stroke="#a855f7" stroke-width="5" />
+    <line x1="266" y1="240" x2="310" y2="255" stroke="#c084fc" stroke-width="5" />
+    <line x1="266" y1="270" x2="295" y2="285" stroke="#3b82f6" stroke-width="5" />
+
+    <!-- Primary Neural Mesh Lines -->
+    <!-- Top cluster -->
+    <line x1="280" y1="135" x2="305" y2="105" stroke="#60a5fa" stroke-width="4.5" />
+    <line x1="280" y1="135" x2="320" y2="130" stroke="#818cf8" stroke-width="4.5" />
+    <line x1="305" y1="105" x2="345" y2="115" stroke="#93c5fd" stroke-width="4.5" />
+    <line x1="320" y1="130" x2="345" y2="115" stroke="#818cf8" stroke-width="4.5" />
+    <line x1="320" y1="130" x2="355" y2="145" stroke="#a855f7" stroke-width="4.5" />
+
+    <!-- Upper right cluster -->
+    <line x1="295" y1="175" x2="320" y2="130" stroke="#818cf8" stroke-width="4.5" />
+    <line x1="295" y1="175" x2="335" y2="180" stroke="#a855f7" stroke-width="4.5" />
+    <line x1="345" y1="115" x2="375" y2="140" stroke="#c084fc" stroke-width="4.5" />
+    <line x1="355" y1="145" x2="375" y2="140" stroke="#c084fc" stroke-width="4.5" />
+    <line x1="355" y1="145" x2="385" y2="175" stroke="#e879f9" stroke-width="4.5" />
+    <line x1="335" y1="180" x2="385" y2="175" stroke="#d946ef" stroke-width="4.5" />
+
+    <!-- Mid right cluster -->
+    <line x1="305" y1="215" x2="335" y2="180" stroke="#a855f7" stroke-width="4.5" />
+    <line x1="305" y1="215" x2="350" y2="220" stroke="#c084fc" stroke-width="4.5" />
+    <line x1="335" y1="180" x2="350" y2="220" stroke="#c084fc" stroke-width="4.5" />
+    <line x1="385" y1="175" x2="395" y2="210" stroke="#f472b6" stroke-width="4.5" />
+    <line x1="350" y1="220" x2="395" y2="210" stroke="#e879f9" stroke-width="4.5" />
+
+    <!-- Lower right cluster -->
+    <line x1="310" y1="255" x2="350" y2="220" stroke="#a855f7" stroke-width="4.5" />
+    <line x1="310" y1="255" x2="355" y2="260" stroke="#818cf8" stroke-width="4.5" />
+    <line x1="395" y1="210" x2="390" y2="250" stroke="#d946ef" stroke-width="4.5" />
+    <line x1="350" y1="220" x2="390" y2="250" stroke="#c084fc" stroke-width="4.5" />
+    <line x1="355" y1="260" x2="390" y2="250" stroke="#a855f7" stroke-width="4.5" />
+
+    <!-- Bottom right cluster -->
+    <line x1="295" y1="285" x2="330" y2="295" stroke="#3b82f6" stroke-width="4.5" />
+    <line x1="310" y1="255" x2="330" y2="295" stroke="#60a5fa" stroke-width="4.5" />
+    <line x1="355" y1="260" x2="375" y2="290" stroke="#818cf8" stroke-width="4.5" />
+    <line x1="330" y1="295" x2="375" y2="290" stroke="#60a5fa" stroke-width="4.5" />
+    <line x1="375" y1="290" x2="360" y2="315" stroke="#3b82f6" stroke-width="4.5" />
+
+    <!-- Cross connections for brain lattice / neural synapsing -->
+    <line x1="295" y1="175" x2="355" y2="145" stroke="#818cf8" stroke-width="3" stroke-opacity="0.7" />
+    <line x1="305" y1="215" x2="355" y2="260" stroke="#a855f7" stroke-width="3" stroke-opacity="0.7" />
+
+    <!-- Right Side Circuit Extensions below neural mesh -->
+    <path d="M 295,285 L 320,285 L 340,305 L 355,305" fill="none" stroke="#2563eb" stroke-width="4.5" stroke-linejoin="round" />
+    <path d="M 320,285 L 320,315 L 335,315" fill="none" stroke="#3b82f6" stroke-width="4.5" stroke-linejoin="round" />
+
+    <!-- Neural Network Nodes (Circles with Glowing Core) -->
+    <!-- Tier 1: Inner Nodes -->
+    <circle cx="280" cy="135" r="7.5" fill="#60a5fa" stroke="#ffffff" stroke-width="2" />
+    <circle cx="295" cy="175" r="7.5" fill="#818cf8" stroke="#ffffff" stroke-width="2" />
+    <circle cx="305" cy="215" r="7.5" fill="#a855f7" stroke="#ffffff" stroke-width="2" />
+    <circle cx="310" cy="255" r="7.5" fill="#c084fc" stroke="#ffffff" stroke-width="2" />
+    <circle cx="295" cy="285" r="7" fill="#3b82f6" stroke="#ffffff" stroke-width="2" />
+
+    <!-- Tier 2: Mid-layer Nodes -->
+    <circle cx="305" cy="105" r="8" fill="#93c5fd" stroke="#ffffff" stroke-width="2" />
+    <circle cx="320" cy="130" r="8.5" fill="#818cf8" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="335" cy="180" r="8.5" fill="#a855f7" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="350" cy="220" r="8.5" fill="#c084fc" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="355" cy="260" r="8" fill="#818cf8" stroke="#ffffff" stroke-width="2" />
+    <circle cx="330" cy="295" r="7.5" fill="#60a5fa" stroke="#ffffff" stroke-width="2" />
+
+    <!-- Tier 3: Outer Hemisphere Perimeter Nodes -->
+    <circle cx="345" cy="115" r="9" fill="#bfdbfe" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="375" cy="140" r="9.5" fill="#c084fc" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="355" cy="145" r="8" fill="#a855f7" stroke="#ffffff" stroke-width="2" />
+    <circle cx="385" cy="175" r="9.5" fill="#e879f9" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="395" cy="210" r="10" fill="#f472b6" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="390" cy="250" r="9.5" fill="#d946ef" stroke="#ffffff" stroke-width="2.5" />
+    <circle cx="375" cy="290" r="8.5" fill="#818cf8" stroke="#ffffff" stroke-width="2" />
+    <circle cx="360" cy="315" r="7.5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" />
+    <circle cx="335" cy="315" r="6.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.5" />
+    <circle cx="355" cy="305" r="6.5" fill="#2563eb" stroke="#ffffff" stroke-width="1.5" />
+  </g>
+
+  <!-- Glowing Center Junction Highlights -->
+  <circle cx="256" cy="160" r="4.5" fill="#a7f3d0" />
+  <circle cx="256" cy="360" r="4.5" fill="#93c5fd" />
+</svg>
