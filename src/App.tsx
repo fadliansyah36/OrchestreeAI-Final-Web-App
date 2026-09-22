@@ -21,12 +21,13 @@ import { WebAuthnAttendanceScreen } from './components/WebAuthnAttendanceScreen'
 import { BillingHubScreen } from './components/BillingHubScreen';
 import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { StartupGateReport } from './components/StartupGateReport';
+import { ProactiveChannelsScreen } from './components/ProactiveChannelsScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -193,6 +194,16 @@ export default function App() {
                 >
                   Kredit & Billing
                 </button>
+                <button
+                  onClick={() => setClientSubView('proactive')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'proactive'
+                      ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Kanal & Proaktif
+                </button>
               </div>
             )}
             <button
@@ -275,6 +286,13 @@ export default function App() {
                 tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
                 tenantName={activeTenant?.display_name || activeTenant?.legal_name || 'Organisasi Aktif'}
                 userRole={activeTenant?.role || 'TENANT_OWNER'}
+              />
+            )}
+
+            {clientSubView === 'proactive' && (
+              <ProactiveChannelsScreen
+                tenant={activeTenant}
+                onBack={() => setClientSubView('dashboard')}
               />
             )}
           </div>

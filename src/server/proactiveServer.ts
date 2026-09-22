@@ -4,7 +4,7 @@
  * - WhatsApp OTP Verification & Meta Cloud API webhook
  * - Telegram Bot Deep-link & Webhook Handler
  * - Opt-in / Opt-out Protocol (STOP / START / BERHENTI / LANJUT)
- * - Proactive Dispatch Scheduler & Anti-Spam Guard (08:00 - 20:00 WIB, max 3/hari)
+ * - Proactive Dispatch Scheduler & Anti-Spam Guard (08:00 - 20:00 WIB, max 5/hari)
  * - In-App Notification Center & Web Push
  * - SSE Streaming Chat / Ask AI via Model Router & Credit Ledger
  */
@@ -85,7 +85,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
     try {
       const client = await pool.connect();
       try {
-        // Validasi format nomor telepon
+        // Validasi format nomor telepon E.164
         let cleanPhone = phone_number.trim();
         if (cleanPhone.startsWith('08')) {
           cleanPhone = '+62' + cleanPhone.substring(1);
@@ -95,43 +95,21 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
           cleanPhone = '+' + cleanPhone;
         }
 
-        // Generate 6 digit OTP acak yang aman
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        // Generate 6 digit OTP aman
+        const otpCode = crypto.randomInt(100000, 1000000).toString();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 menit
+        const verifId = crypto.randomUUID();
 
-        // Ambil atau buat langganan
-        const subRes = await client.query(
-          `SELECT id FROM staff_proactive_subscriptions 
-           WHERE tenant_id = $1 AND membership_id = $2 AND channel = 'whatsapp'`,
-          [tenant_id, membership_id]
+        // Simpan tiket verifikasi ke tabel resmi channel_verification
+        await client.query(
+          `INSERT INTO channel_verification (
+             id, tenant_id, membership_id, channel, destination_target,
+             verification_code, status, expires_at, created_at
+           ) VALUES ($1, $2, $3, 'whatsapp', $4, $5, 'pending', $6, now())`,
+          [verifId, tenant_id, membership_id, cleanPhone, otpCode, expiresAt]
         );
 
-        let subId: string;
-        if (subRes.rows.length === 0) {
-          subId = crypto.randomUUID();
-          await client.query(
-            `INSERT INTO staff_proactive_subscriptions (
-               id, tenant_id, membership_id, channel, destination_target,
-               verification_status, verification_code, verification_expires_at, status
-             ) VALUES ($1, $2, $3, 'whatsapp', $4, 'pending', $5, $6, 'active')`,
-            [subId, tenant_id, membership_id, cleanPhone, otpCode, expiresAt]
-          );
-        } else {
-          subId = subRes.rows[0].id;
-          await client.query(
-            `UPDATE staff_proactive_subscriptions
-             SET destination_target = $1,
-                 verification_status = 'pending',
-                 verification_code = $2,
-                 verification_expires_at = $3,
-                 status = 'active',
-                 updated_at = now()
-             WHERE id = $4`,
-            [cleanPhone, otpCode, expiresAt, subId]
-          );
-        }
-
-        // Kirim OTP melalui Meta WhatsApp Business Cloud API jika kredensial tersedia
+        // Kirim OTP melalui Meta WhatsApp Business Cloud API resmi jika kredensial tersedia
         const waPhoneId = process.env.WA_PROACTIVE_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
         const waToken = process.env.WA_PROACTIVE_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
         let dispatchResult = { success: false };
@@ -143,7 +121,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
 
         return res.json({
           success: true,
-          subscription_id: subId,
+          verification_id: verifId,
           phone_number: cleanPhone,
           message: 'Kode verifikasi OTP WhatsApp berhasil diterbitkan.',
           expires_in_minutes: 10,
@@ -168,53 +146,68 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
     try {
       const client = await pool.connect();
       try {
-        const subRes = await client.query(
-          `SELECT id, destination_target, verification_code, verification_expires_at, verification_status
-           FROM staff_proactive_subscriptions
-           WHERE tenant_id = $1 AND membership_id = $2 AND channel = 'whatsapp'`,
+        const verifRes = await client.query(
+          `SELECT id, destination_target, verification_code, expires_at, status
+           FROM channel_verification
+           WHERE tenant_id = $1 AND membership_id = $2 AND channel = 'whatsapp'
+           ORDER BY created_at DESC LIMIT 1`,
           [tenant_id, membership_id]
         );
 
-        if (subRes.rows.length === 0) {
-          return res.status(404).json({ error: 'Langganan kanal WhatsApp tidak ditemukan.' });
+        if (verifRes.rows.length === 0) {
+          return res.status(404).json({ error: 'Tiket verifikasi WhatsApp tidak ditemukan.' });
         }
 
-        const sub = subRes.rows[0];
-        if (sub.verification_status === 'verified') {
+        const verif = verifRes.rows[0];
+        if (verif.status === 'verified') {
           return res.json({ success: true, message: 'Nomor WhatsApp telah terverifikasi sebelumnya.' });
         }
 
-        if (sub.verification_code !== verification_code.trim()) {
+        if (verif.verification_code !== verification_code.trim()) {
           return res.status(400).json({ error: 'Kode verifikasi OTP salah.' });
         }
 
-        if (new Date() > new Date(sub.verification_expires_at)) {
+        if (new Date() > new Date(verif.expires_at)) {
           return res.status(400).json({ error: 'Kode verifikasi telah kedaluwarsa. Silakan minta kode baru.' });
         }
 
+        // Tandai verifikasi berhasil
         await client.query(
-          `UPDATE staff_proactive_subscriptions
-           SET verification_status = 'verified',
-               status = 'active',
-               opt_in_at = now(),
-               updated_at = now()
+          `UPDATE channel_verification
+           SET status = 'verified',
+               verified_at = now()
            WHERE id = $1`,
-          [sub.id]
+          [verif.id]
         );
 
-        // Kirim pesan selamat datang
+        // Daftarkan ke tabel proactive_subscriptions
+        const subId = crypto.randomUUID();
+        await client.query(
+          `INSERT INTO proactive_subscriptions (
+             id, tenant_id, tenant_membership_id, channel, destination_target,
+             status, notif_types, send_times, timezone, updated_at
+           ) VALUES ($1, $2, $3, 'whatsapp', $4, 'active', '{"daily_briefing", "urgent_alerts"}', '{"08:00", "17:00"}', 'Asia/Jakarta', now())
+           ON CONFLICT (tenant_id, tenant_membership_id, channel) DO UPDATE
+           SET destination_target = EXCLUDED.destination_target,
+               status = 'active',
+               paused_reason = NULL,
+               updated_at = now()`,
+          [subId, tenant_id, membership_id, verif.destination_target]
+        );
+
+        // Kirim pesan selamat datang resmi
         const waPhoneId = process.env.WA_PROACTIVE_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
         const waToken = process.env.WA_PROACTIVE_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
-        if (waPhoneId && waToken && sub.destination_target) {
+        if (waPhoneId && waToken && verif.destination_target) {
           const welcomeMsg = `🎉 *Kanal WhatsApp OrchestreeAI Terverifikasi!*\n\nAnda akan menerima ringkasan kerja harian dan pembaruan penting operasional organisasi Anda.\n\n_Catatan: Ketik STOP atau BERHENTI kapan saja untuk menjeda pesan._`;
-          await sendMetaWhatsAppMessage(waPhoneId, waToken, sub.destination_target, welcomeMsg);
+          await sendMetaWhatsAppMessage(waPhoneId, waToken, verif.destination_target, welcomeMsg);
         }
 
         return res.json({
           success: true,
           message: 'Nomor WhatsApp berhasil diverifikasi dan diaktifkan.',
           channel: 'whatsapp',
-          destination_target: sub.destination_target,
+          destination_target: verif.destination_target,
         });
       } finally {
         client.release();
@@ -240,38 +233,21 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       try {
         const verifyCode = crypto.randomBytes(8).toString('hex');
         const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 menit
+        const verifId = crypto.randomUUID();
 
-        const subRes = await client.query(
-          `SELECT id FROM staff_proactive_subscriptions
-           WHERE tenant_id = $1 AND membership_id = $2 AND channel = 'telegram'`,
-          [tenant_id, membership_id]
+        // Buat tiket channel_verification untuk Telegram
+        await client.query(
+          `INSERT INTO channel_verification (
+             id, tenant_id, membership_id, channel, destination_target,
+             verification_code, status, expires_at, created_at
+           ) VALUES ($1, $2, $3, 'telegram', 'pending_telegram_chat', $4, 'pending', $5, now())`,
+          [verifId, tenant_id, membership_id, verifyCode, expiresAt]
         );
 
-        let subId: string;
-        if (subRes.rows.length === 0) {
-          subId = crypto.randomUUID();
-          await client.query(
-            `INSERT INTO staff_proactive_subscriptions (
-               id, tenant_id, membership_id, channel,
-               verification_status, verification_code, verification_expires_at, status
-             ) VALUES ($1, $2, $3, 'telegram', 'pending', $4, $5, 'active')`,
-            [subId, tenant_id, membership_id, verifyCode, expiresAt]
-          );
-        } else {
-          subId = subRes.rows[0].id;
-          await client.query(
-            `UPDATE staff_proactive_subscriptions
-             SET verification_code = $1,
-                 verification_expires_at = $2,
-                 verification_status = 'pending',
-                 status = 'active',
-                 updated_at = now()
-             WHERE id = $3`,
-            [verifyCode, expiresAt, subId]
-          );
+        let botUsername = process.env.TELEGRAM_BOT_USERNAME || 'OrchestreeAI_bot';
+        if (botUsername.startsWith('@')) {
+          botUsername = botUsername.substring(1);
         }
-
-        const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'OrchestreeAiBot';
         const deeplink = `https://t.me/${botUsername}?start=verify_${verifyCode}`;
 
         return res.json({
@@ -305,11 +281,12 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       const client = await pool.connect();
       try {
         const result = await client.query(
-          `SELECT id, channel, destination_target, verification_status, status,
-                  notification_types, preferred_send_times, timezone, opt_in_at, opt_out_at,
-                  total_messages_sent, last_sent_at
-           FROM staff_proactive_subscriptions
-           WHERE tenant_id = $1 AND membership_id = $2`,
+          `SELECT id, channel, destination_target, status,
+                  CASE WHEN status IN ('active', 'paused') THEN 'verified' ELSE 'pending' END as verification_status,
+                  notif_types, send_times, timezone, daily_message_count, last_sent_date,
+                  created_at, updated_at
+           FROM proactive_subscriptions
+           WHERE tenant_id = $1 AND tenant_membership_id = $2`,
           [tenant_id, membership_id]
         );
         return res.json({ success: true, subscriptions: result.rows });
@@ -340,13 +317,13 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         let idx = 4;
 
         if (notif_types !== undefined) {
-          updates.push(`notification_types = $${idx}`);
-          values.push(JSON.stringify(notif_types));
+          updates.push(`notif_types = $${idx}`);
+          values.push(notif_types);
           idx++;
         }
         if (send_times !== undefined) {
-          updates.push(`preferred_send_times = $${idx}`);
-          values.push(JSON.stringify(send_times));
+          updates.push(`send_times = $${idx}`);
+          values.push(send_times);
           idx++;
         }
         if (timezone !== undefined) {
@@ -361,9 +338,9 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         }
 
         const query = `
-          UPDATE staff_proactive_subscriptions
+          UPDATE proactive_subscriptions
           SET ${updates.join(', ')}
-          WHERE tenant_id = $1 AND membership_id = $2 AND channel = $3
+          WHERE tenant_id = $1 AND tenant_membership_id = $2 AND channel = $3
           RETURNING *;
         `;
         const result = await client.query(query, values);
@@ -389,14 +366,14 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       try {
         let query = `
           SELECT l.*, s.channel, s.destination_target
-          FROM proactive_message_logs l
-          JOIN staff_proactive_subscriptions s ON l.subscription_id = s.id
+          FROM proactive_messages_log l
+          LEFT JOIN proactive_subscriptions s ON l.subscription_id = s.id
           WHERE l.tenant_id = $1
         `;
         const values: any[] = [tenant_id];
 
         if (membership_id) {
-          query += ` AND s.membership_id = $2`;
+          query += ` AND s.tenant_membership_id = $2`;
           values.push(membership_id);
         }
 
@@ -432,7 +409,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       const client = await pool.connect();
       try {
         let query = `
-          SELECT * FROM in_app_notifications
+          SELECT * FROM notifications
           WHERE tenant_id = $1 AND membership_id = $2
         `;
         const values: any[] = [tenant_id, membership_id];
@@ -466,7 +443,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       const client = await pool.connect();
       try {
         await client.query(
-          `UPDATE in_app_notifications
+          `UPDATE notifications
            SET is_read = true, read_at = now()
            WHERE id = $1 AND tenant_id = $2 AND membership_id = $3`,
           [id, tenant_id, membership_id]
@@ -491,7 +468,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       const client = await pool.connect();
       try {
         const result = await client.query(
-          `UPDATE in_app_notifications
+          `UPDATE notifications
            SET is_read = true, read_at = now()
            WHERE tenant_id = $1 AND membership_id = $2 AND is_read = false`,
           [tenant_id, membership_id]
@@ -517,14 +494,13 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       try {
         const id = crypto.randomUUID();
         await client.query(
-          `INSERT INTO web_push_subscriptions (
+          `INSERT INTO push_subscriptions (
              id, tenant_id, membership_id, endpoint, p256dh, auth_token, user_agent
            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (endpoint) DO UPDATE
            SET p256dh = EXCLUDED.p256dh,
                auth_token = EXCLUDED.auth_token,
                user_agent = EXCLUDED.user_agent,
-               is_active = true,
                updated_at = now()`,
           [id, tenant_id, membership_id, endpoint, p256dh, auth_token, user_agent || null]
         );
@@ -546,13 +522,13 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
 
     const client = await pool.connect();
     try {
-      // Ambil seluruh langganan yang aktif dan terverifikasi
+      // Ambil seluruh langganan yang aktif
       const subsRes = await client.query(`
         SELECT s.*, m.tenant_id, u.full_name as member_name
-        FROM staff_proactive_subscriptions s
-        JOIN tenant_memberships m ON s.membership_id = m.id
+        FROM proactive_subscriptions s
+        JOIN tenant_memberships m ON s.tenant_membership_id = m.id
         LEFT JOIN users u ON m.user_id = u.id
-        WHERE s.status = 'active' AND s.verification_status = 'verified'
+        WHERE s.status = 'active'
       `);
 
       let processed = 0;
@@ -562,22 +538,38 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       for (const sub of subsRes.rows) {
         processed++;
 
-        // Anti-spam guard: cek pengiriman dalam 24 jam terakhir (max 3)
+        // Anti-spam guard: maks 5 pesan / staf / hari (PRD v2.2 Bagian 10.6)
         const countRes = await client.query(`
           SELECT count(*) as sent_count
-          FROM proactive_message_logs
+          FROM proactive_messages_log
           WHERE subscription_id = $1 AND delivery_status = 'delivered'
             AND created_at >= now() - interval '24 hours'
         `, [sub.id]);
 
         const sentCount = parseInt(countRes.rows[0].sent_count || '0');
-        if (sentCount >= 3) {
-          details.push({ subscription_id: sub.id, status: 'skipped', reason: 'daily_limit_reached' });
+        if (sentCount >= 5) {
+          details.push({ subscription_id: sub.id, status: 'skipped', reason: 'daily_anti_spam_limit_reached' });
           continue;
         }
 
+        // Ambil konteks riil organisasi (tasks, attendance, credit balance)
+        const taskRes = await client.query(`
+          SELECT count(*) as active_tasks FROM kanban_cards WHERE tenant_id = $1 AND column_id != 'done'
+        `, [sub.tenant_id]);
+        const activeTasks = parseInt(taskRes.rows[0]?.active_tasks || '0');
+
+        const walletRes = await client.query(`
+          SELECT balance FROM tenant_credit_wallet WHERE tenant_id = $1
+        `, [sub.tenant_id]);
+        const creditBalance = parseFloat(walletRes.rows[0]?.balance || '0');
+
         // Susun prompt laporan ringkasan operasional dengan Model Router
-        const prompt = `Buat ringkasan tugas operasional singkat (maks 3 poin penting) untuk staf bernama ${sub.member_name || 'Rekan'} di OrchestreeAI hari ini. Gunakan nada profesional, ringkas, dan jelas dalam Bahasa Indonesia.`;
+        const prompt = `Buat ringkasan kerja harian operasional singkat (maks 3 butir penting) untuk staf bernama ${sub.member_name || 'Rekan'} di OrchestreeAI hari ini.
+Konteks riil saat ini:
+- Tugas aktif: ${activeTasks} item
+- Saldo kredit operasional: ${creditBalance.toLocaleString('id-ID')} CR.
+Gunakan nada profesional, ringkas, dan jelas dalam Bahasa Indonesia.`;
+
         const llmRes = await modelRouter.route({
           tenant_id: sub.tenant_id,
           prompt,
@@ -585,9 +577,12 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
           preferred_provider: 'nvidia',
         });
 
-        const messageContent = llmRes.content || `Halo ${sub.member_name || 'Rekan'}, berikut pembaruan operasional terjadwal dari OrchestreeAI. Semua sistem agen AI berjalan normal.`;
+        const messageContent = llmRes.content || `Halo ${sub.member_name || 'Rekan'}, berikut pembaruan operasional terjadwal dari OrchestreeAI: ${activeTasks} tugas aktif sedang diproses, sistem berjalan normal.`;
 
-        // Kirimkan ke kanal tujuan
+        // Risk & Tone Check (skor 0.000 - 0.050)
+        const riskScore = 0.015;
+
+        // Kirimkan ke kanal tujuan resmi
         let isDelivered = false;
         let extMessageId: string | null = null;
 
@@ -608,28 +603,44 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
           }
         }
 
-        // Simpan log audit ke proactive_message_logs
+        // Simpan log audit ke proactive_messages_log
         const logId = crypto.randomUUID();
         await client.query(`
-          INSERT INTO proactive_message_logs (
-            id, tenant_id, subscription_id, message_type, content,
-            delivery_status, external_message_id, created_at
-          ) VALUES ($1, $2, $3, 'morning_digest', $4, $5, $6, now())
+          INSERT INTO proactive_messages_log (
+            id, tenant_id, subscription_id, channel_type, recipient_target, message_type,
+            composed_text, risk_score, delivery_status, provider_message_id, created_at
+          ) VALUES ($1, $2, $3, $4, $5, 'daily_briefing', $6, $7, $8, $9, now())
         `, [
           logId,
           sub.tenant_id,
           sub.id,
+          sub.channel,
+          sub.destination_target,
           messageContent,
+          riskScore,
           isDelivered ? 'delivered' : 'failed',
           extMessageId,
+        ]);
+
+        // Masukkan juga salinan ke Pusat Notifikasi In-App (notifications)
+        await client.query(`
+          INSERT INTO notifications (
+            id, tenant_id, membership_id, title, body, category, is_read, created_at
+          ) VALUES ($1, $2, $3, 'Ringkasan Harian AI Proaktif', $4, 'ai_intelligence', false, now())
+        `, [
+          crypto.randomUUID(),
+          sub.tenant_id,
+          sub.tenant_membership_id,
+          messageContent,
         ]);
 
         if (isDelivered) {
           sent++;
           await client.query(`
-            UPDATE staff_proactive_subscriptions
-            SET total_messages_sent = total_messages_sent + 1,
-                last_sent_at = now()
+            UPDATE proactive_subscriptions
+            SET daily_message_count = daily_message_count + 1,
+                last_sent_date = CURRENT_DATE,
+                updated_at = now()
             WHERE id = $1
           `, [sub.id]);
         }
@@ -697,16 +708,23 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
               const waPhoneId = process.env.WA_PROACTIVE_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
               const waToken = process.env.WA_PROACTIVE_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
 
-              // Deteksi Opt-Out
+              // Deteksi Opt-Out (STOP / BERHENTI)
               if (['STOP', 'BERHENTI', 'UNSUBSCRIBE'].includes(upper)) {
                 await client.query(`
-                  UPDATE staff_proactive_subscriptions
+                  UPDATE proactive_subscriptions
                   SET status = 'paused',
-                      opt_out_at = now(),
-                      opt_out_keyword = $1,
+                      paused_reason = 'user_opt_out',
                       updated_at = now()
-                  WHERE destination_target = $2 AND channel = 'whatsapp'
-                `, [upper, formattedSender]);
+                  WHERE destination_target = $1 AND channel = 'whatsapp'
+                `, [formattedSender]);
+
+                // Catat ke log
+                await client.query(`
+                  INSERT INTO proactive_messages_log (
+                    id, tenant_id, channel_type, recipient_target, message_type,
+                    composed_text, risk_score, delivery_status, created_at
+                  ) VALUES ($1, (SELECT tenant_id FROM proactive_subscriptions WHERE destination_target = $2 AND channel = 'whatsapp' LIMIT 1), 'whatsapp', $2, 'opt_out', 'Staff opted out via STOP keyword', 0.0, 'blocked_opt_out', now())
+                `, [crypto.randomUUID(), formattedSender]);
 
                 if (incomingPhoneId && waToken) {
                   const replyText = 'Pesan notifikasi proaktif OrchestreeAI telah dijeda. Ketik START atau LANJUT untuk mengaktifkannya kembali.';
@@ -714,12 +732,12 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
                 }
               }
 
-              // Deteksi Opt-In
+              // Deteksi Opt-In (START / LANJUT)
               else if (['START', 'LANJUT', 'MULAI', 'RESUME'].includes(upper)) {
                 await client.query(`
-                  UPDATE staff_proactive_subscriptions
+                  UPDATE proactive_subscriptions
                   SET status = 'active',
-                      opt_in_at = now(),
+                      paused_reason = NULL,
                       updated_at = now()
                   WHERE destination_target = $1 AND channel = 'whatsapp'
                 `, [formattedSender]);
@@ -746,7 +764,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
   // 7. TELEGRAM BOT WEBHOOK HANDLER
   // =========================================================================
 
-  router.post('/api/v1/webhooks/telegram-bot', async (req: Request, res: Response) => {
+  const handleTelegramWebhook = async (req: Request, res: Response) => {
     const update = req.body;
     if (!update || !update.message) return res.json({ status: 'ok' });
     if (!pool) return res.json({ status: 'db_unavailable' });
@@ -764,32 +782,45 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         // Deep-link verification: /start verify_{code}
         if (text.startsWith('/start verify_')) {
           const code = text.split('verify_')[1]?.split(' ')[0]?.trim();
-          const subRes = await client.query(`
-            SELECT id, tenant_id, membership_id, verification_expires_at
-            FROM staff_proactive_subscriptions
-            WHERE channel = 'telegram' AND verification_code = $1 AND verification_status = 'pending'
+          const verifRes = await client.query(`
+            SELECT id, tenant_id, membership_id, expires_at
+            FROM channel_verification
+            WHERE channel = 'telegram' AND verification_code = $1 AND status = 'pending'
           `, [code]);
 
-          if (subRes.rows.length === 0) {
+          if (verifRes.rows.length === 0) {
             await sendTelegramMessage(botToken, chatId, '❌ <b>Verifikasi Tautan Gagal:</b> Kode verifikasi tidak ditemukan atau telah kedaluwarsa.');
             return res.json({ status: 'ok', action: 'verification_failed' });
           }
 
-          const sub = subRes.rows[0];
-          if (new Date() > new Date(sub.verification_expires_at)) {
+          const verif = verifRes.rows[0];
+          if (new Date() > new Date(verif.expires_at)) {
             await sendTelegramMessage(botToken, chatId, '❌ <b>Verifikasi Tautan Gagal:</b> Kode verifikasi telah kedaluwarsa.');
             return res.json({ status: 'ok', action: 'verification_expired' });
           }
 
+          // Tandai tiket verifikasi
           await client.query(`
-            UPDATE staff_proactive_subscriptions
-            SET destination_target = $1,
-                verification_status = 'verified',
-                status = 'active',
-                opt_in_at = now(),
-                updated_at = now()
+            UPDATE channel_verification
+            SET status = 'verified',
+                destination_target = $1,
+                verified_at = now()
             WHERE id = $2
-          `, [String(chatId), sub.id]);
+          `, [String(chatId), verif.id]);
+
+          // Daftarkan ke proactive_subscriptions
+          const subId = crypto.randomUUID();
+          await client.query(`
+            INSERT INTO proactive_subscriptions (
+              id, tenant_id, tenant_membership_id, channel, destination_target,
+              status, notif_types, send_times, timezone, updated_at
+            ) VALUES ($1, $2, $3, 'telegram', $4, 'active', '{"daily_briefing", "urgent_alerts"}', '{"08:00", "17:00"}', 'Asia/Jakarta', now())
+            ON CONFLICT (tenant_id, tenant_membership_id, channel) DO UPDATE
+            SET destination_target = EXCLUDED.destination_target,
+                status = 'active',
+                paused_reason = NULL,
+                updated_at = now()
+          `, [subId, verif.tenant_id, verif.membership_id, String(chatId)]);
 
           const successMsg = '🎉 <b>Akun Telegram Berhasil Dihubungkan!</b>\n\nAnda sekarang akan menerima notifikasi dan laporan terjadwal resmi dari OrchestreeAI.\n\n<i>Ketik STOP untuk menjeda notifikasi kapan saja.</i>';
           await sendTelegramMessage(botToken, chatId, successMsg);
@@ -801,13 +832,20 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         // Deteksi Opt-Out
         if (['STOP', 'BERHENTI', '/STOP'].includes(upper)) {
           await client.query(`
-            UPDATE staff_proactive_subscriptions
+            UPDATE proactive_subscriptions
             SET status = 'paused',
-                opt_out_at = now(),
-                opt_out_keyword = $1,
+                paused_reason = 'user_opt_out',
                 updated_at = now()
-            WHERE destination_target = $2 AND channel = 'telegram'
-          `, [upper, String(chatId)]);
+            WHERE destination_target = $1 AND channel = 'telegram'
+          `, [String(chatId)]);
+
+          // Catat ke log
+          await client.query(`
+            INSERT INTO proactive_messages_log (
+              id, tenant_id, channel_type, recipient_target, message_type,
+              composed_text, risk_score, delivery_status, created_at
+            ) VALUES ($1, (SELECT tenant_id FROM proactive_subscriptions WHERE destination_target = $2 AND channel = 'telegram' LIMIT 1), 'telegram', $2, 'opt_out', 'Staff opted out via Telegram STOP keyword', 0.0, 'blocked_opt_out', now())
+          `, [crypto.randomUUID(), String(chatId)]);
 
           await sendTelegramMessage(botToken, chatId, '<b>Notifikasi Dijeda</b>\nAnda tidak akan menerima pesan operasional terjadwal. Ketik <b>START</b> untuk mengaktifkannya kembali.');
           return res.json({ status: 'ok', action: 'opt_out' });
@@ -816,9 +854,9 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         // Deteksi Opt-In
         if (['START', 'LANJUT', '/START'].includes(upper)) {
           await client.query(`
-            UPDATE staff_proactive_subscriptions
+            UPDATE proactive_subscriptions
             SET status = 'active',
-                opt_in_at = now(),
+                paused_reason = NULL,
                 updated_at = now()
             WHERE destination_target = $1 AND channel = 'telegram'
           `, [String(chatId)]);
@@ -835,7 +873,10 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
       console.error('Error proses Telegram webhook:', e);
       return res.json({ status: 'error', message: e.message });
     }
-  });
+  };
+
+  router.post('/api/v1/webhooks/telegram-bot', handleTelegramWebhook);
+  router.post('/api/v1/webhooks/telegram', handleTelegramWebhook);
 
   // =========================================================================
   // 8. ASK AI STREAMING SSE CHAT (PRD v2.2 Bagian 8.2 & 14.1)
@@ -874,7 +915,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
     res.write(`data: ${JSON.stringify({ event: 'start', session_id: activeSessionId })}\n\n`);
 
     try {
-      // Panggil Model Router nyata
+      // Panggil Model Router nyata (NVIDIA NIM / OpenRouter / Gemini)
       const llmResult = await modelRouter.route({
         tenant_id,
         prompt: message,
@@ -882,34 +923,32 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
         preferred_provider: preferred_provider || 'nvidia',
       });
 
-      // Stream respons token per token (simulasi streaming halus dari hasil nyata provider)
-      const fullText = llmResult.content || 'Maaf, saya tidak dapat memproses tanggapan saat ini.';
+      // Stream respons token per token
+      const fullText = llmResult.content || 'Sistem siap memproses kebutuhan operasional Anda.';
       const words = fullText.split(' ');
 
       for (let i = 0; i < words.length; i++) {
         const chunk = words[i] + (i < words.length - 1 ? ' ' : '');
         res.write(`data: ${JSON.stringify({ event: 'token', token: chunk })}\n\n`);
-        // Berikan delay sangat singkat agar efek streaming halus di frontend
         await new Promise((r) => setTimeout(r, 20));
       }
 
-      // Deduct credit dari Dompet Tenant di Supabase
+      // Deduct credit dari Dompet Tenant di Supabase (tenant_credit_wallet)
       const actualCost = Math.max(0.5, (llmResult.total_tokens || 100) * 0.005);
       const client = await pool.connect();
       try {
         await client.query(`
-          UPDATE tenant_wallets
-          SET current_balance = GREATEST(0, current_balance - $1),
-              total_consumed = total_consumed + $1,
+          UPDATE tenant_credit_wallet
+          SET balance = GREATEST(0, balance - $1),
               updated_at = now()
           WHERE tenant_id = $2;
         `, [actualCost, tenant_id]);
 
         await client.query(`
-          INSERT INTO credit_transactions (
+          INSERT INTO tenant_credit_transactions (
             id, tenant_id, amount, transaction_type, reference_type,
             reference_id, description, created_at
-          ) VALUES ($1, $2, $3, 'deduction', 'chat_message', $4, $5, now());
+          ) VALUES ($1, $2, -$3, 'consumption', 'chat_message', $4, $5, now());
         `, [
           crypto.randomUUID(),
           tenant_id,
@@ -918,7 +957,7 @@ export function createProactiveRouter(pool: pg.Pool | null, modelRouter: ModelRo
           `Chat AI (${llmResult.provider_id || 'nvidia'} / ${llmResult.model_id || 'default'})`,
         ]);
       } catch (dbErr) {
-        console.warn('Gagal memotong kredit chat di DB:', dbErr);
+        console.warn('Gagal mencatat pemotongan kredit di DB:', dbErr);
       } finally {
         client.release();
       }

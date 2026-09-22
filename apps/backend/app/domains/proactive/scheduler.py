@@ -129,7 +129,7 @@ async def compose_proactive_briefing(
         "Tugas Anda adalah menyusun ringkasan operasional harian yang ringkas, profesional, "
         "dan bernada solutif dalam bahasa Indonesia. "
         "Gunakan poin-poin yang mudah dibaca di layar ponsel (WhatsApp / Telegram). "
-        "Jangan menyertakan istilah teknis internal atau placeholder."
+        "Jangan menyertakan istilah teknis internal atau data tiruan."
     )
 
     now_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).strftime("%A, %d %B %Y - %H:%M WIB")

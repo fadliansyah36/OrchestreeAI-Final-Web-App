@@ -29,8 +29,10 @@ import {
   MCPToolRegistryService,
   OrchestrationEngineService,
   authorizePDP,
+  authorizePDPAsync,
   getContinuousLearningService,
 } from './src/server/cognitiveCore';
+import { checkAiDataPermission, checkDepartmentCap } from './src/server/abacService';
 import { createProactiveRouter } from './src/server/proactiveServer';
 
 let pool: pg.Pool | null = null;
@@ -2374,6 +2376,332 @@ app.post('/api/v1/webhooks/payment/xendit', async (req, res) => {
     }
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// ABAC (Attribute-Based Access Control) & Department Budget Routes — PRD v2.2 Bagian 3.3 & 3.5
+// ============================================================================
+
+// 1. List ABAC Policies
+app.get('/api/v1/tenants/:tenant_id/abac/policies', async (req, res) => {
+  const { tenant_id } = req.params;
+  const user = (req as any).user || { id: 'anonymous', tenant_id, roles: ['TENANT_ADMIN'] };
+
+  const authDecision = await authorizePDPAsync(
+    pool,
+    { tenant_id, roles: user.roles || ['TENANT_ADMIN'], capabilities: ['abac.policies.view'], user_id: user.id },
+    'abac.policies.view',
+    { resource_type: 'abac_policy', owner_tenant_id: tenant_id }
+  );
+
+  if (!authDecision.is_authorized) {
+    return res.status(403).json({ error: authDecision.reason, decision: authDecision.decision });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+    const result = await client.query(
+      `SELECT * FROM ai_data_permission_policies WHERE tenant_id = $1 ORDER BY priority DESC, created_at DESC;`,
+      [tenant_id]
+    );
+    return res.json({ policies: result.rows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 2. Create ABAC Policy
+app.post('/api/v1/tenants/:tenant_id/abac/policies', async (req, res) => {
+  const { tenant_id } = req.params;
+  const {
+    agent_id,
+    agent_persona_type,
+    resource_type,
+    resource_identifier,
+    action,
+    data_classification,
+    conditions,
+    effect,
+    priority,
+  } = req.body;
+
+  const user = (req as any).user || { id: 'anonymous', tenant_id, roles: ['TENANT_ADMIN'] };
+
+  const authDecision = await authorizePDPAsync(
+    pool,
+    { tenant_id, roles: user.roles || ['TENANT_ADMIN'], capabilities: ['abac.policies.manage'], user_id: user.id },
+    'abac.policies.manage',
+    { resource_type: 'abac_policy', owner_tenant_id: tenant_id }
+  );
+
+  if (!authDecision.is_authorized) {
+    return res.status(403).json({ error: authDecision.reason, decision: authDecision.decision });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+    const result = await client.query(
+      `INSERT INTO ai_data_permission_policies (
+        id, tenant_id, agent_id, agent_persona_type, resource_type,
+        resource_identifier, action, data_classification, conditions, effect, priority
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+      ) RETURNING *;`,
+      [
+        tenant_id,
+        agent_id || null,
+        agent_persona_type || null,
+        resource_type,
+        resource_identifier || '*',
+        action || 'data.read',
+        data_classification || 'internal',
+        JSON.stringify(conditions || {}),
+        effect || 'ALLOW',
+        priority ?? 100,
+      ]
+    );
+    return res.status(201).json({ policy: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 3. Delete ABAC Policy
+app.delete('/api/v1/tenants/:tenant_id/abac/policies/:id', async (req, res) => {
+  const { tenant_id, id } = req.params;
+  const user = (req as any).user || { id: 'anonymous', tenant_id, roles: ['TENANT_ADMIN'] };
+
+  const authDecision = await authorizePDPAsync(
+    pool,
+    { tenant_id, roles: user.roles || ['TENANT_ADMIN'], capabilities: ['abac.policies.manage'], user_id: user.id },
+    'abac.policies.manage',
+    { resource_type: 'abac_policy', owner_tenant_id: tenant_id }
+  );
+
+  if (!authDecision.is_authorized) {
+    return res.status(403).json({ error: authDecision.reason, decision: authDecision.decision });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+    await client.query(`DELETE FROM ai_data_permission_policies WHERE id = $1 AND tenant_id = $2;`, [id, tenant_id]);
+    return res.json({ result: 'deleted', id });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 4. Check AI Data Permission Explicitly (REST Endpoint for Workers/Clients)
+app.post('/api/v1/tenants/:tenant_id/abac/check', async (req, res) => {
+  const { tenant_id } = req.params;
+  const {
+    agent_id,
+    agent_persona_type,
+    resource_type,
+    resource_identifier,
+    action,
+    data_classification,
+    department_id,
+  } = req.body;
+
+  const decision = await checkAiDataPermission(
+    pool,
+    {
+      tenant_id,
+      agent_id,
+      agent_persona_type,
+      actor_type: 'ai_agent',
+      department_id,
+    },
+    action || 'data.read',
+    {
+      resource_type: resource_type || 'database_table',
+      resource_identifier: resource_identifier || '*',
+      data_classification: data_classification || 'internal',
+      owner_tenant_id: tenant_id,
+    }
+  );
+
+  return res.json(decision);
+});
+
+// 5. Submit AI Data Access Request
+app.post('/api/v1/tenants/:tenant_id/abac/requests', async (req, res) => {
+  const { tenant_id } = req.params;
+  const {
+    agent_id,
+    resource_type,
+    resource_identifier,
+    action,
+    data_classification,
+    reason,
+  } = req.body;
+
+  const user = (req as any).user || { id: null, tenant_id, roles: ['STAFF_HUMAN'] };
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+    const result = await client.query(
+      `INSERT INTO ai_data_access_requests (
+        id, tenant_id, agent_id, requester_id, resource_type,
+        resource_identifier, action, data_classification, reason, status
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'pending'
+      ) RETURNING *;`,
+      [
+        tenant_id,
+        agent_id || null,
+        user.id || null,
+        resource_type,
+        resource_identifier || '*',
+        action || 'data.read',
+        data_classification || 'internal',
+        reason || 'Permintaan akses data operasional agen AI',
+      ]
+    );
+    return res.status(201).json({ request: result.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 6. Review AI Data Access Request (Approve / Reject)
+app.post('/api/v1/tenants/:tenant_id/abac/requests/:id/review', async (req, res) => {
+  const { tenant_id, id } = req.params;
+  const { status: decisionStatus, decision_reason, create_policy } = req.body;
+  const user = (req as any).user || { id: null, tenant_id, roles: ['TENANT_ADMIN'] };
+
+  const authDecision = await authorizePDPAsync(
+    pool,
+    { tenant_id, roles: user.roles || ['TENANT_ADMIN'], capabilities: ['abac.requests.review'], user_id: user.id },
+    'abac.requests.review',
+    { resource_type: 'abac_request', owner_tenant_id: tenant_id }
+  );
+
+  if (!authDecision.is_authorized) {
+    return res.status(403).json({ error: authDecision.reason, decision: authDecision.decision });
+  }
+
+  if (!['approved', 'rejected'].includes(decisionStatus)) {
+    return res.status(400).json({ error: "Status harus 'approved' atau 'rejected'." });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    const reqRes = await client.query(
+      `UPDATE ai_data_access_requests
+       SET status = $1, decision_reason = $2, reviewed_by = $3, reviewed_at = now(), updated_at = now()
+       WHERE id = $4 AND tenant_id = $5
+       RETURNING *;`,
+      [decisionStatus, decision_reason || null, user.id || null, id, tenant_id]
+    );
+
+    if (reqRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Permintaan akses data tidak ditemukan.' });
+    }
+
+    const row = reqRes.rows[0];
+
+    // Jika disetujui dan diminta otomatis buat policy
+    if (decisionStatus === 'approved' && create_policy !== false) {
+      await client.query(
+        `INSERT INTO ai_data_permission_policies (
+          id, tenant_id, agent_id, resource_type, resource_identifier,
+          action, data_classification, effect, priority
+        ) VALUES (
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'ALLOW', 100
+        );`,
+        [
+          tenant_id,
+          row.agent_id,
+          row.resource_type,
+          row.resource_identifier,
+          row.action,
+          row.data_classification,
+        ]
+      );
+    }
+
+    return res.json({ result: 'reviewed', request: row });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 7. Department Budget Cap Status & Management
+app.get('/api/v1/tenants/:tenant_id/departments/:id/budget', async (req, res) => {
+  const { tenant_id, id } = req.params;
+  const budget = await checkDepartmentCap(pool, tenant_id, id, 0);
+  return res.json(budget);
+});
+
+app.patch('/api/v1/tenants/:tenant_id/departments/:id/budget', async (req, res) => {
+  const { tenant_id, id } = req.params;
+  const { credit_cap } = req.body;
+  const user = (req as any).user || { id: null, tenant_id, roles: ['TENANT_ADMIN'] };
+
+  const authDecision = await authorizePDPAsync(
+    pool,
+    { tenant_id, roles: user.roles || ['TENANT_ADMIN'], capabilities: ['department.budget.manage'], user_id: user.id },
+    'department.budget.manage',
+    { resource_type: 'department_budget', owner_tenant_id: tenant_id }
+  );
+
+  if (!authDecision.is_authorized) {
+    return res.status(403).json({ error: authDecision.reason, decision: authDecision.decision });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    const capVal = credit_cap !== undefined && credit_cap !== null ? parseFloat(credit_cap) : null;
+    const updRes = await client.query(
+      `UPDATE departments
+       SET credit_cap = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING id, name, credit_cap, credit_spent;`,
+      [capVal, id, tenant_id]
+    );
+
+    if (updRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Departemen tidak ditemukan.' });
+    }
+
+    return res.json({ result: 'updated', department: updRes.rows[0] });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

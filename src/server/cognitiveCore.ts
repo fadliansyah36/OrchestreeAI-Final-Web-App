@@ -10,6 +10,13 @@
 
 import pg from 'pg';
 import crypto from 'crypto';
+import {
+  checkAiDataPermission,
+  checkDepartmentCap,
+  logAuditEntry,
+  ABACDecisionResult,
+  DepartmentBudgetResult,
+} from './abacService';
 
 export interface PDPSubject {
   user_id?: string;
@@ -18,12 +25,16 @@ export interface PDPSubject {
   capabilities: string[];
   is_mfa_verified?: boolean;
   actor_type?: string;
+  agent_id?: string;
+  agent_persona_type?: string;
+  department_id?: string;
 }
 
 export interface PDPResource {
   resource_type: string;
   resource_id?: string;
   owner_tenant_id?: string;
+  data_classification?: 'public' | 'internal' | 'confidential' | 'restricted';
   attributes?: Record<string, any>;
 }
 
@@ -31,10 +42,12 @@ export interface PDPDecision {
   is_authorized: boolean;
   decision: 'PERMIT' | 'DENY';
   reason: string;
+  audit_decision?: string;
 }
 
 /**
  * Unified Policy Decision Point (PDP) authorize() — PRD v2.2 Bagian 3.5
+ * Evaluasi sinkronus dasar.
  */
 export function authorizePDP(
   subject: PDPSubject,
@@ -45,51 +58,292 @@ export function authorizePDP(
   // 1. Tenant Isolation
   if (resource.owner_tenant_id && subject.tenant_id && resource.owner_tenant_id !== subject.tenant_id) {
     if (subject.roles.includes('SUPER_ADMIN') && subject.is_mfa_verified) {
-      return { is_authorized: true, decision: 'PERMIT', reason: 'Super Admin MFA override lintas-tenant.' };
+      return { is_authorized: true, decision: 'PERMIT', reason: 'Super Admin MFA override lintas-tenant.', audit_decision: 'ALLOW' };
     }
-    return { is_authorized: false, decision: 'DENY', reason: 'Akses resource tenant lain dilarang (Tenant Isolation).' };
+    return { is_authorized: false, decision: 'DENY', reason: 'Akses resource tenant lain dilarang (Tenant Isolation).', audit_decision: 'DENY_CROSS_TENANT' };
   }
 
   // 2. Super Admin MFA requirement
   if (subject.roles.includes('SUPER_ADMIN')) {
     if (!subject.is_mfa_verified) {
-      return { is_authorized: false, decision: 'DENY', reason: 'Super Admin wajib menyertakan verifikasi MFA aktif.' };
+      return { is_authorized: false, decision: 'DENY', reason: 'Super Admin wajib menyertakan verifikasi MFA aktif.', audit_decision: 'DENY_MFA_REQUIRED' };
     }
-    return { is_authorized: true, decision: 'PERMIT', reason: 'Super Admin terverifikasi MFA diizinkan.' };
+    return { is_authorized: true, decision: 'PERMIT', reason: 'Super Admin terverifikasi MFA diizinkan.', audit_decision: 'ALLOW' };
   }
 
   // 3. Tenant Owner / Admin
   if (subject.roles.includes('TENANT_OWNER') || subject.roles.includes('TENANT_ADMIN')) {
-    return { is_authorized: true, decision: 'PERMIT', reason: 'Hak penuh manajemen tenant.' };
+    return { is_authorized: true, decision: 'PERMIT', reason: 'Hak penuh manajemen tenant.', audit_decision: 'ALLOW' };
   }
 
-  // 4. Role & Capabilities check
-  if (action === 'workflow.dispatch') {
-    if (subject.capabilities.includes('workflow.dispatch') || subject.roles.includes('DEPT_MANAGER') || subject.roles.includes('STAFF_AI')) {
-      return { is_authorized: true, decision: 'PERMIT', reason: 'Kewenangan dispatch alur kerja kognitif diizinkan.' };
-    }
-    return { is_authorized: false, decision: 'DENY', reason: 'Kurang kapabilitas workflow.dispatch.' };
+  // 4. Direct Capability Match
+  if (subject.capabilities && subject.capabilities.includes(action)) {
+    return { is_authorized: true, decision: 'PERMIT', reason: `Aksi diizinkan berdasarkan kapabilitas '${action}'.`, audit_decision: 'ALLOW' };
   }
 
-  if (action.startsWith('workflow.node.')) {
-    if (subject.capabilities.includes('workflow.node.execute') || subject.capabilities.includes('workflow.dispatch') || subject.roles.includes('STAFF_AI')) {
-      return { is_authorized: true, decision: 'PERMIT', reason: 'Kewenangan eksekusi node workflow diizinkan.' };
+  // 5. Dept Manager Role
+  if (subject.roles.includes('DEPT_MANAGER')) {
+    const allowedManagerActions = [
+      'hr.approval.review',
+      'tenant.members.view',
+      'department.tasks.manage',
+      'department.reports.view',
+      'workforce.department.view',
+      'workforce.staff.view',
+      'workforce.agent.view',
+      'abac.policies.view',
+      'abac.requests.create',
+      'abac.requests.review',
+      'workflow.dispatch',
+    ];
+    if (allowedManagerActions.includes(action) || action.startsWith('department.')) {
+      return { is_authorized: true, decision: 'PERMIT', reason: 'Kewenangan manajemen departemen diizinkan.', audit_decision: 'ALLOW' };
     }
-    return { is_authorized: false, decision: 'DENY', reason: 'Kurang kapabilitas eksekusi node workflow.' };
   }
 
-  if (action === 'mcp.tool.invoke') {
-    const riskTier = resource.attributes?.risk_tier || 'low';
-    if (riskTier === 'critical' && !subject.is_mfa_verified) {
-      return { is_authorized: false, decision: 'DENY', reason: 'Perkakas MCP tingkat kritis memerlukan verifikasi MFA.' };
+  // 6. Staff Human Role
+  if (subject.roles.includes('STAFF_HUMAN')) {
+    const allowedStaffActions = [
+      'tenant.members.view',
+      'tasks.assigned.view',
+      'tasks.assigned.update',
+      'attendance.clock',
+      'workforce.staff.view',
+      'workforce.agent.view',
+      'abac.requests.create',
+    ];
+    if (allowedStaffActions.includes(action)) {
+      return { is_authorized: true, decision: 'PERMIT', reason: 'Aksi operasional staf diizinkan.', audit_decision: 'ALLOW' };
     }
-    if (subject.capabilities.includes('mcp.tool.invoke') || subject.roles.includes('STAFF_AI') || subject.roles.includes('STAFF_HUMAN')) {
-      return { is_authorized: true, decision: 'PERMIT', reason: 'Pemanggilan perkakas MCP diizinkan.' };
-    }
-    return { is_authorized: false, decision: 'DENY', reason: 'Kurang kapabilitas mcp.tool.invoke.' };
+    return {
+      is_authorized: false,
+      decision: 'DENY',
+      reason: `Role STAFF_HUMAN tidak memiliki izin untuk aksi '${action}'.`,
+      audit_decision: 'DENY_INSUFFICIENT_ROLE',
+    };
   }
 
-  return { is_authorized: true, decision: 'PERMIT', reason: 'Aksi standar diizinkan.' };
+  // 7. AI Agent Role
+  if (subject.roles.includes('AI_AGENT') || subject.roles.includes('STAFF_AI')) {
+    const allowedAgentActions = [
+      'tool.execute',
+      'mcp.tool.invoke',
+      'tasks.assigned.update',
+      'llm.invoke',
+      'workflow.dispatch',
+      'workflow.node.execute',
+      'data.read',
+      'data.query',
+      'data.write',
+    ];
+    if (action === 'mcp.tool.invoke' || action === 'tool.execute') {
+      const riskTier = resource.attributes?.risk_tier || 'low';
+      if (riskTier === 'critical' && !subject.is_mfa_verified) {
+        return { is_authorized: false, decision: 'DENY', reason: 'Perkakas MCP tingkat kritis memerlukan verifikasi MFA.', audit_decision: 'DENY_MFA_REQUIRED' };
+      }
+    }
+    if (allowedAgentActions.includes(action)) {
+      return { is_authorized: true, decision: 'PERMIT', reason: 'Aksi operasional agen AI diizinkan.', audit_decision: 'ALLOW' };
+    }
+    return {
+      is_authorized: false,
+      decision: 'DENY',
+      reason: `Role AI_AGENT tidak memiliki izin untuk aksi '${action}'.`,
+      audit_decision: 'DENY_INSUFFICIENT_ROLE',
+    };
+  }
+
+  // 8. Fail-closed Default
+  return {
+    is_authorized: false,
+    decision: 'DENY',
+    reason: `Subjek tidak memiliki peran atau kapabilitas yang memenuhi syarat untuk aksi '${action}'.`,
+    audit_decision: 'DENY_INSUFFICIENT_ROLE',
+  };
+}
+
+/**
+ * Unified Policy Decision Point (PDP) Asinkronus Lengkap — PRD v2.2 Bagian 3.5
+ * Mengevaluasi secara berurutan:
+ * 1. RBAC (Isolasi tenant, MFA super admin, peran tenant, hierarki role & capabilities)
+ * 2. Subscription Tier (Validasi tingkatan paket lisensi tenant)
+ * 3. ABAC (Attribute-Based Access Control untuk AI Agent & data, DEFAULT DENIED_NO_POLICY)
+ * 4. Budget Departemen (Plafon kredit anggaran via credit_guard.check_department_cap)
+ * Mencatat hasil evaluasi nyata ke tabel audit_logs.
+ */
+export async function authorizePDPAsync(
+  pool: pg.Pool | null,
+  subject: PDPSubject,
+  action: string,
+  resource: PDPResource,
+  context?: Record<string, any>
+): Promise<PDPDecision> {
+  const ctx = context || {};
+
+  // =========================================================================
+  // TAHAP 1: RBAC
+  // =========================================================================
+  const rbacDecision = authorizePDP(subject, action, resource, ctx);
+  if (!rbacDecision.is_authorized) {
+    await logAuditEntry(pool, {
+      tenant_id: subject.tenant_id,
+      actor_type: subject.actor_type || 'human_user',
+      actor_id: subject.user_id || subject.agent_id || null,
+      action: `authz:${action}`,
+      resource_type: resource.resource_type,
+      resource_id: resource.resource_id,
+      payload_after: {
+        stage: 'RBAC',
+        decision: rbacDecision.audit_decision || 'DENY',
+        is_authorized: false,
+        reason: rbacDecision.reason,
+      },
+      request_id: ctx.request_id,
+    });
+    return rbacDecision;
+  }
+
+  // =========================================================================
+  // TAHAP 2: Subscription Tier Gate
+  // =========================================================================
+  const requiredTier = ctx.required_min_tier ?? resource.attributes?.min_tier_level;
+  if (requiredTier !== undefined && requiredTier > 0) {
+    const tenantTier = ctx.tenant_tier_level ?? 1;
+    if (tenantTier < requiredTier) {
+      const reason = `Fitur '${action}' memerlukan langganan minimal tier ${requiredTier}, paket tenant saat ini tier ${tenantTier}.`;
+      await logAuditEntry(pool, {
+        tenant_id: subject.tenant_id,
+        actor_type: subject.actor_type || 'human_user',
+        actor_id: subject.user_id || subject.agent_id || null,
+        action: `authz:${action}`,
+        resource_type: resource.resource_type,
+        resource_id: resource.resource_id,
+        payload_after: { stage: 'TIER', decision: 'DENY_TIER_RESTRICTION', is_authorized: false, reason },
+        request_id: ctx.request_id,
+      });
+      return { is_authorized: false, decision: 'DENY', reason, audit_decision: 'DENY_TIER_RESTRICTION' };
+    }
+  }
+
+  // =========================================================================
+  // TAHAP 3: ABAC (Attribute-Based Access Control)
+  // Default Mutlak: DENIED_NO_POLICY jika tidak ada baris policy yang cocok
+  // =========================================================================
+  const isAgent = (
+    subject.actor_type === 'ai_agent' ||
+    subject.roles.includes('AI_AGENT') ||
+    subject.roles.includes('STAFF_AI') ||
+    Boolean(subject.agent_persona_type) ||
+    Boolean(subject.agent_id)
+  );
+
+  const dataActions = new Set([
+    'data.read', 'data.write', 'data.query', 'data.access',
+    'mcp.tool.invoke', 'tool.execute', 'workflow.node.execute'
+  ]);
+
+  const isDataAccess = (
+    dataActions.has(action) ||
+    action.startsWith('data.') ||
+    [
+      'database_table', 'external_api', 'customer_data', 'documents',
+      'financial_records', 'knowledge_base', 'data_source', 'mcp_tool'
+    ].includes(resource.resource_type) ||
+    Boolean(ctx.enforce_abac)
+  );
+
+  if (isAgent || isDataAccess) {
+    const abacDecision = await checkAiDataPermission(
+      pool,
+      {
+        tenant_id: subject.tenant_id,
+        agent_id: subject.agent_id || subject.user_id,
+        agent_persona_type: subject.agent_persona_type,
+        actor_type: subject.actor_type || (isAgent ? 'ai_agent' : 'human_user'),
+        roles: subject.roles,
+        department_id: subject.department_id,
+      },
+      action,
+      {
+        resource_type: resource.resource_type,
+        resource_identifier: resource.resource_id || resource.attributes?.tool_name || '*',
+        data_classification: resource.data_classification || 'internal',
+        owner_tenant_id: resource.owner_tenant_id,
+        attributes: resource.attributes,
+      },
+      ctx
+    );
+
+    if (!abacDecision.is_authorized) {
+      return {
+        is_authorized: false,
+        decision: 'DENY',
+        reason: abacDecision.reason,
+        audit_decision: abacDecision.decision, // e.g. DENIED_NO_POLICY
+      };
+    }
+  }
+
+  // =========================================================================
+  // TAHAP 4: Plafon Anggaran Departemen (credit_guard.check_department_cap)
+  // =========================================================================
+  const deptId = ctx.department_id || subject.department_id || resource.attributes?.department_id;
+  if (deptId) {
+    const estimatedCost = ctx.estimated_cost ?? 0;
+    const budgetDecision = await checkDepartmentCap(pool, subject.tenant_id, deptId, estimatedCost);
+    if (!budgetDecision.is_allowed) {
+      await logAuditEntry(pool, {
+        tenant_id: subject.tenant_id,
+        actor_type: subject.actor_type || 'human_user',
+        actor_id: subject.user_id || subject.agent_id || null,
+        action: `authz:${action}`,
+        resource_type: resource.resource_type,
+        resource_id: resource.resource_id,
+        payload_after: {
+          stage: 'DEPARTMENT_BUDGET',
+          decision: budgetDecision.decision,
+          is_authorized: false,
+          reason: budgetDecision.reason,
+          department_id: budgetDecision.department_id,
+          credit_cap: budgetDecision.credit_cap,
+          credit_spent: budgetDecision.credit_spent,
+        },
+        request_id: ctx.request_id,
+      });
+      return {
+        is_authorized: false,
+        decision: 'DENY',
+        reason: budgetDecision.reason,
+        audit_decision: budgetDecision.decision,
+      };
+    }
+  }
+
+  // =========================================================================
+  // KEPUTUSAN FINAL: ALLOW
+  // =========================================================================
+  await logAuditEntry(pool, {
+    tenant_id: subject.tenant_id,
+    actor_type: subject.actor_type || 'human_user',
+    actor_id: subject.user_id || subject.agent_id || null,
+    action: `authz:${action}`,
+    resource_type: resource.resource_type,
+    resource_id: resource.resource_id,
+    payload_after: {
+      stage: 'COMPLETE_PIPELINE',
+      decision: 'ALLOW',
+      is_authorized: true,
+      reason: 'Akses disetujui penuh melewati evaluasi RBAC -> Tier -> ABAC -> Budget Departemen.',
+    },
+    request_id: ctx.request_id,
+  });
+
+  return {
+    is_authorized: true,
+    decision: 'PERMIT',
+    reason: 'Akses disetujui penuh melewati evaluasi RBAC -> Tier -> ABAC -> Budget Departemen.',
+    audit_decision: 'ALLOW',
+  };
 }
 
 /**

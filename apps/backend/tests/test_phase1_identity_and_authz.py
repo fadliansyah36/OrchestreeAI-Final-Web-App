@@ -126,7 +126,7 @@ def test_pdp_dept_manager_and_staff_rules():
 
 
 def test_pdp_ai_agent_rules():
-    """AI_AGENT dapat mengeksekusi tool terotorisasi, namun ditolak untuk aksi administratif."""
+    """AI_AGENT ditolak tanpa kebijakan ABAC (DENIED_NO_POLICY), dan ditolak untuk aksi administratif."""
     tenant_id = str(uuid.uuid4())
     agent_id = str(uuid.uuid4())
     res_tool = ResourceContext(resource_type="tool_execution", owner_tenant_id=tenant_id)
@@ -138,8 +138,15 @@ def test_pdp_ai_agent_rules():
         roles=["AI_AGENT"],
     )
 
-    assert authorize(sub_agent, "tool.execute", res_tool).is_authorized is True
-    assert authorize(sub_agent, "hr.approval.review", res_tool).is_authorized is False
+    # 1. Tanpa policy ABAC eksplisit: Wajib DENIED_NO_POLICY (Zero-Trust Default)
+    dec_no_policy = authorize(sub_agent, "tool.execute", res_tool)
+    assert dec_no_policy.is_authorized is False
+    assert dec_no_policy.decision == "DENIED_NO_POLICY"
+
+    # 2. Aksi administratif: Ditolak oleh RBAC (DENY_INSUFFICIENT_ROLE)
+    dec_admin = authorize(sub_agent, "hr.approval.review", res_tool)
+    assert dec_admin.is_authorized is False
+    assert dec_admin.decision == "DENY_INSUFFICIENT_ROLE"
 
 
 def test_audit_logs_persistence():
