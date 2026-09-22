@@ -45,6 +45,10 @@ import { IntegrationsService } from './src/server/integrationsService';
 import { WebIntegrityService } from './src/server/webIntegrityService';
 import { CrmLeadService } from './src/server/crmLeadService';
 import { CommerceService } from './src/server/commerceService';
+import { CompanyBrainService } from './src/server/companyBrainService';
+import { MessageExperimentService } from './src/server/messageExperimentService';
+import { RevenueIntelligenceService } from './src/server/revenueIntelligenceService';
+import { SalesGuardrailService } from './src/server/salesGuardrailService';
 import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
 
 let pool: pg.Pool | null = null;
@@ -70,6 +74,10 @@ const webIntegrityService = new WebIntegrityService(pool);
 const trialAllocationService = new TrialAllocationService(pool!);
 const crmLeadService = new CrmLeadService(pool);
 const commerceService = new CommerceService(pool!);
+const companyBrainService = new CompanyBrainService(pool!);
+const messageExperimentService = new MessageExperimentService(pool!);
+const revenueIntelligenceService = new RevenueIntelligenceService(pool!);
+const salesGuardrailService = new SalesGuardrailService(pool!);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -4689,6 +4697,263 @@ app.post('/api/v1/tenants/:tenantId/commerce/sales-stage', async (req, res) => {
     const { conversation_id, stage } = req.body;
     const result = await commerceService.updateSalesStage(tenantId, conversation_id, stage);
     return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// COMPANY BRAIN EXTENDED ROUTES (Product Catalog, FAQ, SOP, Playbook, Inventory)
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/brain/documents
+app.get('/api/v1/tenants/:tenantId/brain/documents', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const category = req.query.category as string | undefined;
+    const docs = await companyBrainService.getDocuments(tenantId, category);
+    return res.json({ status: 'ok', data: docs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/brain/documents
+app.post('/api/v1/tenants/:tenantId/brain/documents', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const doc = await companyBrainService.upsertAdminDocument(tenantId, req.body);
+    return res.json({ status: 'ok', data: doc });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/tenants/:tenantId/brain/documents/:docId
+app.delete('/api/v1/tenants/:tenantId/brain/documents/:docId', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const deleted = await companyBrainService.deleteDocument(tenantId, req.params.docId);
+    return res.json({ status: 'ok', deleted });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/brain/sync-catalog
+app.post('/api/v1/tenants/:tenantId/brain/sync-catalog', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const syncRes = await companyBrainService.syncProductCatalogToBrain(tenantId);
+    return res.json({ status: 'ok', data: syncRes });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/brain/inventory/live
+app.get('/api/v1/tenants/:tenantId/brain/inventory/live', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const search = req.query.search as string | undefined;
+    const inv = await companyBrainService.getLiveInventory(tenantId, search);
+    return res.json({ status: 'ok', data: inv });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// MESSAGE EXPERIMENTS & A/B TESTING ROUTES
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/message-experiments
+app.get('/api/v1/tenants/:tenantId/message-experiments', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const experiments = await messageExperimentService.listExperiments(tenantId);
+    return res.json({ status: 'ok', data: experiments });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/message-experiments
+app.post('/api/v1/tenants/:tenantId/message-experiments', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const exp = await messageExperimentService.createExperiment(tenantId, req.body);
+    return res.json({ status: 'ok', data: exp });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/message-experiments/:id/assign
+app.post('/api/v1/tenants/:tenantId/message-experiments/:id/assign', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { customer_id, conversation_id, template_variables } = req.body;
+    const assigned = await messageExperimentService.assignVariantAndRecord(
+      tenantId,
+      req.params.id,
+      customer_id,
+      conversation_id,
+      template_variables
+    );
+    return res.json({ status: 'ok', data: assigned });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/message-experiments/results/:resultId/conversion
+app.post('/api/v1/tenants/:tenantId/message-experiments/results/:resultId/conversion', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { has_replied, has_converted, revenue_generated, order_id } = req.body;
+    await messageExperimentService.recordConversion(
+      tenantId,
+      req.params.resultId,
+      Boolean(has_replied),
+      Boolean(has_converted),
+      Number(revenue_generated || 0),
+      order_id
+    );
+    return res.json({ status: 'ok', message: 'Conversion recorded successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/message-experiments/:id/conclude
+app.post('/api/v1/tenants/:tenantId/message-experiments/:id/conclude', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const concluded = await messageExperimentService.concludeExperiment(tenantId, req.params.id);
+    return res.json({ status: 'ok', data: concluded });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// REVENUE INTELLIGENCE & SALES COACH ROUTES
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/revenue-intelligence/attribution
+app.get('/api/v1/tenants/:tenantId/revenue-intelligence/attribution', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { start_date, end_date } = req.query as any;
+    const summary = await revenueIntelligenceService.getRevenueAttribution(tenantId, start_date, end_date);
+    return res.json({ status: 'ok', data: summary });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/sales-coach/evaluations
+app.get('/api/v1/tenants/:tenantId/sales-coach/evaluations', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const limit = Number(req.query.limit || 6);
+    const evals = await revenueIntelligenceService.evaluateSalesCoach(tenantId, limit);
+    return res.json({ status: 'ok', data: evals });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// SALES GUARDRAILS MATRIX & HUMAN APPROVAL ROUTES (PRD v2.2)
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/sales/guardrails
+app.get('/api/v1/tenants/:tenantId/sales/guardrails', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const rules = await salesGuardrailService.getRules(tenantId);
+    return res.json({ status: 'ok', data: rules });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/tenants/:tenantId/sales/guardrails/:actionType
+app.put('/api/v1/tenants/:tenantId/sales/guardrails/:actionType', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const updated = await salesGuardrailService.updateRule(
+      tenantId,
+      req.params.actionType as any,
+      req.body
+    );
+    return res.json({ status: 'ok', data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/sales/guardrails/evaluate
+app.post('/api/v1/tenants/:tenantId/sales/guardrails/evaluate', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const evaluation = await salesGuardrailService.evaluateAndExecute(tenantId, req.body);
+    return res.json({ status: 'ok', data: evaluation });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/sales/guardrails/approvals
+app.get('/api/v1/tenants/:tenantId/sales/guardrails/approvals', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const statusFilter = req.query.status as string | undefined;
+    const approvals = await salesGuardrailService.getApprovals(tenantId, statusFilter);
+    return res.json({ status: 'ok', data: approvals });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/sales/guardrails/approvals/:id/review
+app.post('/api/v1/tenants/:tenantId/sales/guardrails/approvals/:id/review', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { decision, reviewer_user_id, approval_notes, rejection_reason } = req.body;
+    const result = await salesGuardrailService.reviewApproval(
+      tenantId,
+      req.params.id,
+      reviewer_user_id || null,
+      decision,
+      approval_notes,
+      rejection_reason
+    );
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/sales/guardrails/audit-logs
+app.get('/api/v1/tenants/:tenantId/sales/guardrails/audit-logs', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const limit = Number(req.query.limit || 50);
+    const logs = await salesGuardrailService.getAuditLogs(tenantId, limit);
+    return res.json({ status: 'ok', data: logs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/sales/guardrails/mcp-tools
+app.get('/api/v1/tenants/:tenantId/sales/guardrails/mcp-tools', async (_req, res) => {
+  try {
+    const tools = await salesGuardrailService.getMcpHighRiskTools();
+    return res.json({ status: 'ok', data: tools });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

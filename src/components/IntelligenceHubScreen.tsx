@@ -170,7 +170,12 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const [isLoadingVibe, setIsLoadingVibe] = useState(false);
 
   // Company Brain State
-  const [brainTab, setBrainTab] = useState<'search' | 'documents' | 'ingest' | 'decay'>('search');
+  const [brainTab, setBrainTab] = useState<'search' | 'documents' | 'ingest' | 'decay' | 'inventory'>('search');
+  const [liveInventory, setLiveInventory] = useState<any[]>([]);
+  const [isLoadingInventory, setIsLoadingInventory] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [isSyncingCatalog, setIsSyncingCatalog] = useState(false);
+  const [catalogSyncMsg, setCatalogSyncMsg] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isSearching, setIsSearching] = useState(false);
@@ -203,8 +208,47 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
       fetchVibeProspects();
     } else if (topTab === 'brain' && brainTab === 'documents') {
       fetchDocuments();
+    } else if (topTab === 'brain' && brainTab === 'inventory') {
+      fetchLiveInventory();
     }
   }, [topTab, brainTab, tenantId]);
+
+  const fetchLiveInventory = async (search?: string) => {
+    setIsLoadingInventory(true);
+    try {
+      const q = search !== undefined ? search : inventorySearch;
+      const res = await fetch(`/api/v1/tenants/${tenantId}/brain/inventory/live?search=${encodeURIComponent(q)}`);
+      const json = await res.json();
+      if (res.ok && json.data) {
+        setLiveInventory(json.data);
+      }
+    } catch (err) {
+      console.warn('Gagal memuat live inventory brain:', err);
+    } finally {
+      setIsLoadingInventory(false);
+    }
+  };
+
+  const handleSyncCatalogToBrain = async () => {
+    setIsSyncingCatalog(true);
+    setCatalogSyncMsg(null);
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/brain/sync-catalog`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setCatalogSyncMsg(`Berhasil sinkronisasi ${json.data?.synced_count || 0} produk ke Company Brain Knowledge Base!`);
+        await fetchDocuments();
+      } else {
+        setCatalogSyncMsg(`Gagal sinkronisasi: ${json.error || 'Terjadi kesalahan'}`);
+      }
+    } catch (err: any) {
+      setCatalogSyncMsg(`Gagal: ${err.message}`);
+    } finally {
+      setIsSyncingCatalog(false);
+    }
+  };
 
   const fetchCompetitorData = async () => {
     setIsLoadingCompetitor(true);
@@ -1133,6 +1177,14 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
               >
                 Konsolidasi & Memory Decay
               </button>
+              <button
+                onClick={() => setBrainTab('inventory')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  brainTab === 'inventory' ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-slate-400 hover:text-white'
+                }`}
+              >
+                Inventaris & Sinkronisasi Katalog
+              </button>
             </div>
 
             {/* Search Content */}
@@ -1294,6 +1346,118 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
                     <div>Status: Sukses diperbarui</div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Live Inventory & Catalog Sync Content */}
+            {brainTab === 'inventory' && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Database className="w-4 h-4 text-emerald-400" />
+                      Sinkronisasi Katalog Produk ke Company Brain
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Mengindeks seluruh data katalog produk, deskripsi, harga, dan ketersediaan stok ke memori kognitif AI agent untuk menjawab pertanyaan pembeli secara akurat (zero hallucination).
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleSyncCatalogToBrain}
+                    disabled={isSyncingCatalog}
+                    className="flex-shrink-0 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCatalog ? 'animate-spin' : ''}`} />
+                    {isSyncingCatalog ? 'Sinkronisasi Berjalan...' : 'Sinkronkan Katalog Sekarang'}
+                  </button>
+                </div>
+
+                {catalogSyncMsg && (
+                  <div className={`p-4 rounded-xl text-xs border ${
+                    catalogSyncMsg.includes('Berhasil')
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                  }`}>
+                    {catalogSyncMsg}
+                  </div>
+                )}
+
+                {/* Live Inventory Table */}
+                <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Stok Inventaris Real-Time</h4>
+                      <p className="text-xs text-slate-400">Data stok persediaan fisik terkoneksi langsung dengan Supabase PostgreSQL.</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        aria-label="Cari produk atau SKU"
+                        value={inventorySearch}
+                        onChange={(e) => {
+                          setInventorySearch(e.target.value);
+                          fetchLiveInventory(e.target.value);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        onClick={() => fetchLiveInventory()}
+                        className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoadingInventory ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider">
+                          <th className="pb-3 font-semibold">Nama Produk</th>
+                          <th className="pb-3 font-semibold">SKU</th>
+                          <th className="pb-3 font-semibold">Harga Basis</th>
+                          <th className="pb-3 font-semibold">Gudang / Lokasi</th>
+                          <th className="pb-3 font-semibold">Stok Tersedia</th>
+                          <th className="pb-3 font-semibold">Status Kesiapan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800 text-slate-300">
+                        {liveInventory.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-6 text-center text-slate-500">
+                              {isLoadingInventory ? 'Memuat inventaris...' : 'Belum ada data stok produk ditemukan.'}
+                            </td>
+                          </tr>
+                        ) : (
+                          liveInventory.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="py-3 font-medium text-white">{item.product_name}</td>
+                              <td className="py-3 font-mono text-slate-400">{item.sku}</td>
+                              <td className="py-3 font-semibold text-emerald-400">
+                                Rp {Number(item.base_price).toLocaleString('id-ID')}
+                              </td>
+                              <td className="py-3 text-slate-400">{item.warehouse_location || 'Gudang Utama'}</td>
+                              <td className="py-3 font-bold text-white">
+                                {item.stock_available} unit
+                              </td>
+                              <td className="py-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                  item.is_in_stock
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                }`}>
+                                  {item.is_in_stock ? 'Siap Kirim' : 'Habis'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             )}
 

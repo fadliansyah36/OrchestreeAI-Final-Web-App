@@ -29,12 +29,16 @@ import { ProductCatalogScreen } from './components/ProductCatalogScreen';
 import { OrderManagementScreen } from './components/OrderManagementScreen';
 import { CampaignBuilderScreen } from './components/CampaignBuilderScreen';
 import { ServiceRequestScreen } from './components/ServiceRequestScreen';
+import { RevenueIntelligenceScreen } from './components/RevenueIntelligenceScreen';
+import { SalesCoachScreen } from './components/SalesCoachScreen';
+import { MessageExperimentScreen } from './components/MessageExperimentScreen';
+import { SalesGuardrailsScreen } from './components/SalesGuardrailsScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -283,6 +287,50 @@ export default function App() {
                 >
                   Layanan & Refund
                 </button>
+                <button
+                  id="nav-btn-revenue-intel"
+                  onClick={() => setClientSubView('revenue_intelligence')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'revenue_intelligence'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Revenue Intelligence
+                </button>
+                <button
+                  id="nav-btn-sales-coach"
+                  onClick={() => setClientSubView('sales_coach')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'sales_coach'
+                      ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Sales Coach
+                </button>
+                <button
+                  id="nav-btn-message-experiments"
+                  onClick={() => setClientSubView('message_experiments')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'message_experiments'
+                      ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Uji Eksperimen Pesan
+                </button>
+                <button
+                  id="nav-btn-sales-guardrails"
+                  onClick={() => setClientSubView('sales_guardrails')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'sales_guardrails'
+                      ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Guardrail Sales & Approval
+                </button>
               </div>
             )}
             <button
@@ -431,6 +479,38 @@ export default function App() {
                 <ServiceRequestScreen
                   tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
                   onOpenInbox={() => setClientSubView('proactive')}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'revenue_intelligence' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <RevenueIntelligenceScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'sales_coach' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <SalesCoachScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'message_experiments' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <MessageExperimentScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'sales_guardrails' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <SalesGuardrailsScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
                 />
               </div>
             )}
