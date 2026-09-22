@@ -1,0 +1,17 @@
+{
+  "id": "orchestree-admin-console",
+  "name": "OrchestreeAI Admin Console",
+  "short_name": "Admin Console",
+  "description": "Super Admin Control Plane for OrchestreeAI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1220",
+  "theme_color": "#1E6FE0",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

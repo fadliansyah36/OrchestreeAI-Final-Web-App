@@ -1,0 +1,16 @@
+[importlinter]
+root_package = app
+
+[importlinter:contract:domain-boundary]
+name = Enforce domain boundaries PRD v2.2 Bagian 9.2
+type = forbidden
+source_modules =
+    app.domains.crm
+    app.domains.finance
+forbidden_modules =
+    app.domains.crm
+    app.domains.finance
+ignore_imports =
+    app.domains.crm -> app.domains.finance.contracts
+    app.domains.finance -> app.domains.crm.contracts
+unmatched_ignore_imports_alerting = none

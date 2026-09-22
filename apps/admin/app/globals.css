@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root {
+  --orch-primary-green: #1FA35A;
+  --orch-primary-blue: #1E6FE0;
+  --orch-accent-purple: #6C4CD9;
+  --orch-navy-900: #0B1B2B;
+  --orch-surface-base: #F2F5F7;
+  --orch-gray-600: #5B6472;
+}
+
+[data-theme="dark"] {
+  --orch-surface-base: #0B1220;
+  --orch-primary-green: #34D399;
+  --orch-primary-blue: #60A5FA;
+  --orch-accent-purple: #A78BFA;
+  --orch-glow-accent: rgba(96, 165, 250, 0.20);
+}
