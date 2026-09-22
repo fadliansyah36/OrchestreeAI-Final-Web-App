@@ -21,6 +21,7 @@ import { BillingHubScreen } from './BillingHubScreen';
 import { ProactiveChannelsScreen } from './ProactiveChannelsScreen';
 import { IntelligenceHubScreen } from './IntelligenceHubScreen';
 import { HomeOverviewScreen } from './HomeOverviewScreen';
+import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -63,11 +64,22 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/intelligence') || activeRoute.startsWith('/competitor')) {
+    return (
+      <IntelligenceHubScreen
+        tenant={tenant}
+        onBack={() => setActiveRoute('/hub')}
+        defaultTab="competitor"
+      />
+    );
+  }
+
   if (activeRoute.startsWith('/knowledge') || activeRoute.startsWith('/brain')) {
     return (
       <IntelligenceHubScreen
         tenant={tenant}
         onBack={() => setActiveRoute('/hub')}
+        defaultTab="brain"
       />
     );
   }
@@ -101,7 +113,23 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/integrations') || activeRoute.startsWith('/connectors')) {
+    return (
+      <IntegrationsHubScreen
+        tenant={tenant}
+        onBack={() => setActiveRoute('/hub')}
+      />
+    );
+  }
+
   const categoryCards: CategoryCard[] = [
+    {
+      key: 'integrations',
+      label: 'Integrasi Pihak Ketiga & Observasi Kerja',
+      icon: 'sparkles',
+      route: '/integrations',
+      badgeCount: 9,
+    },
     {
       key: 'performance',
       label: 'Evaluasi & Skor Kinerja (PRD 6.3)',
@@ -121,6 +149,13 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       icon: 'briefcase',
       route: '/orchestrations/active',
       badgeCount: 3,
+    },
+    {
+      key: 'intelligence',
+      label: 'Intelijen Pesaing & Radar Pasar',
+      icon: 'sparkles',
+      route: '/intelligence',
+      badgeCount: 4,
     },
     {
       key: 'brain',

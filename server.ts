@@ -40,6 +40,8 @@ import {
   monthlyScore,
   computeDailyMetrics,
 } from './src/server/performanceScoring';
+import { IntelligenceService } from './src/server/intelligenceService';
+import { IntegrationsService } from './src/server/integrationsService';
 
 let pool: pg.Pool | null = null;
 try {
@@ -58,6 +60,8 @@ const modelRouterService = new ModelRouterService(pool);
 const mcpRegistryService = new MCPToolRegistryService(pool);
 const orchestrationEngineService = new OrchestrationEngineService(pool, modelRouterService, mcpRegistryService);
 const continuousLearningService = getContinuousLearningService(pool);
+const intelligenceService = new IntelligenceService(pool!, modelRouterService);
+const integrationsService = new IntegrationsService(pool);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -3088,6 +3092,710 @@ app.post('/api/v1/tenants/:tenant_id/memory/consolidate', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+// ==========================================
+// Market & Competitor Intelligence (PRD v2.2 Bagian 7.1 & 11.4)
+// F.01-SCRAPE & Scoring Gating Endpoints
+// ==========================================
+
+// GET /api/v1/tenants/:tenantId/competitor/targets
+app.get('/api/v1/tenants/:tenantId/competitor/targets', async (req, res) => {
+  const { tenantId } = req.params;
+  const { is_active } = req.query;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      let query = 'SELECT * FROM competitor_targets WHERE tenant_id = $1';
+      const params: any[] = [tenantId];
+      if (is_active !== undefined) {
+        query += ' AND is_active = $2';
+        params.push(is_active === 'true');
+      }
+      query += ' ORDER BY created_at DESC';
+      const result = await client.query(query, params);
+      return res.json({ data: result.rows, count: result.rowCount });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/competitor/targets
+app.post('/api/v1/tenants/:tenantId/competitor/targets', async (req, res) => {
+  const { tenantId } = req.params;
+  const { name, domain, target_type, target_url, category, frequency, crawler_adapter } = req.body;
+
+  if (!name || !domain || !target_url) {
+    return res.status(400).json({ error: 'Field name, domain, dan target_url wajib diisi.' });
+  }
+
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      const targetId = crypto.randomUUID();
+      const insertRes = await client.query(`
+        INSERT INTO competitor_targets (
+          id, tenant_id, name, domain, target_type, target_url,
+          category, frequency, is_active, crawler_adapter,
+          robots_txt_status, last_status, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, true, $9, 'allowed', 'pending', now(), now()
+        )
+        RETURNING *;
+      `, [
+        targetId, tenantId, name, domain,
+        target_type || 'web', target_url,
+        category || 'direct_competitor',
+        frequency || 'daily',
+        crawler_adapter || 'WebAdapter'
+      ]);
+      return res.status(201).json({ data: insertRes.rows[0] });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/v1/tenants/:tenantId/competitor/targets/:targetId
+app.patch('/api/v1/tenants/:tenantId/competitor/targets/:targetId', async (req, res) => {
+  const { tenantId, targetId } = req.params;
+  const { name, target_url, frequency, is_active, crawler_adapter } = req.body;
+
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      const result = await client.query(`
+        UPDATE competitor_targets
+        SET name = COALESCE($1, name),
+            target_url = COALESCE($2, target_url),
+            frequency = COALESCE($3, frequency),
+            is_active = COALESCE($4, is_active),
+            crawler_adapter = COALESCE($5, crawler_adapter),
+            updated_at = now()
+        WHERE id = $6 AND tenant_id = $7
+        RETURNING *;
+      `, [name, target_url, frequency, is_active, crawler_adapter, targetId, tenantId]);
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Target tidak ditemukan.' });
+      }
+      return res.json({ data: result.rows[0] });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/tenants/:tenantId/competitor/targets/:targetId
+app.delete('/api/v1/tenants/:tenantId/competitor/targets/:targetId', async (req, res) => {
+  const { tenantId, targetId } = req.params;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      const result = await client.query(`
+        DELETE FROM competitor_targets
+        WHERE id = $1 AND tenant_id = $2
+      `, [targetId, tenantId]);
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Target tidak ditemukan.' });
+      }
+      return res.json({ success: true, message: 'Target kompetitor berhasil dihapus.' });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/competitor/targets/:targetId/crawl (Pemicu Scraping F.01-SCRAPE)
+app.post('/api/v1/tenants/:tenantId/competitor/targets/:targetId/crawl', async (req, res) => {
+  const { tenantId, targetId } = req.params;
+  const { force_refresh } = req.body || {};
+
+  try {
+    const result = await intelligenceService.crawlTarget(tenantId, targetId, !!force_refresh);
+    return res.json({ data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/competitor/snapshots
+app.get('/api/v1/tenants/:tenantId/competitor/snapshots', async (req, res) => {
+  const { tenantId } = req.params;
+  const { target_id, limit = 30 } = req.query;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      let query = `
+        SELECT s.*, t.name as target_name, t.domain, t.crawler_adapter
+        FROM competitor_snapshots s
+        JOIN competitor_targets t ON s.target_id = t.id
+        WHERE s.tenant_id = $1
+      `;
+      const params: any[] = [tenantId];
+      if (target_id) {
+        query += ' AND s.target_id = $2';
+        params.push(target_id);
+      }
+      query += ` ORDER BY s.scraped_at DESC LIMIT $${params.length + 1}`;
+      params.push(parseInt(String(limit), 10));
+
+      const result = await client.query(query, params);
+      return res.json({ data: result.rows });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/competitor/changes
+app.get('/api/v1/tenants/:tenantId/competitor/changes', async (req, res) => {
+  const { tenantId } = req.params;
+  const { target_id, severity, limit = 40 } = req.query;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      let query = `
+        SELECT c.*, t.name as target_name, t.domain
+        FROM competitor_change_events c
+        JOIN competitor_targets t ON c.target_id = t.id
+        WHERE c.tenant_id = $1
+      `;
+      const params: any[] = [tenantId];
+      if (target_id) {
+        params.push(target_id);
+        query += ` AND c.target_id = $${params.length}`;
+      }
+      if (severity) {
+        params.push(severity);
+        query += ` AND c.severity = $${params.length}`;
+      }
+      params.push(parseInt(String(limit), 10));
+      query += ` ORDER BY c.detected_at DESC LIMIT $${params.length}`;
+
+      const result = await client.query(query, params);
+      return res.json({ data: result.rows });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/competitor/insights
+app.get('/api/v1/tenants/:tenantId/competitor/insights', async (req, res) => {
+  const { tenantId } = req.params;
+  const { dispatch_action, category, limit = 40 } = req.query;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      let query = `
+        SELECT i.*, t.name as target_name, t.domain
+        FROM competitor_insights i
+        LEFT JOIN competitor_targets t ON i.target_id = t.id
+        WHERE i.tenant_id = $1
+      `;
+      const params: any[] = [tenantId];
+      if (dispatch_action) {
+        params.push(dispatch_action);
+        query += ` AND i.dispatch_action = $${params.length}`;
+      }
+      if (category) {
+        params.push(category);
+        query += ` AND i.category = $${params.length}`;
+      }
+      params.push(parseInt(String(limit), 10));
+      query += ` ORDER BY i.created_at DESC LIMIT $${params.length}`;
+
+      const result = await client.query(query, params);
+      return res.json({ data: result.rows });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/competitor/insights/:insightId/dispatch (Kirim ke Proactive Agent tanpa duplikasi)
+app.post('/api/v1/tenants/:tenantId/competitor/insights/:insightId/dispatch', async (req, res) => {
+  const { tenantId, insightId } = req.params;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      const insRes = await client.query(
+        'SELECT * FROM competitor_insights WHERE id = $1 AND tenant_id = $2',
+        [insightId, tenantId]
+      );
+      if (insRes.rowCount === 0) {
+        return res.status(404).json({ error: 'Insight tidak ditemukan.' });
+      }
+      const row = insRes.rows[0];
+
+      if (row.proactive_dispatched) {
+        return res.json({
+          status: 'already_dispatched',
+          message: 'Insight ini telah dikirim sebelumnya via idempotency key.',
+          proactive_message_id: row.proactive_message_id,
+          idempotency_key: row.idempotency_key,
+        });
+      }
+
+      const msgId = crypto.randomUUID();
+      const messageContent = `🚨 [${row.dispatch_action}] ${row.title}
+Ringkasan: ${row.summary}
+Rekomendasi Taktis: ${row.strategic_recommendation}`;
+
+      await client.query(`
+        INSERT INTO proactive_messages_log (
+          id, tenant_id, channel_type, recipient, message_template,
+          status, idempotency_key, sent_at, metadata
+        ) VALUES (
+          $1, $2, 'app_notification', 'management_workforce', $3,
+          'sent', $4, now(), $5
+        )
+        ON CONFLICT (idempotency_key) DO NOTHING;
+      `, [
+        msgId, tenantId, messageContent, row.idempotency_key,
+        JSON.stringify({ source: 'competitor_intelligence', insight_id: insightId, final_score: row.final_score })
+      ]);
+
+      await client.query(`
+        UPDATE competitor_insights
+        SET proactive_dispatched = true,
+            proactive_message_id = $1
+        WHERE id = $2
+      `, [msgId, insightId]);
+
+      return res.json({
+        status: 'dispatched',
+        message: 'Insight berhasil dikirim ke Proactive Agent tanpa duplikasi.',
+        proactive_message_id: msgId,
+        idempotency_key: row.idempotency_key,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/competitor/reports
+app.get('/api/v1/tenants/:tenantId/competitor/reports', async (req, res) => {
+  const { tenantId } = req.params;
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+      const result = await client.query(
+        'SELECT * FROM competitor_reports WHERE tenant_id = $1 ORDER BY created_at DESC',
+        [tenantId]
+      );
+      return res.json({ data: result.rows });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/competitor/reports/generate
+app.post('/api/v1/tenants/:tenantId/competitor/reports/generate', async (req, res) => {
+  const { tenantId } = req.params;
+  const { report_type = 'weekly_digest', title, period_start, period_end } = req.body;
+
+  if (!title || !period_start || !period_end) {
+    return res.status(400).json({ error: 'Title, period_start, dan period_end wajib diisi.' });
+  }
+
+  try {
+    const client = await pool!.connect();
+    try {
+      await client.query('SET LOCAL app.tenant_id = $1', [tenantId]);
+
+      // Ambil count perubahan dan target
+      const chgCountRes = await client.query(
+        'SELECT count(*) as cnt FROM competitor_change_events WHERE tenant_id = $1',
+        [tenantId]
+      );
+      const changesCount = chgCountRes.rows[0]?.cnt || 0;
+
+      const reportId = crypto.randomUUID();
+      const markdown = `# Laporan Intelijen Pasar & Pesaing: ${title}
+**Periode:** ${period_start} s/d ${period_end}
+**Tipe Dokumen:** ${report_type.replace('_', ' ').toUpperCase()}
+
+## 1. Rangkuman Eksekutif
+Sistem otomatis F.01-SCRAPE telah memantau aktivitas penawaran harga, rilis produk, dan strategi pemasaran pesaing. Terdeteksi ${changesCount} peristiwa perubahan signifikan dalam ekosistem industri terkait.
+
+## 2. Analisis Pergeseran Nilai & Harga
+- **Tekanan Diskon**: Kompetitor agresif melakukan diskon jangka pendek pada segmen awal.
+- **Kesiapan Tandingan**: Diferensiasi fitur otonom multi-agent OrchestreeAI menjadi benteng pertahanan nilai yang kokoh.
+
+## 3. Playbook Respons Taktis
+1. **Sales & Growth**: Gunakan lembar komparasi fitur objektif (Battle Card).
+2. **Product**: Pertahankan kecepatan iterasi fitur integrasi.
+3. **Marketing**: Sorot kepatuhan regulasi privasi data dan efisiensi waktu kerja nyata.
+`;
+
+      const insertRes = await client.query(`
+        INSERT INTO competitor_reports (
+          id, tenant_id, report_type, title, period_start, period_end,
+          summary_markdown, key_takeaways, competitor_benchmarks, action_items,
+          status, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5::date, $6::date,
+          $7, $8, '[]'::jsonb, $9, 'generated', now(), now()
+        )
+        RETURNING *;
+      `, [
+        reportId, tenantId, report_type, title, period_start, period_end,
+        markdown,
+        JSON.stringify(['Perubahan harga kompetitor teridentifikasi', 'Peluang penetrasi segmen enterprise terbuka lebar']),
+        JSON.stringify(['Sosialisasi battle card ke tim sales', 'Review roadmap fitur bulanan'])
+      ]);
+
+      return res.status(201).json({ data: insertRes.rows[0] });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/intelligence/world-monitor
+app.get('/api/v1/tenants/:tenantId/intelligence/world-monitor', async (req, res) => {
+  return res.json({
+    status: 'active',
+    market_sentiment: 'Ekspansif dengan konsolidasi selektif',
+    signals: [
+      {
+        id: 'sig_01',
+        category: 'Regulasi',
+        headline: 'Pedoman Kepatuhan Privasi Data Algoritma Otonom Nasional',
+        impact_level: 'medium',
+        relevance_score: 0.88,
+        summary: 'Pembaruan panduan transparansi audit data algoritma otonom untuk sektor korporasi.',
+        recommendation: 'Pastikan pencatatan audit log PDP dan ABAC berjalan aktif.'
+      },
+      {
+        id: 'sig_02',
+        category: 'Rantai Pasok Compute',
+        headline: 'Stabilitas Tarif Cloud & Efisiensi Inferensi Model',
+        impact_level: 'low',
+        relevance_score: 0.75,
+        summary: 'Penurunan biaya inferensi per token memungkinkan ekspansi volume pemantauan intelijen berskala besar.',
+        recommendation: 'Optimalkan penjadwalan scraping frekuensi harian untuk efisiensi kredit.'
+      }
+    ]
+  });
+});
+
+// GET /api/v1/tenants/:tenantId/intelligence/vibe-prospecting
+app.get('/api/v1/tenants/:tenantId/intelligence/vibe-prospecting', async (req, res) => {
+  return res.json({
+    status: 'active',
+    prospects_count: 2,
+    radar_items: [
+      {
+        id: 'vibe_01',
+        channel: 'Public B2B Community',
+        company_hint: 'Distributor FMCG Regional',
+        intent_level: 'high',
+        intent_score: 0.91,
+        trigger_phrase: 'Mencari solusi otomatisasi tenaga kerja AI untuk tim customer support dan sales omnichannel',
+        suggested_outreach: 'Tawarkan demonstrasi integrasi AI Workforce OrchestreeAI dengan demonstrasi efisiensi nyata.'
+      },
+      {
+        id: 'vibe_02',
+        channel: 'Industry Forum',
+        company_hint: 'Agensi Layanan Kreatif & Pemasaran',
+        intent_level: 'medium',
+        intent_score: 0.78,
+        trigger_phrase: 'Kesulitan mengelola kapasitas tim saat load pesanan melonjak',
+        suggested_outreach: 'Demonstrasikan delegasi tugas otonom via Kanban dan AI Agent terpadu.'
+      }
+    ]
+  });
+});
+
+// Scheduler Job Crawl Terjadwal per competitor_targets.frequency
+setInterval(async () => {
+  if (!pool) return;
+  try {
+    const client = await pool.connect();
+    try {
+      const dueRes = await client.query(`
+        SELECT id, tenant_id, frequency, last_scraped_at
+        FROM competitor_targets
+        WHERE is_active = true
+          AND frequency != 'manual'
+          AND (
+            last_scraped_at IS NULL
+            OR (frequency = 'hourly' AND last_scraped_at < now() - interval '1 hour')
+            OR (frequency = 'daily' AND last_scraped_at < now() - interval '1 day')
+            OR (frequency = 'weekly' AND last_scraped_at < now() - interval '1 week')
+          )
+        LIMIT 3;
+      `);
+      for (const row of dueRes.rows) {
+        console.log(`[Scheduler] Executing scheduled crawl for target ${row.id} (tenant: ${row.tenant_id}, frequency: ${row.frequency})`);
+        await intelligenceService.crawlTarget(row.tenant_id, row.id);
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    // Non-blocking log
+    console.warn(`[Scheduler] Competitor crawl background tick error: ${err.message}`);
+  }
+}, 60000);
+
+// ============================================================================
+// THIRD-PARTY INTEGRATIONS & WORK ACTIVITY OBSERVABILITY (PRD v2.2 Bagian 12 & 12.9)
+// ============================================================================
+
+// GET /api/v1/integrations/catalog (Katalog Resmi Platform)
+app.get('/api/v1/integrations/catalog', async (req, res) => {
+  const { category } = req.query;
+  try {
+    const catalog = await integrationsService.getCatalog(typeof category === 'string' ? category : undefined);
+    return res.json({ data: catalog });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/admin/integrations/catalog (Admin Platform CRUD App Registry)
+app.post('/api/v1/admin/integrations/catalog', async (req, res) => {
+  try {
+    const {
+      app_code,
+      name,
+      category,
+      description,
+      icon,
+      auth_type,
+      supported_scopes,
+      client_id,
+      requires_transparency_notice,
+      transparency_notice_template
+    } = req.body;
+
+    if (!app_code || !name || !category || !description) {
+      return res.status(400).json({ error: 'app_code, name, category, dan description wajib diisi.' });
+    }
+
+    const appItem = await integrationsService.upsertCatalogApp({
+      app_code,
+      name,
+      category,
+      description,
+      icon,
+      auth_type,
+      supported_scopes,
+      client_id,
+      requires_transparency_notice: Boolean(requires_transparency_notice),
+      transparency_notice_template
+    });
+
+    return res.status(201).json({ status: 'success', data: appItem });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/integrations/connections
+app.get('/api/v1/tenants/:tenantId/integrations/connections', async (req, res) => {
+  const { tenantId } = req.params;
+  try {
+    const connections = await integrationsService.getTenantConnections(tenantId);
+    return res.json({ data: connections });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections (Connect / Update)
+app.post('/api/v1/tenants/:tenantId/integrations/connections', async (req, res) => {
+  const { tenantId } = req.params;
+  try {
+    const {
+      app_code,
+      connection_name,
+      access_token,
+      refresh_token,
+      expires_in_days,
+      external_account_id,
+      external_account_name,
+      authorized_scopes,
+      metadata
+    } = req.body;
+
+    if (!app_code || !access_token) {
+      return res.status(400).json({ error: 'app_code dan access_token wajib diisi.' });
+    }
+
+    const connection = await integrationsService.connectApp(tenantId, {
+      app_code,
+      connection_name: connection_name || app_code,
+      access_token,
+      refresh_token,
+      expires_in_days: expires_in_days || 60,
+      external_account_id,
+      external_account_name,
+      authorized_scopes,
+      metadata
+    });
+
+    return res.status(201).json({ status: 'connected', data: connection });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections/:connectionId/health-check
+app.post('/api/v1/tenants/:tenantId/integrations/connections/:connectionId/health-check', async (req, res) => {
+  const { tenantId, connectionId } = req.params;
+  try {
+    const updated = await integrationsService.checkHealth(tenantId, connectionId);
+    return res.json({ status: 'success', data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections/:connectionId/refresh-token
+app.post('/api/v1/tenants/:tenantId/integrations/connections/:connectionId/refresh-token', async (req, res) => {
+  const { tenantId, connectionId } = req.params;
+  try {
+    const updated = await integrationsService.refreshToken(tenantId, connectionId);
+    return res.json({ status: 'refreshed', data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections/:connectionId/revoke (Revoke Cascading)
+app.post('/api/v1/tenants/:tenantId/integrations/connections/:connectionId/revoke', async (req, res) => {
+  const { tenantId, connectionId } = req.params;
+  try {
+    const result = await integrationsService.revokeCascading(tenantId, connectionId);
+    return res.json({
+      status: 'revoked',
+      data: result.connection,
+      cascade_summary: result.cascadeSummary
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections/:connectionId/transparency-consent (Admin Approval)
+app.post('/api/v1/tenants/:tenantId/integrations/connections/:connectionId/transparency-consent', async (req, res) => {
+  const { tenantId, connectionId } = req.params;
+  const { user_id, user_role } = req.body;
+  try {
+    if (!user_id || !user_role) {
+      return res.status(400).json({ error: 'user_id dan user_role wajib disertakan untuk audit consent.' });
+    }
+    const updated = await integrationsService.acceptTransparencyNotice(
+      tenantId,
+      connectionId,
+      user_id,
+      user_role
+    );
+    return res.json({ status: 'consent_accepted', data: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/integrations/connections/:connectionId/sync (Manual Sync)
+app.post('/api/v1/tenants/:tenantId/integrations/connections/:connectionId/sync', async (req, res) => {
+  const { tenantId, connectionId } = req.params;
+  const { sync_type = 'manual_sync' } = req.body;
+  try {
+    const log = await integrationsService.triggerManualSync(tenantId, connectionId, sync_type);
+    return res.json({ status: 'sync_completed', data: log });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/integrations/sync-logs
+app.get('/api/v1/tenants/:tenantId/integrations/sync-logs', async (req, res) => {
+  const { tenantId } = req.params;
+  const { connection_id, limit = 50 } = req.query;
+  try {
+    const logs = await integrationsService.getSyncLogs(
+      tenantId,
+      typeof connection_id === 'string' ? connection_id : undefined,
+      parseInt(String(limit), 10)
+    );
+    return res.json({ data: logs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Background Auto-Refresh & Periodic Health Checker (Interval 2 menit)
+setInterval(async () => {
+  if (!pool) return;
+  try {
+    const client = await pool.connect();
+    try {
+      // Cari koneksi terhubung yang tokennya mendekati expire (< 24 jam) atau belum dicek lebih dari 6 jam
+      const expiringRes = await client.query(`
+        SELECT id, tenant_id, token_expires_at, last_health_check_at
+        FROM integration_connections
+        WHERE status = 'connected'
+          AND (
+            (token_expires_at IS NOT NULL AND token_expires_at < now() + interval '2 hours')
+            OR last_health_check_at IS NULL
+            OR last_health_check_at < now() - interval '6 hours'
+          )
+        LIMIT 5;
+      `);
+
+      for (const row of expiringRes.rows) {
+        if (row.token_expires_at && new Date(row.token_expires_at).getTime() < Date.now() + 2 * 3600 * 1000) {
+          console.log(`[Scheduler] Auto-refreshing expiring token for connection ${row.id} (tenant: ${row.tenant_id})`);
+          await integrationsService.refreshToken(row.tenant_id, row.id);
+        } else {
+          console.log(`[Scheduler] Running routine health-check for connection ${row.id} (tenant: ${row.tenant_id})`);
+          await integrationsService.checkHealth(row.tenant_id, row.id);
+        }
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    console.warn(`[Scheduler] Integration health background tick error: ${err.message}`);
+  }
+}, 120000);
 
 // 9. Vite Middleware Setup
 async function startServer() {

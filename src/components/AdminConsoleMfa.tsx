@@ -27,8 +27,10 @@ import {
   History,
   XCircle,
   DollarSign,
+  Share2,
 } from 'lucide-react';
 import { FinancialCommandCenter } from './FinancialCommandCenter';
+import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 
 interface LLMProvider {
   id: string;
@@ -135,7 +137,7 @@ export function AdminConsoleMfa() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   // Admin Dashboard Tabs
-  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial'>('providers');
+  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial' | 'integrations'>('providers');
 
   // Continuous Learning States (Fase 5 / PRD v2.2 Bagian 8.11)
   const [outcomes, setOutcomes] = useState<DecisionOutcome[]>([]);
@@ -604,6 +606,18 @@ export function AdminConsoleMfa() {
             >
               <DollarSign className="w-4 h-4" />
               <span>Financial Command Center</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('integrations')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'integrations'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white'
+              }`}
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Integrasi & Observasi</span>
             </button>
           </div>
 
@@ -1328,6 +1342,21 @@ export function AdminConsoleMfa() {
           {/* TAB 6: Financial Command Center */}
           {activeTab === 'financial' && (
             <FinancialCommandCenter />
+          )}
+
+          {/* TAB 7: Third-Party Integrations & Observability */}
+          {activeTab === 'integrations' && (
+            <div className="pt-2">
+              <IntegrationsHubScreen
+                tenant={{
+                  tenant_id: selectedTenantId,
+                  legal_name: 'PT Orchestree Enterprise Multi-Tenant',
+                  display_name: 'Super Admin Console',
+                  role: 'SUPER_ADMIN',
+                } as any}
+                defaultCategory="all"
+              />
+            </div>
           )}
         </div>
       )}
