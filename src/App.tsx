@@ -15,6 +15,9 @@ import {
 import { PublicLandingScreen } from './components/landing/PublicLandingScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { TenantFeatureHubShell } from './components/TenantFeatureHubShell';
+import { WorkforceHubScreen } from './components/WorkforceHubScreen';
+import { KanbanBoardScreen } from './components/KanbanBoardScreen';
+import { WebAuthnAttendanceScreen } from './components/WebAuthnAttendanceScreen';
 import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { StartupGateReport } from './components/StartupGateReport';
 import { TenantRegistrationResponse } from './types';
@@ -22,7 +25,7 @@ import { TenantRegistrationResponse } from './types';
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -149,6 +152,36 @@ export default function App() {
                 >
                   Feature Hub
                 </button>
+                <button
+                  onClick={() => setClientSubView('workforce')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'workforce'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Workforce Hub
+                </button>
+                <button
+                  onClick={() => setClientSubView('kanban')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'kanban'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Papan Kanban
+                </button>
+                <button
+                  onClick={() => setClientSubView('attendance')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'attendance'
+                      ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Presensi WebAuthn
+                </button>
               </div>
             )}
             <button
@@ -195,6 +228,30 @@ export default function App() {
                 tenant={activeTenant}
                 onBackToLanding={() => setClientSubView('landing')}
                 onOpenOnboarding={() => setClientSubView('onboarding')}
+              />
+            )}
+
+            {clientSubView === 'workforce' && (
+              <WorkforceHubScreen
+                tenant={activeTenant}
+                onBack={() => setClientSubView('dashboard')}
+              />
+            )}
+
+            {clientSubView === 'kanban' && (
+              <KanbanBoardScreen
+                tenantId={activeTenant?.tenant_id || 'tenant_default_01'}
+                currentUserId={activeTenant?.membership_id || 'usr_default_admin'}
+                onBack={() => setClientSubView('workforce')}
+              />
+            )}
+
+            {clientSubView === 'attendance' && (
+              <WebAuthnAttendanceScreen
+                tenantId={activeTenant?.tenant_id || 'tenant_default_01'}
+                membershipId={activeTenant?.membership_id || 'usr_default_admin'}
+                userName={activeTenant?.owner_full_name || 'Anggota Organisasi'}
+                onBack={() => setClientSubView('workforce')}
               />
             )}
           </div>

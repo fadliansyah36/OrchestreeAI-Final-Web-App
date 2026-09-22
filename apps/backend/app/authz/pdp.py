@@ -249,6 +249,9 @@ def authorize(
             "tenant.members.view",
             "department.tasks.manage",
             "department.reports.view",
+            "workforce.department.view",
+            "workforce.staff.view",
+            "workforce.agent.view",
         }
         if action in allowed_manager_actions:
             decision = AuthorizationDecision(
@@ -267,6 +270,8 @@ def authorize(
             "tasks.assigned.view",
             "tasks.assigned.update",
             "attendance.clock",
+            "workforce.staff.view",
+            "workforce.agent.view",
         }
         if action in allowed_staff_actions:
             decision = AuthorizationDecision(

@@ -13,6 +13,7 @@ export interface TenantRegistrationResponse {
   status: string;
   membership_id: string;
   role: string;
+  owner_full_name?: string;
   created_at: string;
 }
 

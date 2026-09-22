@@ -16,6 +16,7 @@ import {
   Bot
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
+import { WorkforceHubScreen } from './WorkforceHubScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -29,6 +30,15 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   onOpenOnboarding,
 }) => {
   const [activeRoute, setActiveRoute] = useState<string>('/hub');
+
+  if (activeRoute.startsWith('/workforce')) {
+    return (
+      <WorkforceHubScreen
+        tenant={tenant}
+        onBack={() => setActiveRoute('/hub')}
+      />
+    );
+  }
 
   const categoryCards: CategoryCard[] = [
     {
