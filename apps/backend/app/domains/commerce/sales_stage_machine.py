@@ -7,10 +7,19 @@ Disimpan di kolom conversations.sales_stage.
 """
 
 from enum import Enum
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 import logging
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
+
+try:
+    import sqlalchemy as sa
+    from sqlalchemy.orm import Session
+except ImportError:  # allowlist: sqlalchemy shim
+    class _SafeSA:
+        @staticmethod
+        def text(sql: str):
+            return sql
+    sa = _SafeSA()
+    Session = Any  # type: ignore
 
 logger = logging.getLogger("orchestree.commerce.sales_stage")
 

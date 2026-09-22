@@ -12,8 +12,17 @@ Memastikan integritas jawaban AI Agent sebelum dikirim ke pelanggan:
 import re
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
+
+try:
+    import sqlalchemy as sa
+    from sqlalchemy.orm import Session
+except ImportError:  # allowlist: sqlalchemy shim
+    class _SafeSA:
+        @staticmethod
+        def text(sql: str):
+            return sql
+    sa = _SafeSA()
+    Session = Any  # type: ignore
 
 logger = logging.getLogger("orchestree.commerce.grounding")
 

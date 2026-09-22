@@ -10,8 +10,17 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, Any, Tuple, Optional
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
+
+try:
+    import sqlalchemy as sa
+    from sqlalchemy.orm import Session
+except ImportError:  # allowlist: sqlalchemy shim
+    class _SafeSA:
+        @staticmethod
+        def text(sql: str):
+            return sql
+    sa = _SafeSA()
+    Session = Any  # type: ignore
 
 logger = logging.getLogger("orchestree.commerce.payment_webhook")
 

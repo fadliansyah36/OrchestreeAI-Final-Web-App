@@ -27,12 +27,13 @@ import { LeadPipelineScreen } from './components/LeadPipelineScreen';
 import { PersonaConfigurationScreen } from './components/PersonaConfigurationScreen';
 import { ProductCatalogScreen } from './components/ProductCatalogScreen';
 import { OrderManagementScreen } from './components/OrderManagementScreen';
+import { CampaignBuilderScreen } from './components/CampaignBuilderScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -259,6 +260,17 @@ export default function App() {
                 >
                   Pesanan Pelanggan
                 </button>
+                <button
+                  id="nav-btn-marketing"
+                  onClick={() => setClientSubView('marketing_campaigns')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'marketing_campaigns'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Pemasaran & Konten
+                </button>
               </div>
             )}
             <button
@@ -390,6 +402,14 @@ export default function App() {
                 <OrderManagementScreen
                   tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
                   onOpenCatalog={() => setClientSubView('commerce_catalog')}
+                />
+              </div>
+            )}
+
+            {clientSubView === 'marketing_campaigns' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <CampaignBuilderScreen
+                  tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
                 />
               </div>
             )}

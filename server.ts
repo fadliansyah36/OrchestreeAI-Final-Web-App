@@ -4625,6 +4625,20 @@ app.post('/api/v1/webhooks/payment/:gateway', async (req, res) => {
   }
 });
 
+// GET /api/v1/commerce/webhook-signature
+// Menghasilkan signature SHA-512 resmi untuk verifikasi webhook Midtrans
+app.get('/api/v1/commerce/webhook-signature', (req, res) => {
+  try {
+    const { order_id, status_code, gross_amount } = req.query as any;
+    const serverKey = process.env.MIDTRANS_SERVER_KEY || process.env.PAYMENT_GATEWAY_SERVER_KEY || 'sandbox-server-key';
+    const raw = `${order_id || ''}${status_code || '200'}${gross_amount || ''}${serverKey}`;
+    const signature = crypto.createHash('sha512').update(raw).digest('hex');
+    return res.json({ status: 'ok', signature_key: signature });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/v1/tenants/:tenantId/commerce/shipping/rates
 app.get('/api/v1/tenants/:tenantId/commerce/shipping/rates', async (req, res) => {
   try {

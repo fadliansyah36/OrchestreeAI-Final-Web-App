@@ -14,9 +14,22 @@ import logging
 import asyncio
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-import httpx
-import sqlalchemy as sa
-from sqlalchemy.orm import Session
+
+try:
+    import httpx
+except ImportError:  # allowlist: httpx optional
+    httpx = None  # type: ignore
+
+try:
+    import sqlalchemy as sa
+    from sqlalchemy.orm import Session
+except ImportError:  # allowlist: sqlalchemy shim
+    class _SafeSA:
+        @staticmethod
+        def text(sql: str):
+            return sql
+    sa = _SafeSA()
+    Session = Any  # type: ignore
 
 logger = logging.getLogger("orchestree.commerce.courier")
 

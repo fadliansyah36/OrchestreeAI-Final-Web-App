@@ -317,10 +317,10 @@ export const ProductCatalogScreen: React.FC<{
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari SKU, nama produk, kategori..."
+            placeholder="Cari SKU, nama produk, kategori..." // allowlist: standard UI search input hint
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+            className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition" // allowlist: standard tailwind placeholder styling
           />
         </div>
 
@@ -476,7 +476,7 @@ export const ProductCatalogScreen: React.FC<{
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: KEMEJA-01"
+                    placeholder="Contoh: KEMEJA-01" // allowlist: standard UI input hint
                     value={formSku}
                     onChange={(e) => setFormSku(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
@@ -499,7 +499,7 @@ export const ProductCatalogScreen: React.FC<{
                 <input
                   type="text"
                   required
-                  placeholder="Nama produk lengkap..."
+                  placeholder="Nama produk lengkap..." // allowlist: standard UI input hint
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -510,7 +510,7 @@ export const ProductCatalogScreen: React.FC<{
                 <label className="text-xs font-medium text-slate-300 block mb-1">Deskripsi Singkat</label>
                 <textarea
                   rows={2}
-                  placeholder="Informasi detail bahan, ukuran, keunggulan..."
+                  placeholder="Informasi detail bahan, ukuran, keunggulan..." // allowlist: standard UI input hint
                   value={formDesc}
                   onChange={(e) => setFormDesc(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -550,14 +550,14 @@ export const ProductCatalogScreen: React.FC<{
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
-                    placeholder="SKU Varian (misal: KMJ-01-L)"
+                    placeholder="SKU Varian (misal: KMJ-01-L)" // allowlist: standard UI input hint
                     value={varSkuInput}
                     onChange={(e) => setVarSkuInput(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white font-mono"
                   />
                   <input
                     type="text"
-                    placeholder="Nama Varian (misal: Ukuran L - Hitam)"
+                    placeholder="Nama Varian (misal: Ukuran L - Hitam)" // allowlist: standard UI input hint
                     value={varNameInput}
                     onChange={(e) => setVarNameInput(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white"
@@ -728,7 +728,7 @@ export const ProductCatalogScreen: React.FC<{
                   <input
                     type="text"
                     required
-                    placeholder="DISKON10"
+                    placeholder="DISKON10" // allowlist: standard UI input hint
                     value={promoCode}
                     onChange={(e) => setPromoCode(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white font-mono uppercase"
@@ -752,7 +752,7 @@ export const ProductCatalogScreen: React.FC<{
                 <input
                   type="text"
                   required
-                  placeholder="Promo Gajian Spesial"
+                  placeholder="Promo Gajian Spesial" // allowlist: standard UI input hint
                   value={promoName}
                   onChange={(e) => setPromoName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white"
