@@ -31,6 +31,7 @@ import {
   authorizePDP,
   getContinuousLearningService,
 } from './src/server/cognitiveCore';
+import { createProactiveRouter } from './src/server/proactiveServer';
 
 let pool: pg.Pool | null = null;
 try {
@@ -576,8 +577,9 @@ app.post(['/api/v1/onboarding/join', '/api/v1/onboarding/join-company'], async (
       } finally {
         client.release();
       }
-    } catch {
-      } catch (err: any) { return res.status(500).json({ error: 'Gagal memvalidasi kode perusahaan: ' + err.message }); }
+    } catch (err: any) {
+      return res.status(500).json({ error: 'Gagal memvalidasi kode perusahaan: ' + err.message });
+    }
   }
   if (!foundRow) { return res.status(404).json({ error: 'Kode perusahaan tidak ditemukan di basis data.' }); }
 
@@ -765,40 +767,22 @@ const handleReview = async (req: express.Request, res: express.Response) => {
               message: 'Pendaftaran staf telah ditolak.',
             });
           }
+        } else {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Antrean persetujuan HR tidak ditemukan.' });
         }
-      } catch {
+      } catch (err: any) {
         await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'Gagal memproses persetujuan HR: ' + err.message });
       } finally {
         client.release();
       }
-    } catch {
-      // Verified via PostgreSQL
+    } catch (err: any) {
+      return res.status(500).json({ error: 'Koneksi database gagal: ' + err.message });
     }
+  } else {
+    return res.status(500).json({ error: 'Koneksi database tidak tersedia.' });
   }
-  // Stored in Supabase
-      return res.json({
-        queue_id: queueId,
-        status: 'approved',
-        reviewed_at: now,
-        message: 'Pendaftaran staf berhasil disetujui dan akun telah aktif.',
-      });
-    } else {
-      memItem.rejection_reason = reason || rejection_reason || 'Tidak memenuhi kualifikasi';
-      return res.json({
-        queue_id: queueId,
-        status: 'rejected',
-        reviewed_at: now,
-        message: 'Pendaftaran staf telah ditolak.',
-      });
-    }
-  }
-
-  return res.json({
-    queue_id: queueId,
-    status: decisionVal,
-    reviewed_at: now,
-    message: `Pendaftaran telah ${decisionVal === 'approved' ? 'disetujui' : 'ditolak'}.`,
-  });
 };
 
 app.patch('/api/v1/onboarding/hr-approvals/:id/review', handleReview);
@@ -1091,8 +1075,9 @@ app.patch('/api/v1/tenants/:tenantId/departments/:departmentId', async (req, res
       } finally {
         client.release();
       }
-    } catch {
-      } catch (err: any) { return res.status(500).json({ error: err.message }); }
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   }
   return res.status(404).json({ error: 'Departemen tidak ditemukan.' });
 });
@@ -1376,8 +1361,9 @@ app.get('/api/v1/tenants/:tenantId/org-chart', async (req, res) => {
       } finally {
         client.release();
       }
-    } catch {
-      } catch (err: any) { return res.status(500).json({ error: err.message }); }
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   const deptMap: Record<string, any> = {};
@@ -1734,7 +1720,7 @@ const handleWebAuthnRegisterVerify = async (req: express.Request, res: express.R
     await client.query(
       `INSERT INTO webauthn_credentials (
          id, tenant_id, tenant_membership_id, credential_id, public_key, sign_count, created_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7);},
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
       [credId, tenant_id || 'default_tenant', tenant_membership_id, credential_id, public_key || 'verified_key', Number(sign_count) || 0, now]
     );
 
@@ -1815,7 +1801,7 @@ const handleWebAuthnAuthVerify = async (req: express.Request, res: express.Respo
     await client.query(
       `INSERT INTO attendance_records (
          id, tenant_id, tenant_membership_id, check_type, verified_via, sign_count, recorded_at
-       ) VALUES ($1, $2, $3, $4, 'webauthn_fido2', $5, $6);},
+       ) VALUES ($1, $2, $3, $4, 'webauthn_fido2', $5, $6);`,
       [attId, cred.tenant_id, cred.tenant_membership_id, check_type, newSignCount, now]
     );
 
@@ -2195,7 +2181,7 @@ app.post('/api/v1/billing/topup', async (req, res) => {
     const invId = crypto.randomUUID();
     const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();
-    const dummyPaymentUrl = payment_gateway === 'midtrans'
+    const sandboxPaymentUrl = payment_gateway === 'midtrans'
       ? `https://app.sandbox.midtrans.com/snap/v2/vtweb/${crypto.randomUUID()}`
       : `https://checkout-staging.xendit.co/web/${crypto.randomUUID()}`;
 
@@ -2211,8 +2197,8 @@ app.post('/api/v1/billing/topup', async (req, res) => {
       `INSERT INTO invoices (
          id, tenant_id, invoice_number, amount, currency, status,
          payment_gateway, payment_reference, payment_url, items, created_at
-       ) VALUES ($1, $2, $3, $4, 'IDR', 'pending', $5, null, $6, $7, $8);},
-      [invId, tenantId, invoiceNumber, numericAmount, payment_gateway, dummyPaymentUrl, JSON.stringify(items), now]
+       ) VALUES ($1, $2, $3, $4, 'IDR', 'pending', $5, null, $6, $7, $8);`,
+      [invId, tenantId, invoiceNumber, numericAmount, payment_gateway, sandboxPaymentUrl, JSON.stringify(items), now]
     );
 
     return res.status(201).json({
@@ -2222,7 +2208,7 @@ app.post('/api/v1/billing/topup', async (req, res) => {
       currency: 'IDR',
       status: 'pending',
       payment_gateway,
-      payment_url: dummyPaymentUrl,
+      payment_url: sandboxPaymentUrl,
       created_at: now,
     });
   } catch (err: any) {
@@ -2268,9 +2254,9 @@ app.post('/api/v1/billing/sandbox-settle', async (req, res) => {
 
     await client.query(
       `INSERT INTO payment_reconciliation_log (
-         id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
-       ) VALUES ($1, $2, $3, 'settlement', $4, true, 'success', $5);},
-      [crypto.randomUUID(), inv.payment_gateway || 'sandbox', inv.id, JSON.stringify({ invoice_number, ref }), now]
+         id, tenant_id, gateway, external_order_id, raw_payload, signature_verified, processed_status, created_at
+       ) VALUES ($1, $2, $3, $4, $5, true, 'success', $6);`,
+      [crypto.randomUUID(), inv.tenant_id, inv.payment_gateway || 'sandbox', invoice_number, JSON.stringify({ invoice_number, ref }), now]
     );
 
     await client.query('COMMIT');
@@ -2331,9 +2317,9 @@ app.post('/api/v1/webhooks/payment/midtrans', async (req, res) => {
 
       await client.query(
         `INSERT INTO payment_reconciliation_log (
-           id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
-         ) VALUES ($1, 'midtrans', $2, $3, $4, true, $5, $6);},
-        [crypto.randomUUID(), inv.id, transaction_status, JSON.stringify(payload), isSettled ? 'success' : 'pending', now]
+           id, tenant_id, gateway, external_order_id, raw_payload, signature_verified, processed_status, created_at
+         ) VALUES ($1, $2, 'midtrans', $3, $4, true, $5, $6);`,
+        [crypto.randomUUID(), inv.tenant_id, order_id, JSON.stringify(payload), isSettled ? 'success' : 'pending', now]
       );
 
       if (isSettled && inv.status !== 'paid') {
@@ -2372,9 +2358,9 @@ app.post('/api/v1/webhooks/payment/xendit', async (req, res) => {
 
       await client.query(
         `INSERT INTO payment_reconciliation_log (
-           id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
-         ) VALUES ($1, 'xendit', $2, $3, $4, true, $5, $6);},
-        [crypto.randomUUID(), inv.id, status, JSON.stringify(payload), isPaid ? 'success' : 'pending', now]
+           id, tenant_id, gateway, external_order_id, raw_payload, signature_verified, processed_status, created_at
+         ) VALUES ($1, $2, 'xendit', $3, $4, true, $5, $6);`,
+        [crypto.randomUUID(), inv.tenant_id, external_id, JSON.stringify(payload), isPaid ? 'success' : 'pending', now]
       );
 
       if (isPaid && inv.status !== 'paid') {
@@ -2382,7 +2368,7 @@ app.post('/api/v1/webhooks/payment/xendit', async (req, res) => {
         await topupCredit(pool, inv.tenant_id, parseFloat(inv.amount), inv.invoice_number, `Top-up Xendit paid ${external_id}`);
       }
 
-      return res.json({ status: 'ok', external_id, status });
+      return res.json({ result: 'ok', external_id, payment_status: status });
     } finally {
       client.release();
     }
@@ -2390,6 +2376,9 @@ app.post('/api/v1/webhooks/payment/xendit', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+// Mount Proactive Channels, Notifications, Webhooks & Ask AI Chat Router
+app.use(createProactiveRouter(pool, modelRouterService));
 
 // 9. Vite Middleware Setup
 async function startServer() {

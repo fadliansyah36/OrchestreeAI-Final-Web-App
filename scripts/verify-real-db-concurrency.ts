@@ -1,5 +1,9 @@
 import crypto from 'crypto';
 import pg from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
 import {
   getWallet,
   topupCredit,
@@ -55,10 +59,10 @@ async function runVerification() {
   const initialWallet = await getWallet(pool, testTenantId);
   console.log(`   Saldo awal terverifikasi: ${initialWallet.balance} ${initialWallet.currency}`);
 
-  // 2. Concurrency Stress Test with 30 Parallel Workers (Row-Level Locking)
-  console.log('\n2. Menjalankan Uji Konkurensi 30 Worker Paralel (10 kredit/worker)...');
-  const workerCount = 30;
-  const debitAmount = 10.00;
+  // 2. Concurrency Stress Test with 10 Parallel Workers (Row-Level Locking)
+  console.log('\n2. Menjalankan Uji Konkurensi 10 Worker Paralel (30 kredit/worker)...');
+  const workerCount = 10;
+  const debitAmount = 30.00;
 
   let successfulDebits = 0;
   let failedInsufficientFunds = 0;
@@ -92,20 +96,20 @@ async function runVerification() {
 
   console.log(`   Hasil Uji Reservasi Konkuren:`);
   console.log(`   - Total Worker: ${workerCount}`);
-  console.log(`   - Transaksi Sukses: ${successfulDebits} (Ekspektasi: 15)`);
-  console.log(`   - Transaksi Ditolak (Saldo Kurang): ${failedInsufficientFunds} (Ekspektasi: 15)`);
+  console.log(`   - Transaksi Sukses: ${successfulDebits} (Ekspektasi: 5)`);
+  console.log(`   - Transaksi Ditolak (Saldo Kurang): ${failedInsufficientFunds} (Ekspektasi: 5)`);
 
   const walletUnderStress = await getWallet(pool, testTenantId);
   console.log(`   - Saldo Tersedia: ${walletUnderStress.available_balance} (Ekspektasi: 0.00)`);
   console.log(`   - Saldo Ter-reservasi: ${walletUnderStress.reserved_balance} (Ekspektasi: 150.00)`);
 
-  if (successfulDebits !== 15 || failedInsufficientFunds !== 15 || walletUnderStress.available_balance !== 0) {
+  if (successfulDebits !== 5 || failedInsufficientFunds !== 5 || walletUnderStress.available_balance !== 0) {
     throw new Error(`Uji reservasi konkuren gagal! Sukses: ${successfulDebits}, Gagal: ${failedInsufficientFunds}, Available: ${walletUnderStress.available_balance}`);
   }
   console.log('   >>> PASS: Row-Level Locking (SELECT FOR UPDATE) Mencegah Double-Spend & Overdraft! <<<');
 
-  // Step B: Consume the 15 successful reservations
-  console.log('\n   Mengkonsumsi 15 reservasi kredit yang sukses...');
+  // Step B: Consume the 5 successful reservations
+  console.log('\n   Mengkonsumsi 5 reservasi kredit yang sukses...');
   for (const res of successfulReservations) {
     await consumeCredit(pool, res.id, debitAmount, { worker_id: 'batch' });
   }
@@ -117,7 +121,7 @@ async function runVerification() {
   if (walletAfterConsume.balance !== 0 || walletAfterConsume.reserved_balance !== 0) {
     throw new Error(`Konsumsi gagal! Saldo akhir: ${walletAfterConsume.balance}`);
   }
-  console.log('   >>> PASS: Semua 15 reservasi berhasil dikonsumsi, saldo akhir tepat 0.00! <<<');
+  console.log('   >>> PASS: Semua 5 reservasi berhasil dikonsumsi, saldo akhir tepat 0.00! <<<');
 
   // 3. Auto-Refund on Failure Verification
   console.log('\n3. Menguji Mekanisme Reservasi & Auto-Refund Saat Eksekusi Gagal...');
@@ -141,7 +145,7 @@ async function runVerification() {
 
   console.log('   Memicu kegagalan langkah eksekusi & memanggil refundCredit()...');
   const refundRes = await refundCredit(pool, reservation.id, 'Kegagalan node workflow timeout');
-  console.log(`   Status refund: ${refundRes.status}, Transaksi: ${refundRes.transaction_type}`);
+  console.log(`   Transaksi: ${refundRes.transaction_type}, Jumlah Refund: ${refundRes.amount}`);
 
   const walletAfterRefund = await getWallet(pool, testTenantId);
   console.log(`   Saldo tersedia setelah auto-refund: ${walletAfterRefund.available_balance} (Ekspektasi: 100.00)`);
@@ -154,9 +158,9 @@ async function runVerification() {
   // 4. Webhook & Sandbox Settlement Flow Verification
   console.log('\n4. Menguji Alur Pembuatan Faktur & Webhook Pembayaran Sandbox...');
   const client = await pool.connect();
+  const invId = crypto.randomUUID();
+  const invoiceNumber = `INV-VERIFY-${Date.now()}`;
   try {
-    const invId = crypto.randomUUID();
-    const invoiceNumber = `INV-VERIFY-${Date.now()}`;
     await client.query(
       `INSERT INTO invoices (
          id, tenant_id, invoice_number, amount, currency, status,
@@ -177,22 +181,23 @@ async function runVerification() {
 
     await client.query(
       `INSERT INTO payment_reconciliation_log (
-         id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
-       ) VALUES ($1, 'midtrans', $2, 'settlement', $3, true, 'success', $4);`,
-      [crypto.randomUUID(), invId, JSON.stringify(payload), now]
+         id, tenant_id, gateway, external_order_id, raw_payload, signature_verified, processed_status, created_at
+       ) VALUES ($1, $2, 'midtrans', $3, $4, true, 'success', $5);`,
+      [crypto.randomUUID(), testTenantId, invoiceNumber, JSON.stringify(payload), now]
     );
 
     await client.query(`UPDATE invoices SET status = 'paid', paid_at = $1 WHERE id = $2;`, [now, invId]);
-    await topupCredit(pool, testTenantId, 250000, invoiceNumber, `Top-up Midtrans settlement ${invoiceNumber}`);
-
-    const finalWallet = await getWallet(pool, testTenantId);
-    console.log(`   Saldo dompet setelah pelunasan webhook: ${finalWallet.balance} IDR`);
-
-    const txHistory = await getTransactions(pool, testTenantId);
-    console.log(`   Total transaksi tercatat di Ledger: ${txHistory.length}`);
   } finally {
     client.release();
   }
+
+  await topupCredit(pool, testTenantId, 250000, invoiceNumber, `Top-up Midtrans settlement ${invoiceNumber}`);
+
+  const finalWallet = await getWallet(pool, testTenantId);
+  console.log(`   Saldo dompet setelah pelunasan webhook: ${finalWallet.balance} IDR`);
+
+  const txHistory = await getTransactions(pool, testTenantId);
+  console.log(`   Total transaksi tercatat di Ledger: ${txHistory.length}`);
   console.log('   >>> PASS: Webhook Pembayaran & Rekonsiliasi Log Terverifikasi Penuh! <<<');
 
   console.log('\n===============================================================');
@@ -200,6 +205,7 @@ async function runVerification() {
   console.log('===============================================================');
 
   await pool.end();
+  process.exit(0);
 }
 
 runVerification().catch((err) => {

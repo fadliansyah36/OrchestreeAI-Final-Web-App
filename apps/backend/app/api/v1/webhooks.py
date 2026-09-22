@@ -14,20 +14,28 @@ import hashlib
 import logging
 from decimal import Decimal
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Header, Request
+from fastapi import APIRouter, HTTPException, Header, Request, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.database import get_engine
 from app.domains.billing.credits import topup_credit
+from app.domains.proactive.service import (
+    handle_opt_out,
+    handle_opt_in,
+    verify_telegram_start,
+    send_whatsapp_message,
+    send_telegram_message,
+)
 
 logger = logging.getLogger("orchestree.api.webhooks")
 
-router = APIRouter(prefix="/api/v1/webhooks/payment", tags=["Payment Webhooks"])
+router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
 
-@router.post("/midtrans")
+@router.post("/payment/midtrans")
 async def handle_midtrans_webhook(request: Request):
     """
     Webhook handler resmi untuk notifikasi transaksi Midtrans Snap/Core API.
@@ -185,7 +193,7 @@ async def handle_midtrans_webhook(request: Request):
     return {"status": "ok", "order_id": order_id, "transaction_status": transaction_status}
 
 
-@router.post("/xendit")
+@router.post("/payment/xendit")
 async def handle_xendit_webhook(
     request: Request,
     x_callback_token: Optional[str] = Header(None, alias="x-callback-token"),
@@ -311,3 +319,214 @@ async def handle_xendit_webhook(
         )
 
     return {"status": "ok", "external_id": external_id, "status": status}
+
+
+# ============================================================================
+# META WHATSAPP WEBHOOK HANDLERS (PRD v2.2 Bagian 10.3 & 10.6)
+# ============================================================================
+
+@router.get("/whatsapp")
+async def verify_meta_whatsapp_webhook(
+    hub_mode: Optional[str] = Query(None, alias="hub.mode"),
+    hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
+    hub_verify_token: Optional[str] = Query(None, alias="hub.verify_token"),
+):
+    """
+    Verifikasi handshake webhook resmi Meta WhatsApp Business Cloud API.
+    Memeriksa kesesuaian hub.verify_token dengan konfigurasi META_WEBHOOK_VERIFY_TOKEN.
+    """
+    expected_token = settings.META_WEBHOOK_VERIFY_TOKEN or "orchestre_meta_secure_verify_token_2026"
+    if hub_mode == "subscribe" and hub_verify_token == expected_token:
+        logger.info("Meta WhatsApp Webhook subscription verified successfully.")
+        return PlainTextResponse(content=hub_challenge or "")
+    logger.warning("Meta WhatsApp Webhook subscription failed verification.")
+    raise HTTPException(status_code=403, detail="Forbidden: Verify token mismatch")
+
+
+@router.post("/whatsapp")
+async def handle_whatsapp_webhook(request: Request):
+    """
+    Menerima incoming message webhook dari Meta WhatsApp Cloud API:
+    1. Membedakan pesan Proaktif vs Omnichannel berdasarkan phone_number_id
+    2. Mendeteksi perintah Opt-Out (STOP / BERHENTI) & Opt-In (START / LANJUT)
+    3. Mengirimkan balasan resmi konfirmasi ke pengguna
+    """
+    try:
+        body = await request.json()
+    except Exception as e:
+        logger.warning(f"Invalid JSON in WhatsApp webhook: {e}")
+        return {"status": "ignored", "reason": "invalid_json"}
+
+    entry = body.get("entry", [])
+    if not entry:
+        return {"status": "ok"}
+
+    for ent in entry:
+        for change in ent.get("changes", []):
+            val = change.get("value", {})
+            metadata = val.get("metadata", {})
+            incoming_phone_id = metadata.get("phone_number_id")
+            messages = val.get("messages", [])
+
+            for msg in messages:
+                sender_raw = msg.get("from", "")
+                formatted_sender = "+" + sender_raw if not sender_raw.startswith("+") else sender_raw
+                msg_type = msg.get("type")
+
+                if msg_type == "text":
+                    body_text = msg.get("text", {}).get("body", "").strip()
+                    upper_text = body_text.upper()
+
+                    # Cek apakah nomor penerima adalah nomor Proaktif resmi platform
+                    proactive_phone_id = settings.WA_PROACTIVE_PHONE_NUMBER_ID
+                    is_proactive_channel = (incoming_phone_id == proactive_phone_id)
+
+                    # Tangani perintah Opt-Out (STOP / BERHENTI / UNSUBSCRIBE)
+                    if upper_text in ("STOP", "BERHENTI", "UNSUBSCRIBE"):
+                        opt_res = await handle_opt_out(
+                            channel="whatsapp",
+                            destination_target=formatted_sender,
+                            keyword=upper_text,
+                        )
+                        reply_text = (
+                            "Pesan notifikasi proaktif OrchestreeAI telah dijeda. "
+                            "Anda tidak akan menerima pesan operasional terjadwal sampai Anda mengaktifkannya kembali.\n\n"
+                            "Ketik START atau LANJUT untuk mengaktifkan kembali."
+                        )
+                        if incoming_phone_id and settings.WA_PROACTIVE_ACCESS_TOKEN:
+                            await send_whatsapp_message(
+                                phone_number_id=incoming_phone_id,
+                                access_token=settings.WA_PROACTIVE_ACCESS_TOKEN,
+                                recipient_phone=formatted_sender,
+                                message_text=reply_text,
+                            )
+                        logger.info(f"WhatsApp opt-out processed for {formatted_sender}: {opt_res}")
+
+                    # Tangani perintah Opt-In (START / LANJUT / MULAI / RESUME)
+                    elif upper_text in ("START", "LANJUT", "MULAI", "RESUME"):
+                        opt_res = await handle_opt_in(
+                            channel="whatsapp",
+                            destination_target=formatted_sender,
+                            keyword=upper_text,
+                        )
+                        reply_text = (
+                            "🎉 Layanan notifikasi proaktif OrchestreeAI Anda telah aktif kembali. "
+                            "Anda akan menerima ringkasan kerja terjadwal sesuai preferensi organisasi."
+                        )
+                        if incoming_phone_id and settings.WA_PROACTIVE_ACCESS_TOKEN:
+                            await send_whatsapp_message(
+                                phone_number_id=incoming_phone_id,
+                                access_token=settings.WA_PROACTIVE_ACCESS_TOKEN,
+                                recipient_phone=formatted_sender,
+                                message_text=reply_text,
+                            )
+                        logger.info(f"WhatsApp opt-in processed for {formatted_sender}: {opt_res}")
+
+                    else:
+                        # Pesan teks lain: Jika dikirim ke kanal proaktif resmi, kirim panduan navigasi
+                        if is_proactive_channel and incoming_phone_id and settings.WA_PROACTIVE_ACCESS_TOKEN:
+                            guidance_text = (
+                                "Terima kasih telah menghubungi Kanal Notifikasi Proaktif OrchestreeAI.\n\n"
+                                "Nomor ini difungsikan khusus untuk pengiriman laporan operasional dan peringatan resmi sistem.\n"
+                                "• Ketik BERHENTI atau STOP untuk menjeda pesan.\n"
+                                "• Gunakan antarmuka web OrchestreeAI untuk berinteraksi dengan AI Workforce Anda."
+                            )
+                            await send_whatsapp_message(
+                                phone_number_id=incoming_phone_id,
+                                access_token=settings.WA_PROACTIVE_ACCESS_TOKEN,
+                                recipient_phone=formatted_sender,
+                                message_text=guidance_text,
+                            )
+
+    return {"status": "ok"}
+
+
+# ============================================================================
+# TELEGRAM BOT WEBHOOK HANDLER (PRD v2.2 Bagian 10.3 & 10.6)
+# ============================================================================
+
+@router.post("/telegram-bot")
+async def handle_telegram_bot_webhook(request: Request):
+    """
+    Webhook resmi Telegram Bot platform:
+    1. Memverifikasi deep-link command: /start verify_{verification_code}
+    2. Memproses protokol Opt-Out (STOP / BERHENTI / /stop) & Opt-In (START / /start)
+    3. Memberikan panduan perintah resmi platform
+    """
+    try:
+        update = await request.json()
+    except Exception as e:
+        logger.warning(f"Invalid JSON in Telegram webhook: {e}")
+        return {"status": "ignored"}
+
+    msg = update.get("message") or update.get("edited_message")
+    if not msg:
+        return {"status": "ok"}
+
+    chat_id = msg.get("chat", {}).get("id")
+    text = (msg.get("text") or "").strip()
+    from_user = msg.get("from", {})
+
+    if not chat_id or not text:
+        return {"status": "ok"}
+
+    bot_token = settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_OFFICIAL_BOT_TOKEN or ""
+
+    # 1. Penanganan Deep-Link Verifikasi: /start verify_{code}
+    if text.startswith("/start verify_"):
+        code_part = text.split("verify_")[1].strip().split()[0]
+        res = await verify_telegram_start(
+            chat_id=chat_id,
+            verification_code=code_part,
+            telegram_user_meta=from_user,
+        )
+        if not res.get("success"):
+            err_msg = (
+                f"❌ <b>Verifikasi Tautan Gagal:</b>\n"
+                f"{res.get('error', 'Kode verifikasi tidak valid atau telah kedaluwarsa.')}\n\n"
+                f"Silakan buat tautan baru melalui dashboard OrchestreeAI Anda."
+            )
+            await send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=err_msg)
+        return {"status": "ok", "action": "verify_telegram", "result": res}
+
+    # 2. Penanganan Opt-Out (STOP / BERHENTI / /stop)
+    upper_text = text.upper()
+    if upper_text in ("STOP", "BERHENTI", "/STOP", "UNSUBSCRIBE"):
+        opt_res = await handle_opt_out(
+            channel="telegram",
+            destination_target=str(chat_id),
+            keyword=upper_text,
+        )
+        reply = (
+            "<b>Pengiriman Notifikasi Dijeda</b>\n"
+            "Anda telah menjeda pengiriman pesan proaktif ke akun Telegram ini.\n\n"
+            "Ketik <b>START</b> atau <b>LANJUT</b> kapan saja untuk mengaktifkannya kembali."
+        )
+        await send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=reply)
+        return {"status": "ok", "action": "opt_out", "result": opt_res}
+
+    # 3. Penanganan Opt-In (START / LANJUT / /start)
+    if upper_text in ("START", "LANJUT", "MULAI", "RESUME") or text == "/start":
+        opt_res = await handle_opt_in(
+            channel="telegram",
+            destination_target=str(chat_id),
+            keyword=upper_text,
+        )
+        reply = (
+            "<b>🎉 Kanal Telegram Aktif</b>\n"
+            "Notifikasi proaktif dan ringkasan kerja harian Anda aktif kembali."
+        )
+        await send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=reply)
+        return {"status": "ok", "action": "opt_in", "result": opt_res}
+
+    # 4. Command bantuan umum
+    help_reply = (
+        "<b>Bot Resmi Proaktif OrchestreeAI</b>\n\n"
+        "Bot ini digunakan untuk mengirimkan pembaruan operasional, jadwal, dan peringatan kritis platform.\n\n"
+        "<i>Perintah Tersedia:</i>\n"
+        "• <b>STOP</b> / <b>BERHENTI</b>: Jeda notifikasi Telegram\n"
+        "• <b>START</b> / <b>LANJUT</b>: Aktifkan notifikasi kembali"
+    )
+    await send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=help_reply)
+    return {"status": "ok"}
+

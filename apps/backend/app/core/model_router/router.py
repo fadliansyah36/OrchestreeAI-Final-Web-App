@@ -706,6 +706,127 @@ class ModelRouter:
 
         return results
 
+    async def stream_generate(self, request: ModelRouterRequest):
+        """
+        Streaming generator inferensi LLM multi-provider via SSE.
+        Mencoba provider primer (NVIDIA / OpenRouter / Gemini).
+        Menghasilkan token per token secara real-time.
+        """
+        # Urutan prioritas eksekusi
+        if request.preferred_provider and request.preferred_provider in self.adapters:
+            provider_chain = [request.preferred_provider] + [p for p in ["nvidia", "openrouter", "gemini"] if p != request.preferred_provider]
+        else:
+            provider_chain = ["nvidia", "openrouter", "gemini"]
+
+        for prov_id in provider_chain:
+            adapter = self.adapters.get(prov_id)
+            if not adapter:
+                continue
+
+            try:
+                # 1. Coba streaming via OpenRouter
+                if prov_id == "openrouter" and getattr(adapter, "api_key", None):
+                    model = request.preferred_model or adapter.default_model
+                    messages = []
+                    if request.system_prompt:
+                        messages.append({"role": "system", "content": request.system_prompt})
+                    messages.append({"role": "user", "content": request.prompt})
+                    payload = {
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": request.max_tokens,
+                        "temperature": request.temperature,
+                        "stream": True,
+                    }
+                    headers = {
+                        "Authorization": f"Bearer {adapter.api_key}",
+                        "HTTP-Referer": "https://orchestree.biz.id",
+                        "X-Title": "OrchestreeAI",
+                        "Content-Type": "application/json",
+                    }
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        async with client.stream(
+                            "POST",
+                            f"{adapter.base_url.rstrip('/')}/chat/completions",
+                            json=payload,
+                            headers=headers,
+                        ) as response:
+                            if response.status_code == 200:
+                                async for line in response.aiter_lines():
+                                    line = line.strip()
+                                    if not line or not line.startswith("data: "):
+                                        continue
+                                    data_str = line[6:].strip()
+                                    if data_str == "[DONE]":
+                                        break
+                                    try:
+                                        chunk_json = json.loads(data_str)
+                                        delta = chunk_json.get("choices", [{}])[0].get("delta", {})
+                                        content_chunk = delta.get("content", "")
+                                        if content_chunk:
+                                            yield {"event": "token", "token": content_chunk, "provider": prov_id, "model": model}
+                                    except Exception:
+                                        continue
+                                return
+
+                # 2. Coba streaming via NVIDIA
+                elif prov_id == "nvidia" and getattr(adapter, "api_key", None):
+                    model = request.preferred_model or adapter.default_model
+                    messages = []
+                    if request.system_prompt:
+                        messages.append({"role": "system", "content": request.system_prompt})
+                    messages.append({"role": "user", "content": request.prompt})
+                    payload = {
+                        "model": model,
+                        "messages": messages,
+                        "max_tokens": request.max_tokens,
+                        "temperature": request.temperature,
+                        "stream": True,
+                    }
+                    headers = {
+                        "Authorization": f"Bearer {adapter.api_key}",
+                        "Content-Type": "application/json",
+                    }
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        async with client.stream(
+                            "POST",
+                            f"{adapter.base_url.rstrip('/')}/chat/completions",
+                            json=payload,
+                            headers=headers,
+                        ) as response:
+                            if response.status_code == 200:
+                                async for line in response.aiter_lines():
+                                    line = line.strip()
+                                    if not line or not line.startswith("data: "):
+                                        continue
+                                    data_str = line[6:].strip()
+                                    if data_str == "[DONE]":
+                                        break
+                                    try:
+                                        chunk_json = json.loads(data_str)
+                                        delta = chunk_json.get("choices", [{}])[0].get("delta", {})
+                                        content_chunk = delta.get("content", "")
+                                        if content_chunk:
+                                            yield {"event": "token", "token": content_chunk, "provider": prov_id, "model": model}
+                                    except Exception:
+                                        continue
+                                return
+
+                # 3. Fallback non-streaming jika model tidak mendukung stream
+                full_res = await adapter.generate(request)
+                if full_res.status == "success" and full_res.content:
+                    text = full_res.content
+                    chunk_size = 8
+                    for i in range(0, len(text), chunk_size):
+                        yield {"event": "token", "token": text[i:i+chunk_size], "provider": prov_id, "model": full_res.model_id}
+                    return
+
+            except Exception as e:
+                logger.warning(f"Streaming provider {prov_id} gagal: {e}. Mencoba fallback berikutnya...")
+
+        yield {"event": "error", "error": "Seluruh penyedia inferensi model LLM sedang tidak dapat dihubungi."}
+
+
 
 _model_router_instance: Optional[ModelRouter] = None
 
