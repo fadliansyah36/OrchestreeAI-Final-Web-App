@@ -2,68 +2,11 @@
 
 import React from 'react';
 import {
-  FeatureHubScreen,
-  CategoryCard,
-  EmptyState,
+  AdminSuperHubScreen,
 } from '@orchestree/ui';
-import { ShieldCheck, Lock, Activity } from 'lucide-react';
+import { ShieldCheck, Lock } from 'lucide-react';
 
 export default function AdminHomePage() {
-  const adminCards: CategoryCard[] = [
-    {
-      key: 'tenants',
-      label: 'Manajemen Tenant',
-      icon: 'users',
-      route: '/admin/tenants',
-      badgeCount: 0,
-    },
-    {
-      key: 'llm-routing',
-      label: 'Multi-LLM & Model Router',
-      icon: 'brain',
-      route: '/admin/llm-routing',
-      badgeCount: 0,
-    },
-    {
-      key: 'mcp-tools',
-      label: 'Governance Alat MCP',
-      icon: 'layers',
-      route: '/admin/mcp-tools',
-      badgeCount: 0,
-    },
-    {
-      key: 'usage-costs',
-      label: 'Penggunaan & Biaya Platform',
-      icon: 'trending',
-      route: '/admin/usage-costs',
-    },
-    {
-      key: 'prospects-trial',
-      label: 'Registrasi Prospek & Uji Coba',
-      icon: 'briefcase',
-      route: '/admin/prospects-trial',
-      badgeCount: 0,
-    },
-    {
-      key: 'app-registry',
-      label: 'Katalog Integrasi Pihak Ketiga',
-      icon: 'settings',
-      route: '/admin/app-registry',
-    },
-    {
-      key: 'security-audit',
-      label: 'Keamanan & Buku Catatan Audit',
-      icon: 'shield',
-      route: '/admin/security-audit',
-    },
-    {
-      key: 'operations-dlq',
-      label: 'Antrean Operasional Sistem',
-      icon: 'activity',
-      route: '/admin/operations-dlq',
-    },
-  ];
-
   return (
     <main className="min-h-screen pb-16 bg-[#070D18]">
       {/* Super Admin Top Bar */}
@@ -89,28 +32,8 @@ export default function AdminHomePage() {
         </div>
       </header>
 
-      {/* Admin Feature Hub */}
-      <FeatureHubScreen
-        domain="Konsol Kendali Super Admin"
-        analyticsSlot={
-          <EmptyState
-            id="admin-analytics-empty-state"
-            icon={Activity}
-            title="Metrik Platform Belum Tersedia"
-            description="Agregasi analitik lintas penyewa, pemantauan latensi model, dan biaya komputasi akan aktif sejalan dengan eksekusi beban kerja."
-          />
-        }
-        categoryCards={adminCards}
-        insightFeed={
-          <EmptyState
-            id="admin-audit-empty-state"
-            icon={ShieldCheck}
-            title="Catatan Audit Bersih"
-            description="Seluruh aksi berisiko tinggi dan keputusan sistem tercatat secara permanen di buku catatan audit."
-          />
-        }
-        onNavigate={(route) => console.log('Admin navigating to', route)}
-      />
+      {/* Complete Admin Super Hub Screen (PRD v2.2) */}
+      <AdminSuperHubScreen initialTab="overview" />
     </main>
   );
 }

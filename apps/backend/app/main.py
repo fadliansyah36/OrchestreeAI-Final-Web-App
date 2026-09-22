@@ -21,6 +21,8 @@ from app.api.v1.chat import router as chat_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.intelligence import router as intelligence_router
 from app.api.v1.integrations import router as integrations_router
+from app.api.v1.prospects import router as prospects_router
+from app.api.v1.omnichannel import router as omnichannel_router, webhook_router as omnichannel_webhook_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -69,6 +71,9 @@ app.include_router(chat_router)
 app.include_router(memory_router)
 app.include_router(intelligence_router)
 app.include_router(integrations_router)
+app.include_router(prospects_router)
+app.include_router(omnichannel_router, prefix="/api/v1")
+app.include_router(omnichannel_webhook_router, prefix="/api/v1")
 
 
 @app.get("/")

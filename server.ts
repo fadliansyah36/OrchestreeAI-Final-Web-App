@@ -42,6 +42,8 @@ import {
 } from './src/server/performanceScoring';
 import { IntelligenceService } from './src/server/intelligenceService';
 import { IntegrationsService } from './src/server/integrationsService';
+import { WebIntegrityService } from './src/server/webIntegrityService';
+import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
 
 let pool: pg.Pool | null = null;
 try {
@@ -62,6 +64,8 @@ const orchestrationEngineService = new OrchestrationEngineService(pool, modelRou
 const continuousLearningService = getContinuousLearningService(pool);
 const intelligenceService = new IntelligenceService(pool!, modelRouterService);
 const integrationsService = new IntegrationsService(pool);
+const webIntegrityService = new WebIntegrityService(pool);
+const trialAllocationService = new TrialAllocationService(pool!);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -127,7 +131,7 @@ function hashCompanyCode(code: string): string {
 }
 
 // 1. Health Endpoints
-app.get('/api/v1/health/live', (req, res) => {
+app.get(['/api/health', '/api/v1/health/live'], (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -199,42 +203,149 @@ app.get('/api/v1/public/subscription-plans', async (req, res) => {
   return res.status(500).json({ error: 'Data paket langganan gagal dimuat dari Supabase.' });
 });
 
-// Public: Prospect / Demo Registration
-app.post('/api/v1/public/prospects', async (req, res) => {
-  const { full_name, work_email, phone_number, company_name, company_scale, interest_type, notes } = req.body;
+// Public: Prospect / Demo Registration with Web Integrity & Atomic Slot Allocation (PRD 13.5 & 13.6)
+const handleProspectRegistration = async (req: express.Request, res: express.Response) => {
+  const { full_name, work_email, phone_number, company_name, company_scale, interest_type, notes, turnstile_token } = req.body;
   if (!full_name || !work_email || !company_name) {
     return res.status(400).json({ error: 'Nama, email kantor, dan nama perusahaan wajib diisi.' });
+  }
+
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const userAgent = req.headers['user-agent'] || null;
+
+  // 1. Verifikasi Integritas Web (Cloudflare Turnstile)
+  const integrity = await webIntegrityService.verifyWebIntegrity(
+    '/public/prospects',
+    turnstile_token,
+    clientIp,
+    userAgent,
+    { email: work_email, company: company_name }
+  );
+
+  if (!integrity.isValid) {
+    return res.status(400).json({
+      error: integrity.reason,
+      code: 'BOT_VERIFICATION_FAILED'
+    });
   }
 
   const newId = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  if (pool) {
-    try {
-      const client = await pool.connect();
-      try {
-        await client.query(
-          `INSERT INTO prospects (
-             id, full_name, work_email, phone_number, company_name, company_scale, interest_type, notes, created_at
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
-          [newId, full_name.trim(), work_email.trim(), phone_number?.trim() || null, company_name.trim(), company_scale?.trim() || null, interest_type || 'direct_trial_or_subscription', notes?.trim() || null, now]
-        );
-      } finally {
-        client.release();
-      }
-    } catch (err: any) {
-      return res.status(500).json({ error: 'Gagal menyimpan prospek ke database Supabase: ' + err.message });
-    }
-  } else {
+  if (!pool) {
     return res.status(500).json({ error: 'Koneksi database Supabase tidak tersedia.' });
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO prospects (
+           id, full_name, work_email, phone_number, company_name, company_scale,
+           interest_type, notes, web_integrity_verified, turnstile_token, ip_address,
+           user_agent, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);`,
+        [
+          newId,
+          full_name.trim(),
+          work_email.trim(),
+          phone_number?.trim() || null,
+          company_name.trim(),
+          company_scale?.trim() || null,
+          interest_type || 'direct_trial_or_subscription',
+          notes?.trim() || null,
+          true,
+          turnstile_token ? turnstile_token.slice(0, 16) + '...' : null,
+          clientIp,
+          userAgent,
+          now,
+          now
+        ]
+      );
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal menyimpan prospek ke database Supabase: ' + err.message });
+  }
+
+  let allocatedSlotNumber: number | null = null;
+  let trialExpiresAt: string | null = null;
+  let responseStatus = 'received';
+  let responseMsg = 'Permintaan berhasil tercatat. Tim solusi enterprise akan menghubungi Anda melalui email.';
+
+  // 2. Jika prospek meminta uji coba langsung, alokasikan slot secara atomik
+  if (interest_type === 'direct_trial_or_subscription') {
+    try {
+      const alloc = await trialAllocationService.allocateSlotAtomically(newId);
+      allocatedSlotNumber = alloc.slotNumber;
+      trialExpiresAt = alloc.expiresAt;
+      responseStatus = 'SELECTED';
+      responseMsg = `Selamat! Slot uji coba #${allocatedSlotNumber} berhasil diamankan secara eksklusif untuk organisasi Anda selama ${alloc.durationDays} hari kerja.`;
+    } catch (allocErr: any) {
+      if (allocErr instanceof SlotCapacityExhaustedError) {
+        responseStatus = 'WAITLIST';
+        responseMsg = 'Seluruh 36 slot uji coba saat ini sedang terisi penuh. Tim solusi kami akan memprioritaskan antrean Anda segera setelah slot berikutnya tersedia.';
+      } else {
+        responseStatus = 'RECEIVED';
+        responseMsg = 'Permintaan berhasil tercatat. Tim solusi enterprise akan segera mengonfirmasi status alokasi Anda.';
+      }
+    }
   }
 
   return res.status(201).json({
     id: newId,
-    status: 'received',
-    message: 'Permintaan berhasil tercatat. Tim solusi enterprise akan menghubungi Anda melalui email.',
+    status: responseStatus,
+    message: responseMsg,
     created_at: now,
+    allocated_slot_number: allocatedSlotNumber,
+    trial_expires_at: trialExpiresAt
   });
+};
+
+app.post('/api/v1/public/prospects', handleProspectRegistration);
+app.post('/api/v1/public/prospect-registration', handleProspectRegistration);
+
+// Public: Web Integrity Check untuk Onboarding Organisasi
+app.post('/api/v1/public/register', async (req, res) => {
+  const { company_name, admin_email, turnstile_token } = req.body;
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const userAgent = req.headers['user-agent'] || null;
+
+  const integrity = await webIntegrityService.verifyWebIntegrity(
+    '/public/register',
+    turnstile_token,
+    clientIp,
+    userAgent,
+    { company_name, admin_email }
+  );
+
+  if (!integrity.isValid) {
+    return res.status(400).json({ error: integrity.reason, code: 'BOT_VERIFICATION_FAILED' });
+  }
+
+  return res.json({ status: 'verified', message: 'Web integrity verified successfully for registration.' });
+});
+
+// Public: Web Integrity Check untuk Join Organisasi via Company Code
+app.post('/api/v1/public/join', async (req, res) => {
+  const { company_code, email, turnstile_token } = req.body;
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || null;
+  const userAgent = req.headers['user-agent'] || null;
+
+  const integrity = await webIntegrityService.verifyWebIntegrity(
+    '/public/join',
+    turnstile_token,
+    clientIp,
+    userAgent,
+    { company_code, email }
+  );
+
+  if (!integrity.isValid) {
+    return res.status(400).json({ error: integrity.reason, code: 'BOT_VERIFICATION_FAILED' });
+  }
+
+  return res.json({ status: 'verified', message: 'Web integrity verified successfully for join request.' });
 });
 
 // 1b. Autentikasi & Verifikasi Kode Tenant / Staff
@@ -2071,6 +2182,405 @@ app.get('/api/v1/admin/mcp-tools', (req, res) => {
     });
   } catch (err: any) {
     return res.status(500).json({ status: 'error', error: err.message || String(err) });
+  }
+});
+
+// ==========================================
+// ADMIN SUPER HUB ENDPOINTS (PRD v2.2)
+// ==========================================
+
+// 1. Prospect & Trial Management
+app.get('/api/v1/admin/prospects', async (req, res) => {
+  try {
+    const { status, search, limit, offset } = req.query;
+    const result = await trialAllocationService.listProspects({
+      status: status as string | undefined,
+      search: search as string | undefined,
+      limit: limit ? Number(limit) : 50,
+      offset: offset ? Number(offset) : 0,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat daftar prospek: ' + err.message });
+  }
+});
+
+app.get('/api/v1/admin/trial-slots', async (req, res) => {
+  try {
+    const overview = await trialAllocationService.getSlotsStatus();
+    return res.json(overview);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat status slot trial: ' + err.message });
+  }
+});
+
+app.patch('/api/v1/admin/prospects/:id/select-trial', async (req, res) => {
+  try {
+    const alloc = await trialAllocationService.allocateSlotAtomically(req.params.id);
+    return res.json({
+      status: 'success',
+      message: `Slot #${alloc.slotNumber} berhasil diamankan secara atomik.`,
+      allocation: alloc
+    });
+  } catch (err: any) {
+    if (err instanceof SlotCapacityExhaustedError) {
+      return res.status(409).json({ error: err.message, code: 'SLOT_CAPACITY_EXHAUSTED' });
+    }
+    return res.status(500).json({ error: 'Gagal mengalokasikan slot: ' + err.message });
+  }
+});
+
+app.patch('/api/v1/admin/prospects/:id/schedule-meeting', async (req, res) => {
+  try {
+    const { meeting_date, meeting_link, notes } = req.body;
+    if (!meeting_date) {
+      return res.status(400).json({ error: 'meeting_date wajib disertakan.' });
+    }
+    const updated = await trialAllocationService.scheduleMeeting(
+      req.params.id,
+      meeting_date,
+      meeting_link,
+      notes
+    );
+    return res.json({
+      status: 'success',
+      message: 'Jadwal pertemuan berhasil disimpan.',
+      meeting: updated
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal menjadwalkan pertemuan: ' + err.message });
+  }
+});
+
+app.post('/api/v1/admin/prospects/:id/activate-trial', async (req, res) => {
+  try {
+    const { tenant_id, activated_by, notes } = req.body;
+    if (!tenant_id) {
+      return res.status(400).json({ error: 'tenant_id wajib disertakan.' });
+    }
+    const activation = await trialAllocationService.activateTrial(
+      req.params.id,
+      tenant_id,
+      activated_by,
+      notes
+    );
+    return res.json({
+      status: 'success',
+      message: 'Uji coba resmi berhasil diaktifkan dengan 1.000 kredit awal.',
+      activation
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal mengaktifkan uji coba: ' + err.message });
+  }
+});
+
+app.delete('/api/v1/admin/prospects/:id', async (req, res) => {
+  try {
+    await trialAllocationService.deleteProspect(req.params.id);
+    return res.json({ status: 'success', message: 'Prospek berhasil dihapus dan slot telah dibebaskan.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal menghapus prospek: ' + err.message });
+  }
+});
+
+// 2. Web Integrity Logs Audit
+app.get('/api/v1/admin/web-integrity-logs', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const { limit = 50, offset = 0, status: filterStatus } = req.query;
+    let q = 'SELECT id, endpoint, ip_address, turnstile_token, status, error_code, hostname, metadata, created_at FROM web_integrity_logs WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+    if (filterStatus) {
+      q += ` AND status = $${idx++}`;
+      params.push(filterStatus);
+    }
+    q += ` ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx++};`;
+    params.push(Number(limit), Number(offset));
+
+    const recs = await pool.query(q, params);
+    return res.json(recs.rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat log integritas: ' + err.message });
+  }
+});
+
+// 3. Platform Settings
+app.get('/api/v1/admin/platform-settings', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const recs = await pool.query('SELECT key, value, description, updated_at FROM platform_settings ORDER BY key ASC;');
+    return res.json(recs.rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat platform settings: ' + err.message });
+  }
+});
+
+app.patch('/api/v1/admin/platform-settings', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const { key, value } = req.body;
+    if (!key || value === undefined) {
+      return res.status(400).json({ error: 'key dan value wajib disertakan.' });
+    }
+    await pool.query(
+      `INSERT INTO platform_settings (key, value, updated_at) 
+       VALUES ($1, $2, NOW()) 
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();`,
+      [key, JSON.stringify(value)]
+    );
+    return res.json({ status: 'success', message: `Setting '${key}' berhasil diperbarui.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memperbarui platform setting: ' + err.message });
+  }
+});
+
+// 4. Tenant Management
+app.get('/api/v1/admin/tenants', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const { status: filterStatus, search } = req.query;
+    let q = `
+      SELECT 
+        t.id, t.name, t.slug, t.status, t.created_at, t.updated_at,
+        COALESCE(w.balance, 0) as credit_balance,
+        COALESCE(sub.tier, 'TRIAL') as subscription_tier,
+        COUNT(DISTINCT m.id) as total_members
+      FROM tenants t
+      LEFT JOIN tenant_credit_wallet w ON t.id = w.tenant_id
+      LEFT JOIN tenant_subscriptions sub ON t.id = sub.tenant_id
+      LEFT JOIN tenant_memberships m ON t.id = m.tenant_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let idx = 1;
+    if (filterStatus) {
+      q += ` AND t.status = $${idx++}`;
+      params.push(filterStatus);
+    }
+    if (search) {
+      q += ` AND (t.name ILIKE $${idx} OR t.slug ILIKE $${idx})`;
+      params.push(`%${search}%`);
+      idx++;
+    }
+    q += ` GROUP BY t.id, t.name, t.slug, t.status, t.created_at, t.updated_at, w.balance, sub.tier ORDER BY t.created_at DESC;`;
+
+    const recs = await pool.query(q, params);
+    return res.json({
+      total: recs.rows.length,
+      tenants: recs.rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        status: r.status,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        credit_balance: Number(r.credit_balance),
+        subscription_tier: r.subscription_tier,
+        total_members: Number(r.total_members)
+      }))
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat daftar tenant: ' + err.message });
+  }
+});
+
+app.patch('/api/v1/admin/tenants/:id/status', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const { status: newStatus } = req.body;
+    if (!newStatus || !['ACTIVE', 'SUSPENDED', 'TRIAL', 'PENDING'].includes(newStatus)) {
+      return res.status(400).json({ error: 'Status tidak valid.' });
+    }
+    await pool.query('UPDATE tenants SET status = $1, updated_at = NOW() WHERE id = $2;', [newStatus, req.params.id]);
+    return res.json({ status: 'success', message: `Status tenant diperbarui menjadi ${newStatus}.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memperbarui status tenant: ' + err.message });
+  }
+});
+
+app.post('/api/v1/admin/tenants/:id/credit-override', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const { amount, reason } = req.body;
+    const creditAmount = Number(amount);
+    if (isNaN(creditAmount) || creditAmount <= 0) {
+      return res.status(400).json({ error: 'Jumlah kredit harus berupa angka positif.' });
+    }
+    await pool.query(
+      `INSERT INTO tenant_credit_wallet (tenant_id, balance, reserved_credits, lifetime_granted, updated_at)
+       VALUES ($1, $2, 0, $2, NOW())
+       ON CONFLICT (tenant_id) DO UPDATE SET 
+         balance = tenant_credit_wallet.balance + EXCLUDED.balance,
+         lifetime_granted = tenant_credit_wallet.lifetime_granted + EXCLUDED.lifetime_granted,
+         updated_at = NOW();`,
+      [req.params.id, creditAmount]
+    );
+    return res.json({
+      status: 'success',
+      message: `Berhasil menambahkan ${creditAmount.toLocaleString()} kredit ke tenant.`,
+      amount: creditAmount,
+      reason: reason || 'Manual Admin Override'
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal menambahkan kredit: ' + err.message });
+  }
+});
+
+// 5. LLM Models & Routing Catalog
+app.get('/api/v1/admin/llm-models', async (req, res) => {
+  return res.json({
+    status: 'success',
+    routing_policy: 'NVIDIA_NIM -> OPENROUTER -> GEMINI -> GPT_IMAGE_2',
+    models: [
+      {
+        provider: 'NVIDIA NIM',
+        model_name: 'meta/llama-3.1-70b-instruct',
+        tier: 'PRIMARY',
+        input_cost_per_1k: 0.0003,
+        output_cost_per_1k: 0.0006,
+        avg_latency_ms: 380,
+        status: 'HEALTHY'
+      },
+      {
+        provider: 'OpenRouter',
+        model_name: 'anthropic/claude-3.5-sonnet',
+        tier: 'FALLBACK_1',
+        input_cost_per_1k: 0.003,
+        output_cost_per_1k: 0.015,
+        avg_latency_ms: 650,
+        status: 'HEALTHY'
+      },
+      {
+        provider: 'Gemini',
+        model_name: 'gemini-1.5-pro-latest',
+        tier: 'FALLBACK_2',
+        input_cost_per_1k: 0.00125,
+        output_cost_per_1k: 0.005,
+        avg_latency_ms: 510,
+        status: 'HEALTHY'
+      },
+      {
+        provider: 'GPT-Image-2',
+        model_name: 'dall-e-3',
+        tier: 'MULTIMODAL_IMAGE',
+        input_cost_per_1k: 0.04,
+        output_cost_per_1k: 0.08,
+        avg_latency_ms: 1200,
+        status: 'HEALTHY'
+      }
+    ]
+  });
+});
+
+// 6. Usage & Cost Metrics
+app.get('/api/v1/admin/usage-costs', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const totalCreditsRes = await pool.query(
+      'SELECT COALESCE(SUM(balance), 0) as total_circulating, COALESCE(SUM(lifetime_granted), 0) as total_lifetime FROM tenant_credit_wallet;'
+    );
+    const tokenRes = await pool.query(
+      `SELECT 
+         COALESCE(SUM(prompt_tokens), 0) as total_prompt_tokens,
+         COALESCE(SUM(completion_tokens), 0) as total_completion_tokens,
+         COALESCE(SUM(total_cost_usd), 0) as total_cost_usd,
+         COUNT(*) as total_calls
+       FROM ai_token_usage_ledger;`
+    );
+
+    const topSpendersRes = await pool.query(
+      `SELECT 
+         t.id, t.name, 
+         COALESCE(SUM(l.total_cost_usd), 0) as total_spent_usd,
+         COALESCE(SUM(l.prompt_tokens + l.completion_tokens), 0) as total_tokens
+       FROM tenants t
+       JOIN ai_token_usage_ledger l ON t.id = l.tenant_id
+       GROUP BY t.id, t.name
+       ORDER BY total_spent_usd DESC
+       LIMIT 5;`
+    );
+
+    return res.json({
+      credits: {
+        circulating_balance: Number(totalCreditsRes.rows[0]?.total_circulating || 0),
+        lifetime_granted: Number(totalCreditsRes.rows[0]?.total_lifetime || 0)
+      },
+      tokens: {
+        total_prompt: Number(tokenRes.rows[0]?.total_prompt_tokens || 0),
+        total_completion: Number(tokenRes.rows[0]?.total_completion_tokens || 0),
+        total_cost_usd: Number(tokenRes.rows[0]?.total_cost_usd || 0),
+        total_invocations: Number(tokenRes.rows[0]?.total_calls || 0)
+      },
+      top_spenders: topSpendersRes.rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        total_spent_usd: Number(r.total_spent_usd),
+        total_tokens: Number(r.total_tokens)
+      }))
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat data metrik penggunaan: ' + err.message });
+  }
+});
+
+// 7. Admin Super Hub Consolidated Overview
+app.get('/api/v1/admin/hub-overview', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database tidak tersedia.' });
+  try {
+    const [tenantsRes, prospectsRes, slotsOverview, providersHealth] = await Promise.all([
+      pool.query(`
+        SELECT 
+          COUNT(*) as total_tenants,
+          COUNT(*) FILTER (WHERE status = 'ACTIVE') as active_tenants,
+          COUNT(*) FILTER (WHERE status = 'TRIAL') as trial_tenants
+        FROM tenants;
+      `),
+      pool.query(`
+        SELECT 
+          COUNT(*) as total_prospects,
+          COUNT(*) FILTER (WHERE trial_status = 'SELECTED') as selected_prospects,
+          COUNT(*) FILTER (WHERE trial_status = 'ACTIVE') as active_trials,
+          COUNT(*) FILTER (WHERE meeting_status = 'SCHEDULED') as scheduled_meetings
+        FROM prospects;
+      `),
+      trialAllocationService.getSlotsStatus().catch(() => ({ counts: {}, capacity: 36, availableCount: 36 })),
+      modelRouterService.checkProvidersHealth().catch(() => [])
+    ]);
+
+    const mcpTools = mcpRegistryService.listTools();
+
+    return res.json({
+      tenants: {
+        total: Number(tenantsRes.rows[0]?.total_tenants || 0),
+        active: Number(tenantsRes.rows[0]?.active_tenants || 0),
+        trial: Number(tenantsRes.rows[0]?.trial_tenants || 0),
+      },
+      prospects: {
+        total: Number(prospectsRes.rows[0]?.total_prospects || 0),
+        selected: Number(prospectsRes.rows[0]?.selected_prospects || 0),
+        active_trials: Number(prospectsRes.rows[0]?.active_trials || 0),
+        scheduled_meetings: Number(prospectsRes.rows[0]?.scheduled_meetings || 0),
+      },
+      trial_slots: {
+        capacity: slotsOverview.capacity || 36,
+        available: slotsOverview.availableCount || 0,
+        reserved: slotsOverview.counts?.RESERVED || 0,
+        allocated: slotsOverview.counts?.ALLOCATED || 0,
+        duration_days: slotsOverview.durationDays || 7,
+      },
+      llm: {
+        providers_total: providersHealth.length,
+        providers_healthy: providersHealth.filter(p => p.health_status === 'healthy').length,
+        providers: providersHealth
+      },
+      mcp: {
+        tools_total: mcpTools.length,
+        tools: mcpTools.slice(0, 10)
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Gagal memuat overview Admin Super Hub: ' + err.message });
   }
 });
 
