@@ -18,6 +18,7 @@ import { TenantFeatureHubShell } from './components/TenantFeatureHubShell';
 import { WorkforceHubScreen } from './components/WorkforceHubScreen';
 import { KanbanBoardScreen } from './components/KanbanBoardScreen';
 import { WebAuthnAttendanceScreen } from './components/WebAuthnAttendanceScreen';
+import { BillingHubScreen } from './components/BillingHubScreen';
 import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { StartupGateReport } from './components/StartupGateReport';
 import { TenantRegistrationResponse } from './types';
@@ -25,7 +26,7 @@ import { TenantRegistrationResponse } from './types';
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -182,6 +183,16 @@ export default function App() {
                 >
                   Presensi WebAuthn
                 </button>
+                <button
+                  onClick={() => setClientSubView('billing')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'billing'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Kredit & Billing
+                </button>
               </div>
             )}
             <button
@@ -256,6 +267,14 @@ export default function App() {
                 membershipId={activeTenant?.membership_id || 'usr_default_admin'}
                 userName={activeTenant?.owner_full_name || 'Anggota Organisasi'}
                 onBack={() => setClientSubView('workforce')}
+              />
+            )}
+
+            {clientSubView === 'billing' && (
+              <BillingHubScreen
+                tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                tenantName={activeTenant?.display_name || activeTenant?.legal_name || 'Organisasi Aktif'}
+                userRole={activeTenant?.role || 'TENANT_OWNER'}
               />
             )}
           </div>

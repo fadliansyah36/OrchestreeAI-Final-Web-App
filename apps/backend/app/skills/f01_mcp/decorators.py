@@ -8,7 +8,9 @@ import functools
 import inspect
 import time
 import json
+import uuid
 import logging
+from decimal import Decimal
 from typing import Callable, Dict, Any, Optional, Type
 from pydantic import BaseModel
 import sqlalchemy as sa
@@ -122,6 +124,38 @@ class ToolRegistry:
             except Exception as e:
                 raise ValueError(f"Validasi input schema gagal untuk tool '{name}': {e}")
 
+        # Reservasi kredit untuk pemanggilan MCP Tool berbayar
+        cost_map = {
+            "low": Decimal("5.0000"),
+            "medium": Decimal("10.0000"),
+            "high": Decimal("25.0000"),
+            "critical": Decimal("50.0000"),
+        }
+        tool_cost = cost_map.get(tool.risk_tier, Decimal("5.0000"))
+        reservation = None
+        if context.tenant_id:
+            try:
+                from app.domains.billing.credits import reserve_credit
+                reservation = await reserve_credit(
+                    tenant_id=context.tenant_id,
+                    estimated_cost=tool_cost,
+                    reference_type="mcp_tool",
+                    reference_id=f"tool-{uuid.uuid4().hex[:12]}",
+                    metadata={"tool_name": name, "risk_tier": tool.risk_tier},
+                )
+            except Exception as cred_err:
+                logger.error(f"Gagal reservasi kredit MCP tool {name}: {cred_err}")
+                await self._record_invocation(
+                    context=context,
+                    tool_name=name,
+                    input_data=input_data,
+                    output_data={},
+                    status="failed",
+                    error_message=f"Gagal reservasi kredit: {cred_err}",
+                    duration_ms=0,
+                )
+                raise cred_err
+
         start_time = time.perf_counter()
         try:
             # Eksekusi handler
@@ -136,6 +170,18 @@ class ToolRegistry:
 
             duration_ms = int((time.perf_counter() - start_time) * 1000)
 
+            # Konsumsi kredit sukses
+            if reservation:
+                try:
+                    from app.domains.billing.credits import consume_credit
+                    await consume_credit(
+                        reservation_id=reservation.id,
+                        actual_cost=tool_cost,
+                        metadata={"tool_name": name, "risk_tier": tool.risk_tier},
+                    )
+                except Exception as cons_err:
+                    logger.warning(f"Gagal konsumsi kredit MCP tool {name}: {cons_err}")
+
             await self._record_invocation(
                 context=context,
                 tool_name=name,
@@ -149,6 +195,19 @@ class ToolRegistry:
             return result if isinstance(result, dict) else {"result": result}
         except Exception as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Refund kredit jika eksekusi gagal
+            if reservation:
+                try:
+                    from app.domains.billing.credits import refund_credit
+                    await refund_credit(
+                        reservation_id=reservation.id,
+                        reason=f"Eksekusi MCP tool gagal: {str(e)}",
+                        metadata={"tool_name": name, "error": str(e)},
+                    )
+                except Exception as ref_err:
+                    logger.warning(f"Gagal refund kredit MCP tool {name}: {ref_err}")
+
             await self._record_invocation(
                 context=context,
                 tool_name=name,

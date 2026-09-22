@@ -12,7 +12,9 @@ Adapter Nyata:
 import time
 import os
 import json
+import uuid
 import logging
+from decimal import Decimal
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
@@ -517,7 +519,31 @@ class ModelRouter:
         """
         Rute inferensi dengan urutan prioritas adaptif.
         Menyimpan telemetri panggilan ke llm_usage_logs.
+        Mengintegrasikan Credit State Machine (reserve_credit -> consume_credit -> refund_credit).
         """
+        # Reservasi kredit sebelum memanggil provider
+        reservation = None
+        if request.tenant_id:
+            try:
+                from app.domains.billing.credits import reserve_credit
+                estimated = Decimal("50.0000") if request.task_type == "image_generation" else Decimal("15.0000")
+                reservation = await reserve_credit(
+                    tenant_id=request.tenant_id,
+                    estimated_cost=estimated,
+                    reference_type="model_router",
+                    reference_id=f"llm-{uuid.uuid4().hex[:12]}",
+                    metadata={"task_type": request.task_type, "preferred_model": request.preferred_model},
+                )
+            except Exception as e:
+                logger.error(f"Credit reservation failed for tenant {request.tenant_id}: {e}")
+                return ModelRouterResponse(
+                    content="",
+                    provider_id="none",
+                    model_id="none",
+                    status="failed",
+                    error_message=f"Gagal reservasi kredit: {str(e)}",
+                )
+
         # Urutan prioritas eksekusi
         if request.task_type == "image_generation":
             provider_chain = ["openai", "gemini"]
@@ -536,6 +562,26 @@ class ModelRouter:
             try:
                 response = await adapter.generate(request)
                 if response.status == "success" and response.content:
+                    # Konsumsi kredit aktual
+                    if reservation:
+                        try:
+                            from app.domains.billing.credits import consume_credit
+                            if request.task_type == "image_generation":
+                                actual_cost = Decimal("40.0000")
+                            else:
+                                actual_cost = max(Decimal("1.0000"), Decimal(str(response.total_tokens or 100)) * Decimal("0.0050"))
+                            await consume_credit(
+                                reservation_id=reservation.id,
+                                actual_cost=actual_cost,
+                                metadata={
+                                    "provider_id": response.provider_id,
+                                    "model_id": response.model_id,
+                                    "total_tokens": response.total_tokens,
+                                },
+                            )
+                        except Exception as cred_err:
+                            logger.warning(f"Gagal mencatat konsumsi kredit: {cred_err}")
+
                     await self._log_usage(request, response)
                     return response
                 else:
@@ -545,7 +591,18 @@ class ModelRouter:
                 last_error = str(e)
                 logger.error(f"Error calling adapter {prov_id}: {e}")
 
-        # Jika semua provider gagal
+        # Jika semua provider gagal, refund kredit yang direservasi
+        if reservation:
+            try:
+                from app.domains.billing.credits import refund_credit
+                await refund_credit(
+                    reservation_id=reservation.id,
+                    reason=f"Semua provider LLM gagal: {last_error}",
+                    metadata={"error": str(last_error)},
+                )
+            except Exception as ref_err:
+                logger.warning(f"Gagal melakukan refund kredit reservasi {reservation.id}: {ref_err}")
+
         failed_res = ModelRouterResponse(
             content="",
             provider_id="none",

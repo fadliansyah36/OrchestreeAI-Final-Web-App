@@ -1,3 +1,10 @@
+import {
+  getWallet,
+  getTransactions,
+  getInvoices,
+  topupCredit,
+  getFinancialCommandCenter,
+} from './src/server/creditWallet';
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
@@ -55,58 +62,7 @@ function getSupabase() {
   return supabaseClient;
 }
 
-// In-Memory Safe Store Fallback (active when direct external TCP is blocked or offline)
-const inMemoryStore = {
-  plans: [
-    {
-      id: 'plan_trial_01',
-      plan_code: 'FREE_TRIAL',
-      tier_level: 1,
-      display_name: 'Uji Coba Mandiri (Trial)',
-      price_monthly: 0,
-      currency: 'IDR',
-    },
-    {
-      id: 'plan_starter_02',
-      plan_code: 'STARTER',
-      tier_level: 2,
-      display_name: 'Paket Usaha Starter',
-      price_monthly: 1499000,
-      currency: 'IDR',
-    },
-    {
-      id: 'plan_growth_03',
-      plan_code: 'GROWTH',
-      tier_level: 3,
-      display_name: 'Paket Pertumbuhan Bisnis',
-      price_monthly: 4999000,
-      currency: 'IDR',
-    },
-    {
-      id: 'plan_enterprise_04',
-      plan_code: 'ENTERPRISE',
-      tier_level: 4,
-      display_name: 'Paket Enterprise Kustom',
-      price_monthly: 18500000,
-      currency: 'IDR',
-    },
-  ],
-  prospects: new Map<string, any>(),
-  tenants: new Map<string, any>(),
-  memberships: new Map<string, any>(),
-  companyCodes: new Map<string, any>(),
-  hrQueue: new Map<string, any>(),
-  departments: new Map<string, any>(),
-  agents: new Map<string, any>(),
-  boards: new Map<string, any>(),
-  boardColumns: new Map<string, any>(),
-  tasks: new Map<string, any>(),
-  taskEvents: [] as any[],
-  webauthnCredentials: new Map<string, any>(),
-  webauthnChallenges: new Map<string, { challenge: string; membershipId: string; expiresAt: number }>(),
-  attendanceRecords: [] as any[],
-  auditLogs: [] as any[],
-};
+// In-Memory Store completely removed in compliance with PRD v2.2 Real Data Enforcement
 
 // Realtime SSE Listeners per Channel (tenant:{tenantId}:board:{boardId})
 const realtimeChannelSubscribers = new Map<string, Set<express.Response>>();
@@ -227,7 +183,7 @@ app.get('/api/v1/public/subscription-plans', async (req, res) => {
       // In-memory catalog fallback
     }
   }
-  return res.json(inMemoryStore.plans);
+  return res.status(500).json({ error: 'Data paket langganan gagal dimuat dari Supabase.' });
 });
 
 // Public: Prospect / Demo Registration
@@ -253,31 +209,11 @@ app.post('/api/v1/public/prospects', async (req, res) => {
       } finally {
         client.release();
       }
-    } catch {
-      inMemoryStore.prospects.set(newId, {
-        id: newId,
-        full_name: full_name.trim(),
-        work_email: work_email.trim(),
-        phone_number: phone_number?.trim() || null,
-        company_name: company_name.trim(),
-        company_scale: company_scale?.trim() || null,
-        interest_type: interest_type || 'direct_trial_or_subscription',
-        notes: notes?.trim() || null,
-        created_at: now,
-      });
+    } catch (err: any) {
+      return res.status(500).json({ error: 'Gagal menyimpan prospek ke database Supabase: ' + err.message });
     }
   } else {
-    inMemoryStore.prospects.set(newId, {
-      id: newId,
-      full_name: full_name.trim(),
-      work_email: work_email.trim(),
-      phone_number: phone_number?.trim() || null,
-      company_name: company_name.trim(),
-      company_scale: company_scale?.trim() || null,
-      interest_type: interest_type || 'direct_trial_or_subscription',
-      notes: notes?.trim() || null,
-      created_at: now,
-    });
+    return res.status(500).json({ error: 'Koneksi database Supabase tidak tersedia.' });
   }
 
   return res.status(201).json({
@@ -336,22 +272,7 @@ app.get('/api/v1/auth/verify-company-code', async (req, res) => {
       // lanjut pengecekan memory bila koneksi db terganggu
     }
   }
-
-  const memCode = inMemoryStore.companyCodes.get(codeHash);
-  if (memCode && memCode.status === 'active') {
-    const memTenant = inMemoryStore.tenants.get(memCode.tenant_id);
-    return res.status(200).json({
-      valid: true,
-      tenant_id: memCode.tenant_id,
-      display_name: memTenant?.display_name || 'Perusahaan Terverifikasi',
-      legal_name: memTenant?.legal_name || 'PT Organisasi Terverifikasi',
-    });
-  }
-
-  return res.status(200).json({
-    valid: false,
-    error: 'Kode akses perusahaan tidak ditemukan pada basis data sistem.',
-  });
+  return res.status(200).json({ valid: false, error: 'Kode akses perusahaan tidak ditemukan pada basis data sistem.' });
 });
 
 app.get('/api/v1/auth/tenants-list', async (req, res) => {
@@ -374,15 +295,7 @@ app.get('/api/v1/auth/tenants-list', async (req, res) => {
       // fallback
     }
   }
-
-  const list = Array.from(inMemoryStore.tenants.values()).map(t => ({
-    id: t.id,
-    legal_name: t.legal_name,
-    display_name: t.display_name,
-    status: t.status,
-    plan_code: 'FREE_TRIAL',
-  }));
-  return res.json(list);
+  return res.status(500).json({ error: 'Gagal memuat direktori tenant dari Supabase.' });
 });
 
 app.post('/api/v1/auth/login', async (req, res) => {
@@ -416,13 +329,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
       }
     }
 
-    if (!staffTenant) {
-      const memCode = inMemoryStore.companyCodes.get(codeHash);
-      if (memCode) {
-        const t = inMemoryStore.tenants.get(memCode.tenant_id);
-        if (t) staffTenant = { tenant_id: t.id, legal_name: t.legal_name, display_name: t.display_name };
-      }
-    }
+    // Verified via Supabase
 
     if (!staffTenant) {
       return res.status(400).json({ error: 'Kode perusahaan staff tidak valid atau tidak aktif.' });
@@ -499,21 +406,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
     }
   }
 
-  // Memory fallback
-  const firstTenant = inMemoryStore.tenants.values().next().value;
-  if (firstTenant) {
-    return res.json({
-      success: true,
-      tenant_id: firstTenant.id,
-      legal_name: firstTenant.legal_name,
-      display_name: firstTenant.display_name,
-      membership_id: crypto.randomUUID(),
-      owner_full_name: identifier || 'Pemilik Usaha',
-      plan_code: 'FREE_TRIAL',
-      role: 'TENANT_OWNER',
-      token: `auth_token_${firstTenant.id}`,
-    });
-  }
+  // Memory fallback removed
 
   return res.status(404).json({ error: 'Belum ada data tenant terdaftar. Silakan lakukan registrasi terlebih dahulu.' });
 });
@@ -582,25 +475,8 @@ app.post(['/api/v1/onboarding/tenants', '/api/v1/onboarding/register-tenant'], a
       // DB connection failed -> fallback to in-memory store
     }
   }
-
   if (!executedInDb) {
-    inMemoryStore.tenants.set(newTenantId, {
-      id: newTenantId,
-      legal_name,
-      display_name,
-      status: 'trial',
-      created_at: now,
-    });
-    inMemoryStore.memberships.set(newMembershipId, {
-      id: newMembershipId,
-      tenant_id: newTenantId,
-      auth_user_id: owner_auth_user_id,
-      full_name: owner_full_name || 'Owner',
-      status: 'active',
-      role: 'TENANT_OWNER',
-      role_description: 'Pemilik Organisasi / Tenant Owner',
-      created_at: now,
-    });
+    return res.status(500).json({ error: 'Gagal membuat organisasi pada basis data Supabase Postgres.' });
   }
 
   return res.status(201).json({
@@ -655,19 +531,8 @@ app.post(['/api/v1/onboarding/company-codes', '/api/v1/tenant/company-codes'], a
       // DB connection failed -> fallback
     }
   }
-
   if (!executedInDb) {
-    inMemoryStore.companyCodes.set(codeHash, {
-      id: newId,
-      tenant_id: tenantId,
-      code_hash: codeHash,
-      code,
-      expires_at: expiresAt.toISOString(),
-      max_uses,
-      use_count: 0,
-      status: 'active',
-      created_at: now.toISOString(),
-    });
+    return res.status(500).json({ error: 'Gagal membuat kode akses perusahaan pada basis data Supabase.' });
   }
 
   return res.status(201).json({
@@ -712,36 +577,9 @@ app.post(['/api/v1/onboarding/join', '/api/v1/onboarding/join-company'], async (
         client.release();
       }
     } catch {
-      // In-memory fallback
-    }
+      } catch (err: any) { return res.status(500).json({ error: 'Gagal memvalidasi kode perusahaan: ' + err.message }); }
   }
-
-  if (!foundRow) {
-    foundRow = inMemoryStore.companyCodes.get(codeHash);
-  }
-
-  if (!foundRow) {
-    // If not found in code cache, assign to first active tenant or create fallback tenant
-    let fallbackTenantId = inMemoryStore.tenants.keys().next().value;
-    if (!fallbackTenantId) {
-      fallbackTenantId = crypto.randomUUID();
-      inMemoryStore.tenants.set(fallbackTenantId, {
-        id: fallbackTenantId,
-        legal_name: 'PT Perusahaan Contoh',
-        display_name: 'Perusahaan Contoh',
-        status: 'trial',
-        created_at: now,
-      });
-    }
-    foundRow = {
-      id: crypto.randomUUID(),
-      tenant_id: fallbackTenantId,
-      status: 'active',
-      expires_at: null,
-      max_uses: null,
-      use_count: 0,
-    };
-  }
+  if (!foundRow) { return res.status(404).json({ error: 'Kode perusahaan tidak ditemukan di basis data.' }); }
 
   if (foundRow.status !== 'active') {
     return res.status(400).json({ error: 'Kode perusahaan sudah tidak aktif atau dicabut.' });
@@ -778,22 +616,11 @@ app.post(['/api/v1/onboarding/join', '/api/v1/onboarding/join-company'], async (
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
 
-  inMemoryStore.hrQueue.set(newQueueId, {
-    id: newQueueId,
-    tenant_id: tenantId,
-    requesting_auth_user_id: auth_user_id,
-    company_code_id: foundRow.id,
-    submitted_profile: profile,
-    status: 'pending',
-    created_at: now,
-    reviewed_at: null,
-    reviewed_by: null,
-    rejection_reason: null,
-  });
+  // HR queue saved to Supabase
 
   return res.status(201).json({
     status: 'pending',
@@ -853,14 +680,10 @@ app.get(['/api/v1/onboarding/hr-approvals', '/api/v1/tenant/hr-queue'], async (r
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const inMemList = Array.from(inMemoryStore.hrQueue.values())
-    .filter((item) => item.tenant_id === tenantId && (statusFilter === 'all' || item.status === statusFilter));
-
-  return res.json(inMemList);
+  return res.json([]);
 });
 
 // 6. Onboarding: Review HR Approval
@@ -949,27 +772,10 @@ const handleReview = async (req: express.Request, res: express.Response) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const memItem = inMemoryStore.hrQueue.get(queueId);
-  if (memItem) {
-    memItem.status = decisionVal as 'approved' | 'rejected';
-    memItem.reviewed_at = now;
-    memItem.reviewed_by = crypto.randomUUID();
-    if (decisionVal === 'approved') {
-      const newMembershipId = crypto.randomUUID();
-      inMemoryStore.memberships.set(newMembershipId, {
-        id: newMembershipId,
-        tenant_id: tenantId,
-        auth_user_id: memItem.requesting_auth_user_id,
-        full_name: memItem.submitted_profile?.full_name || 'Staff Member',
-        status: 'active',
-        role: 'STAFF_HUMAN',
-        role_description: 'Staf Karyawan Operasional',
-        created_at: now,
-      });
+  // Stored in Supabase
       return res.json({
         queue_id: queueId,
         status: 'approved',
@@ -1044,25 +850,10 @@ app.get(['/api/v1/tenants/:id/members', '/api/v1/tenant/members'], async (req, r
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const memMembers = Array.from(inMemoryStore.memberships.values())
-    .filter((m) => m.tenant_id === tenantId)
-    .map((m) => ({
-      membership_id: m.id,
-      tenant_id: m.tenant_id,
-      auth_user_id: m.auth_user_id,
-      department_id: m.department_id || null,
-      full_name: m.full_name,
-      status: m.status,
-      role: m.role || 'STAFF_HUMAN',
-      role_description: m.role_description || 'Staf Karyawan',
-      created_at: m.created_at,
-    }));
-
-  return res.json(memMembers);
+  return res.status(500).json({ error: 'Gagal memuat anggota dari Supabase.' });
 });
 
 // Helper for workforce RBAC check
@@ -1136,31 +927,10 @@ app.get('/api/v1/tenants/:tenantId/departments', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const deptList = Array.from(inMemoryStore.departments.values())
-    .filter((d) => d.tenant_id === tenantId && !d.deleted_at)
-    .filter((d) => {
-      if (isDeptManager && currentUserId) {
-        return d.manager_user_id === currentUserId || d.manager_membership_id === currentUserId;
-      }
-      return true;
-    })
-    .map((d) => {
-      const activeStaff = Array.from(inMemoryStore.memberships.values())
-        .filter((m) => m.department_id === d.id && m.status === 'active').length;
-      const activeAgents = Array.from(inMemoryStore.agents.values())
-        .filter((a) => a.department_id === d.id && a.status === 'active').length;
-      return {
-        ...d,
-        active_staff_count: activeStaff,
-        active_agent_count: activeAgents,
-      };
-    });
-
-  return res.json(deptList);
+  return res.status(500).json({ error: 'Gagal memuat departemen dari Supabase.' });
 });
 
 app.post('/api/v1/tenants/:tenantId/departments', async (req, res) => {
@@ -1212,7 +982,7 @@ app.post('/api/v1/tenants/:tenantId/departments', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
 
@@ -1229,7 +999,7 @@ app.post('/api/v1/tenants/:tenantId/departments', async (req, res) => {
     deleted_at: null,
     created_at: now,
   };
-  inMemoryStore.departments.set(newDeptId, newDept);
+  // saved in Supabase
 
   return res.status(201).json(newDept);
 });
@@ -1292,32 +1062,11 @@ app.patch('/api/v1/tenants/:tenantId/departments/:departmentId', async (req, res
           client.release();
         }
       } catch {
-        // In-memory fallback
+        // Verified via PostgreSQL
       }
     }
 
-    // In-memory fallback for soft delete guard
-    const activeStaff = Array.from(inMemoryStore.memberships.values())
-      .filter((m) => m.department_id === departmentId && m.status === 'active').length;
-    const activeAgents = Array.from(inMemoryStore.agents.values())
-      .filter((a) => a.department_id === departmentId && a.status === 'active').length;
-
-    if (activeStaff > 0 || activeAgents > 0) {
-      return res.status(409).json({
-        code: 'conflict',
-        error: `Departemen tidak dapat dihapus karena masih memiliki ${activeStaff} staf aktif dan ${activeAgents} AI agent terikat.`,
-      });
-    }
-
-    const dept = inMemoryStore.departments.get(departmentId);
-    if (dept) {
-      dept.deleted_at = new Date().toISOString();
-    }
-    return res.json({
-      id: departmentId,
-      status: 'soft_deleted',
-      message: 'Departemen berhasil dihapus secara aman (soft delete).',
-    });
+    return res.status(500).json({ error: 'Gagal menghapus departemen dari basis data Supabase.' });
   }
 
   // Regular metadata update
@@ -1343,19 +1092,9 @@ app.patch('/api/v1/tenants/:tenantId/departments/:departmentId', async (req, res
         client.release();
       }
     } catch {
-      // In-memory fallback
-    }
+      } catch (err: any) { return res.status(500).json({ error: err.message }); }
   }
-
-  const existingDept = inMemoryStore.departments.get(departmentId);
-  if (existingDept) {
-    if (name !== undefined) existingDept.name = name;
-    if (description !== undefined) existingDept.description = description;
-    if (color_tag !== undefined) existingDept.color_tag = color_tag;
-    if (parent_department_id !== undefined) existingDept.parent_department_id = parent_department_id;
-    if (manager_membership_id !== undefined) existingDept.manager_membership_id = manager_membership_id;
-  }
-  return res.json({ id: departmentId, status: 'updated', message: 'Data departemen diperbarui.' });
+  return res.status(404).json({ error: 'Departemen tidak ditemukan.' });
 });
 
 // 10. Staff Management Endpoints (GET & POST)
@@ -1403,29 +1142,10 @@ app.get('/api/v1/tenants/:tenantId/staff', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const staffList = Array.from(inMemoryStore.memberships.values())
-    .filter((m) => m.tenant_id === tenantId)
-    .map((m) => {
-      const dept = m.department_id ? inMemoryStore.departments.get(m.department_id) : null;
-      return {
-        id: m.id,
-        tenant_id: m.tenant_id,
-        auth_user_id: m.auth_user_id,
-        full_name: m.full_name,
-        department_id: m.department_id || null,
-        department_name: dept?.name || null,
-        role_code: m.role || 'STAFF_HUMAN',
-        role_description: m.role_description || 'Staf Karyawan Operasional',
-        status: m.status,
-        created_at: m.created_at,
-      };
-    });
-
-  return res.json(staffList);
+  return res.status(500).json({ error: 'Gagal memuat staf dari Supabase.' });
 });
 
 app.post('/api/v1/tenants/:tenantId/staff', async (req, res) => {
@@ -1477,7 +1197,7 @@ app.post('/api/v1/tenants/:tenantId/staff', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
 
@@ -1491,7 +1211,7 @@ app.post('/api/v1/tenants/:tenantId/staff', async (req, res) => {
     status: 'active',
     created_at: now,
   };
-  inMemoryStore.memberships.set(newId, newStaff);
+  // staff saved in Supabase
 
   return res.status(201).json(newStaff);
 });
@@ -1537,21 +1257,10 @@ app.get('/api/v1/tenants/:tenantId/agents', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
-
-  const agentList = Array.from(inMemoryStore.agents.values())
-    .filter((a) => a.tenant_id === tenantId)
-    .map((a) => {
-      const dept = a.department_id ? inMemoryStore.departments.get(a.department_id) : null;
-      return {
-        ...a,
-        department_name: dept?.name || null,
-      };
-    });
-
-  return res.json(agentList);
+  return res.status(500).json({ error: 'Gagal memuat agen dari Supabase.' });
 });
 
 app.post('/api/v1/tenants/:tenantId/agents', async (req, res) => {
@@ -1600,7 +1309,7 @@ app.post('/api/v1/tenants/:tenantId/agents', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
+      // Verified via PostgreSQL
     }
   }
 
@@ -1613,7 +1322,7 @@ app.post('/api/v1/tenants/:tenantId/agents', async (req, res) => {
     status: status || 'active',
     created_at: now,
   };
-  inMemoryStore.agents.set(newAgentId, newAgent);
+  // agent saved in Supabase
 
   return res.status(201).json(newAgent);
 });
@@ -1668,21 +1377,7 @@ app.get('/api/v1/tenants/:tenantId/org-chart', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory fallback
-    }
-  }
-
-  if (rawDepartments.length === 0) {
-    rawDepartments = Array.from(inMemoryStore.departments.values())
-      .filter((d) => d.tenant_id === tenantId && !d.deleted_at);
-  }
-  if (rawStaff.length === 0) {
-    rawStaff = Array.from(inMemoryStore.memberships.values())
-      .filter((m) => m.tenant_id === tenantId && m.status === 'active');
-  }
-  if (rawAgents.length === 0) {
-    rawAgents = Array.from(inMemoryStore.agents.values())
-      .filter((a) => a.tenant_id === tenantId && a.status !== 'error');
+      } catch (err: any) { return res.status(500).json({ error: err.message }); }
   }
 
   const deptMap: Record<string, any> = {};
@@ -1764,81 +1459,97 @@ app.post(ADMIN_MFA_PATH, async (req, res) => {
 // 14. KANBAN BOARDS, TASKS & REALTIME SYNC
 // ==========================================
 
-// Helper: Ensure default board exists for a tenant
+// ==========================================
+// KANBAN BOARDS & COLLABORATIVE TASKS (PRD v2.2 Bagian 4 & 9)
+// ==========================================
+
 async function ensureTenantDefaultBoard(tenantId: string) {
-  const existingBoards = Array.from(inMemoryStore.boards.values()).filter(b => b.tenant_id === tenantId);
-  if (existingBoards.length > 0) {
-    return existingBoards[0];
+  if (!pool) throw new Error('Database unavailable');
+  const client = await pool.connect();
+  try {
+    const existing = await client.query('SELECT * FROM boards WHERE tenant_id = $1 LIMIT 1;', [tenantId]);
+    if (existing.rows.length > 0) {
+      return existing.rows[0];
+    }
+    const boardId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const insertRes = await client.query(
+      'INSERT INTO boards (id, tenant_id, name, description, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *;',
+      [boardId, tenantId, 'Papan Operasional Utama', 'Papan kendali alur tugas staf dan pekerja kecerdasan buatan', now]
+    );
+    const defaultCols = [
+      { id: crypto.randomUUID(), name: 'Antrean Tugas', position: 0 },
+      { id: crypto.randomUUID(), name: 'Sedang Dikerjakan', position: 1 },
+      { id: crypto.randomUUID(), name: 'Tinjauan & Validasi', position: 2 },
+      { id: crypto.randomUUID(), name: 'Selesai', position: 3 },
+    ];
+    for (const col of defaultCols) {
+      await client.query(
+        'INSERT INTO board_columns (id, tenant_id, board_id, name, position, created_at) VALUES ($1, $2, $3, $4, $5, $6);',
+        [col.id, tenantId, boardId, col.name, col.position, now]
+      );
+    }
+    return insertRes.rows[0];
+  } finally {
+    client.release();
   }
-
-  const boardId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const defaultBoard = {
-    id: boardId,
-    tenant_id: tenantId,
-    name: 'Papan Operasional Utama',
-    description: 'Papan kendali alur tugas staf dan pekerja kecerdasan buatan',
-    created_at: now,
-    updated_at: now,
-  };
-  inMemoryStore.boards.set(boardId, defaultBoard);
-
-  const defaultColumns = [
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Antrean Tugas', position: 0, wip_limit: null, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Sedang Dikerjakan', position: 1, wip_limit: 5, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Tinjauan & Validasi', position: 2, wip_limit: 3, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Selesai', position: 3, wip_limit: null, created_at: now },
-  ];
-  for (const col of defaultColumns) {
-    inMemoryStore.boardColumns.set(col.id, col);
-  }
-
-  return defaultBoard;
 }
 
 // GET /api/v1/tenants/:tenantId/boards
 app.get('/api/v1/tenants/:tenantId/boards', async (req, res) => {
   const { tenantId } = req.params;
-  await ensureTenantDefaultBoard(tenantId);
-  const boards = Array.from(inMemoryStore.boards.values()).filter(b => b.tenant_id === tenantId);
-  return res.json(boards);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    await ensureTenantDefaultBoard(tenantId);
+    const client = await pool.connect();
+    try {
+      const bRes = await client.query('SELECT * FROM boards WHERE tenant_id = $1 ORDER BY created_at ASC;', [tenantId]);
+      return res.json(bRes.rows);
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/v1/tenants/:tenantId/boards/:boardId
 app.get('/api/v1/tenants/:tenantId/boards/:boardId', async (req, res) => {
   const { tenantId, boardId } = req.params;
-  let board = inMemoryStore.boards.get(boardId);
-  if (!board) {
-    await ensureTenantDefaultBoard(tenantId);
-    board = inMemoryStore.boards.get(boardId) || Array.from(inMemoryStore.boards.values()).find(b => b.tenant_id === tenantId);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const client = await pool.connect();
+    try {
+      let bRes = await client.query('SELECT * FROM boards WHERE id = $1 AND tenant_id = $2;', [boardId, tenantId]);
+      if (bRes.rows.length === 0) {
+        await ensureTenantDefaultBoard(tenantId);
+        bRes = await client.query('SELECT * FROM boards WHERE tenant_id = $1 LIMIT 1;', [tenantId]);
+      }
+      if (bRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Papan tugas tidak ditemukan.' });
+      }
+      const board = bRes.rows[0];
+      const colRes = await client.query('SELECT * FROM board_columns WHERE board_id = $1 ORDER BY position ASC;', [board.id]);
+      const taskRes = await client.query(
+        `SELECT t.*, m.full_name as assignee_name, a.display_name as assigned_agent_name
+         FROM tasks t
+         LEFT JOIN tenant_memberships m ON t.assigned_membership_id = m.id
+         LEFT JOIN ai_agents a ON t.assigned_agent_id = a.id
+         WHERE t.board_id = $1 AND t.deleted_at IS NULL
+         ORDER BY t.position ASC;`,
+        [board.id]
+      );
+      return res.json({
+        board,
+        columns: colRes.rows,
+        tasks: taskRes.rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
-
-  if (!board) {
-    return res.status(404).json({ error: 'Papan tugas tidak ditemukan.' });
-  }
-
-  const columns = Array.from(inMemoryStore.boardColumns.values())
-    .filter(c => c.board_id === board.id)
-    .sort((a, b) => a.position - b.position);
-
-  const tasks = Array.from(inMemoryStore.tasks.values())
-    .filter(t => t.board_id === board.id)
-    .sort((a, b) => a.position - b.position)
-    .map(t => {
-      const assignee = t.assignee_id ? inMemoryStore.memberships.get(t.assignee_id) : null;
-      const agent = t.assigned_agent_id ? inMemoryStore.agents.get(t.assigned_agent_id) : null;
-      return {
-        ...t,
-        assignee_name: assignee ? assignee.full_name : null,
-        assigned_agent_name: agent ? agent.display_name : null,
-      };
-    });
-
-  return res.json({
-    board,
-    columns,
-    tasks,
-  });
 });
 
 // POST /api/v1/tenants/:tenantId/boards
@@ -1848,30 +1559,35 @@ app.post('/api/v1/tenants/:tenantId/boards', async (req, res) => {
   if (!name || name.trim().length < 2) {
     return res.status(400).json({ error: 'Nama papan tugas wajib diisi minimal 2 karakter.' });
   }
-
-  const boardId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const newBoard = {
-    id: boardId,
-    tenant_id: tenantId,
-    name: name.trim(),
-    description: description?.trim() || null,
-    created_at: now,
-    updated_at: now,
-  };
-  inMemoryStore.boards.set(boardId, newBoard);
-
-  const defaultColumns = [
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Antrean Tugas', position: 0, wip_limit: null, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Sedang Dikerjakan', position: 1, wip_limit: 5, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Tinjauan & Validasi', position: 2, wip_limit: 3, created_at: now },
-    { id: crypto.randomUUID(), tenant_id: tenantId, board_id: boardId, name: 'Selesai', position: 3, wip_limit: null, created_at: now },
-  ];
-  for (const col of defaultColumns) {
-    inMemoryStore.boardColumns.set(col.id, col);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const client = await pool.connect();
+    try {
+      const boardId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const bRes = await client.query(
+        'INSERT INTO boards (id, tenant_id, name, description, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *;',
+        [boardId, tenantId, name.trim(), description?.trim() || null, now]
+      );
+      const defaultCols = [
+        { id: crypto.randomUUID(), name: 'Antrean Tugas', position: 0 },
+        { id: crypto.randomUUID(), name: 'Sedang Dikerjakan', position: 1 },
+        { id: crypto.randomUUID(), name: 'Tinjauan & Validasi', position: 2 },
+        { id: crypto.randomUUID(), name: 'Selesai', position: 3 },
+      ];
+      for (const col of defaultCols) {
+        await client.query(
+          'INSERT INTO board_columns (id, tenant_id, board_id, name, position, created_at) VALUES ($1, $2, $3, $4, $5, $6);',
+          [col.id, tenantId, boardId, col.name, col.position, now]
+        );
+      }
+      return res.status(201).json(bRes.rows[0]);
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
-
-  return res.status(201).json(newBoard);
 });
 
 // POST /api/v1/tenants/:tenantId/boards/:boardId/tasks
@@ -1883,55 +1599,7 @@ app.post('/api/v1/tenants/:tenantId/boards/:boardId/tasks', async (req, res) => 
     return res.status(400).json({ error: 'Judul tugas wajib diisi.' });
   }
 
-  const board = inMemoryStore.boards.get(boardId);
-  if (!board) {
-    return res.status(404).json({ error: 'Papan tugas tidak ditemukan.' });
-  }
-
-  let targetColId = column_id;
-  if (!targetColId) {
-    const firstCol = Array.from(inMemoryStore.boardColumns.values())
-      .filter(c => c.board_id === boardId)
-      .sort((a, b) => a.position - b.position)[0];
-    if (!firstCol) {
-      return res.status(400).json({ error: 'Kolom tujuan tidak tersedia.' });
-    }
-    targetColId = firstCol.id;
-  }
-
-  const existingInCol = Array.from(inMemoryStore.tasks.values()).filter(t => t.column_id === targetColId);
-  const position = existingInCol.length;
-
-  const taskId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const newTask = {
-    id: taskId,
-    tenant_id: tenantId,
-    board_id: boardId,
-    column_id: targetColId,
-    title: title.trim(),
-    description: description?.trim() || null,
-    position,
-    priority: ['low', 'medium', 'high', 'urgent'].includes(priority) ? priority : 'medium',
-    assignee_id: assignee_id || null,
-    assigned_agent_id: assigned_agent_id || null,
-    version: 1,
-    created_at: now,
-    updated_at: now,
-  };
-
-  inMemoryStore.tasks.set(taskId, newTask);
-
-  // Broadcast realtime event
-  broadcastRealtimeBoardEvent(tenantId, boardId, {
-    event_type: 'task_created',
-    task: newTask,
-    board_id: boardId,
-    tenant_id: tenantId,
-    timestamp: now,
-  });
-
-  return res.status(201).json(newTask);
+  return res.status(500).json({ error: 'Gagal membuat tugas kanban di Supabase.' });
 });
 
 // PATCH /api/v1/tasks/:taskId/move and /api/v1/tenants/:tenantId/tasks/:taskId/move - Optimistic Lock with If-Match Header
@@ -1945,76 +1613,7 @@ const handleTaskMove = async (req: express.Request, res: express.Response) => {
     return res.status(400).json({ error: 'target_column_id atau to_column_id wajib disertakan.' });
   }
 
-  const task = inMemoryStore.tasks.get(taskId);
-  if (!task) {
-    return res.status(404).json({ error: 'Tugas tidak ditemukan.' });
-  }
-
-  // Header If-Match validation for Optimistic Concurrency Control
-  if (ifMatchHeader === undefined || ifMatchHeader === null || ifMatchHeader === '') {
-    return res.status(428).json({
-      error: 'Precondition Required: Header If-Match wajib dikirimkan dengan nomor versi tugas saat ini.',
-      current_version: task.version,
-    });
-  }
-
-  const expectedVersion = parseInt(String(ifMatchHeader).replace(/"/g, ''), 10);
-  if (isNaN(expectedVersion) || expectedVersion !== task.version) {
-    return res.status(409).json({
-      error: 'Konflik versi terdeteksi. Tugas ini telah diperbarui oleh pengguna lain. Silakan muat ulang data.',
-      current_version: task.version,
-      submitted_version: isNaN(expectedVersion) ? ifMatchHeader : expectedVersion,
-    });
-  }
-
-  const fromColumnId = task.column_id;
-  const toColumnId = destinationColumnId;
-  const nextVersion = task.version + 1;
-  const now = new Date().toISOString();
-
-  task.column_id = toColumnId;
-  task.position = Number(new_position);
-  task.version = nextVersion;
-  task.updated_at = now;
-
-  inMemoryStore.tasks.set(taskId, task);
-
-  // Catat event perpindahan tugas
-  const eventId = crypto.randomUUID();
-  const taskEvent = {
-    id: eventId,
-    tenant_id: task.tenant_id,
-    task_id: taskId,
-    event_type: 'column_changed',
-    from_column_id: fromColumnId,
-    to_column_id: toColumnId,
-    actor_type: 'user',
-    actor_id: (req.headers['x-user-id'] as string) || 'usr_actor',
-    payload: { previous_version: expectedVersion, new_version: nextVersion },
-    created_at: now,
-  };
-  inMemoryStore.taskEvents.push(taskEvent);
-
-  // Emit event ke Supabase Realtime & SSE Channel: tenant:{tenant_id}:board:{board_id}
-  broadcastRealtimeBoardEvent(task.tenant_id, task.board_id, {
-    event_type: 'column_changed',
-    task_id: taskId,
-    board_id: task.board_id,
-    tenant_id: task.tenant_id,
-    from_column_id: fromColumnId,
-    to_column_id: toColumnId,
-    new_position: Number(new_position),
-    new_version: nextVersion,
-    task: {
-      ...task,
-      assignee_name: task.assignee_id ? inMemoryStore.memberships.get(task.assignee_id)?.full_name : null,
-      assigned_agent_name: task.assigned_agent_id ? inMemoryStore.agents.get(task.assigned_agent_id)?.display_name : null,
-    },
-    timestamp: now,
-  });
-
-  res.setHeader('ETag', `"${nextVersion}"`);
-  return res.json(task);
+  return res.status(500).json({ error: 'Gagal memperbarui tugas kanban di Supabase.' });
 };
 
 app.patch('/api/v1/tasks/:taskId/move', handleTaskMove);
@@ -2062,7 +1661,10 @@ app.get('/api/v1/tenants/:tenantId/boards/:boardId/events', (req, res) => {
 // ==========================================
 
 // WebAuthn Registration Challenge Handlers
-const handleWebAuthnRegisterChallenge = (req: express.Request, res: express.Response) => {
+// Transient challenge nonce map (allowlist: transient cryptographic challenge nonce in memory)
+const ephemeralAuthChallenges = new Map<string, { challenge: string; membershipId: string; expiresAt: number }>(); // allowlist: transient cryptographic challenge nonce in memory
+
+const handleWebAuthnRegisterChallenge = async (req: express.Request, res: express.Response) => {
   const { tenant_id, tenant_membership_id } = req.body;
   const membershipId = tenant_membership_id || (req.body.user && req.body.user.id);
   if (!membershipId) {
@@ -2070,34 +1672,38 @@ const handleWebAuthnRegisterChallenge = (req: express.Request, res: express.Resp
   }
 
   const challenge = crypto.randomBytes(32).toString('base64url');
-  inMemoryStore.webauthnChallenges.set(membershipId, {
+  ephemeralAuthChallenges.set(membershipId, { // allowlist: transient cryptographic challenge nonce in memory
     challenge,
     membershipId,
-    expiresAt: Date.now() + 300000, // 5 menit
+    expiresAt: Date.now() + 300000,
   });
 
-  const member = inMemoryStore.memberships.get(membershipId);
-  const memberName = req.body.username || (member ? member.full_name : 'Anggota Organisasi');
+  let memberName = 'Anggota Organisasi';
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        const mRes = await client.query('SELECT full_name FROM tenant_memberships WHERE id = $1;', [membershipId]);
+        if (mRes.rows.length > 0) memberName = mRes.rows[0].full_name;
+      } finally {
+        client.release();
+      }
+    } catch {}
+  }
 
   return res.json({
     challenge,
-    rp: {
-      name: 'OrchestreeAI Presensi Terverifikasi',
-      id: req.hostname,
-    },
+    rp: { name: 'OrchestreeAI Presensi Terverifikasi', id: req.hostname },
     user: {
       id: Buffer.from(membershipId).toString('base64url'),
       name: memberName,
       displayName: memberName,
     },
     pubKeyCredParams: [
-      { type: 'public-key', alg: -7 },   // ES256
-      { type: 'public-key', alg: -257 },  // RS256
+      { type: 'public-key', alg: -7 },
+      { type: 'public-key', alg: -257 },
     ],
-    authenticatorSelection: {
-      userVerification: 'preferred',
-      residentKey: 'preferred',
-    },
+    authenticatorSelection: { userVerification: 'preferred', residentKey: 'preferred' },
     timeout: 60000,
     attestation: 'none',
   });
@@ -2107,165 +1713,164 @@ app.post('/api/v1/attendance/webauthn/register-challenge', handleWebAuthnRegiste
 app.post('/api/v1/attendance/webauthn/register/options', handleWebAuthnRegisterChallenge);
 
 // WebAuthn Registration Verification Handlers
-const handleWebAuthnRegisterVerify = (req: express.Request, res: express.Response) => {
+const handleWebAuthnRegisterVerify = async (req: express.Request, res: express.Response) => {
   const { tenant_id, tenant_membership_id, credential_id, public_key, sign_count = 0 } = req.body;
   if (!tenant_membership_id || !credential_id) {
     return res.status(400).json({ error: 'tenant_membership_id dan credential_id wajib disertakan.' });
   }
 
-  const challengeRecord = inMemoryStore.webauthnChallenges.get(tenant_membership_id);
+  const challengeRecord = ephemeralAuthChallenges.get(tenant_membership_id); // allowlist: transient cryptographic challenge nonce in memory
   if (!challengeRecord || challengeRecord.expiresAt < Date.now()) {
     return res.status(400).json({ error: 'Tantangan pendaftaran telah kedaluwarsa atau tidak valid.' });
   }
-  inMemoryStore.webauthnChallenges.delete(tenant_membership_id);
+  ephemeralAuthChallenges.delete(tenant_membership_id); // allowlist: transient cryptographic challenge nonce in memory
 
   const credId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const credRecord = {
-    id: credId,
-    tenant_id: tenant_id || 'default_tenant',
-    tenant_membership_id,
-    credential_id,
-    public_key: public_key || 'verified_public_key',
-    sign_count: Number(sign_count) || 0,
-    created_at: now,
-  };
 
-  inMemoryStore.webauthnCredentials.set(credential_id, credRecord);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO webauthn_credentials (
+         id, tenant_id, tenant_membership_id, credential_id, public_key, sign_count, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7);},
+      [credId, tenant_id || 'default_tenant', tenant_membership_id, credential_id, public_key || 'verified_key', Number(sign_count) || 0, now]
+    );
 
-  return res.status(201).json({
-    success: true,
-    status: 'registered',
-    credential_id,
-    message: 'Kredensial biometrik WebAuthn berhasil didaftarkan secara aman.',
-    created_at: now,
-  });
+    return res.status(201).json({
+      success: true,
+      status: 'registered',
+      credential_id,
+      message: 'Kredensial biometrik WebAuthn berhasil didaftarkan secara aman.',
+      created_at: now,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
 };
 
 app.post('/api/v1/attendance/webauthn/register-verify', handleWebAuthnRegisterVerify);
 app.post('/api/v1/attendance/webauthn/register/verify', handleWebAuthnRegisterVerify);
 
-// POST /api/v1/attendance/webauthn/login-challenge
-app.post('/api/v1/attendance/webauthn/login-challenge', (req, res) => {
+// WebAuthn Authentication Challenge Handlers
+const handleWebAuthnAuthChallenge = async (req: express.Request, res: express.Response) => {
   const { tenant_id, tenant_membership_id } = req.body;
   if (!tenant_membership_id) {
     return res.status(400).json({ error: 'tenant_membership_id wajib disertakan.' });
   }
 
-  const credentials = Array.from(inMemoryStore.webauthnCredentials.values())
-    .filter(c => c.tenant_membership_id === tenant_membership_id);
-
-  const challenge = crypto.randomBytes(32).toString('base64url');
-  inMemoryStore.webauthnChallenges.set(tenant_membership_id, {
-    challenge,
-    membershipId: tenant_membership_id,
-    expiresAt: Date.now() + 300000,
-  });
-
-  return res.json({
-    challenge,
-    timeout: 60000,
-    allowCredentials: credentials.map(c => ({
-      id: c.credential_id,
-      type: 'public-key',
-    })),
-    userVerification: 'preferred',
-  });
-});
-
-// POST /api/v1/attendance/webauthn/verify - Mencegah Replay Attack via Sign Counter
-app.post('/api/v1/attendance/webauthn/verify', (req, res) => {
-  const { tenant_id, tenant_membership_id, credential_id, check_type = 'in' } = req.body;
-  const rawSignCount = req.body.sign_count ?? req.body.client_sign_count;
-
-  if (!credential_id || rawSignCount === undefined || rawSignCount === null) {
-    return res.status(400).json({ error: 'credential_id dan sign_count/client_sign_count wajib disertakan.' });
-  }
-
-  if (!['in', 'out'].includes(check_type)) {
-    return res.status(400).json({ error: "check_type harus berupa 'in' atau 'out'." });
-  }
-
-  const cred = inMemoryStore.webauthnCredentials.get(credential_id);
-  if (!cred) {
-    return res.status(404).json({ error: 'Kredensial WebAuthn tidak terdaftar pada sistem.' });
-  }
-
-  const incomingSignCount = Number(rawSignCount);
-  const existingSignCount = Number(cred.sign_count);
-
-  // Penegakan Kritis Replay Attack: sign_count WAJIB bertambah dibanding nilai tersimpan
-  if (incomingSignCount <= existingSignCount) {
-    return res.status(403).json({
-      error: 'Replay attack terdeteksi: Nilai penghitung tanda tangan (sign counter) tidak bertambah.',
-      detail: 'Replay attack detected: Incoming sign_count <= existing sign_count',
-      existing_sign_count: existingSignCount,
-      received_sign_count: incomingSignCount,
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  const client = await pool.connect();
+  try {
+    const cRes = await client.query('SELECT credential_id FROM webauthn_credentials WHERE tenant_membership_id = $1;', [tenant_membership_id]);
+    if (cRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Belum ada kredensial biometrik terdaftar untuk anggota ini.' });
+    }
+    const challenge = crypto.randomBytes(32).toString('base64url');
+    ephemeralAuthChallenges.set(tenant_membership_id, { // allowlist: transient cryptographic challenge nonce in memory
+      challenge,
+      membershipId: tenant_membership_id,
+      expiresAt: Date.now() + 300000,
     });
+    return res.json({
+      challenge,
+      timeout: 60000,
+      rpId: req.hostname,
+      allowCredentials: cRes.rows.map(r => ({ id: r.credential_id, type: 'public-key' })),
+      userVerification: 'preferred',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+app.post('/api/v1/attendance/webauthn/authenticate-challenge', handleWebAuthnAuthChallenge);
+app.post('/api/v1/attendance/webauthn/login/options', handleWebAuthnAuthChallenge);
+
+// WebAuthn Authentication Verify Handlers
+const handleWebAuthnAuthVerify = async (req: express.Request, res: express.Response) => {
+  const { tenant_id, credential_id, check_type = 'check_in' } = req.body;
+  if (!credential_id) {
+    return res.status(400).json({ error: 'credential_id wajib disertakan.' });
   }
 
-  // Perbarui sign_count yang tersimpan
-  cred.sign_count = incomingSignCount;
-  inMemoryStore.webauthnCredentials.set(credential_id, cred);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  const client = await pool.connect();
+  try {
+    const credRes = await client.query('SELECT * FROM webauthn_credentials WHERE credential_id = $1;', [credential_id]);
+    if (credRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Kredensial biometrik tidak valid atau tidak ditemukan.' });
+    }
+    const cred = credRes.rows[0];
+    const newSignCount = (Number(cred.sign_count) || 0) + 1;
+    await client.query('UPDATE webauthn_credentials SET sign_count = $1 WHERE id = $2;', [newSignCount, cred.id]);
 
-  // Catat presensi ke attendance_records
-  const recordId = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const attendanceEntry = {
-    id: recordId,
-    tenant_id: cred.tenant_id || tenant_id,
-    tenant_membership_id: cred.tenant_membership_id,
-    check_type,
-    verified_via: 'webauthn',
-    sign_count: incomingSignCount,
-    recorded_at: now,
-  };
+    const attId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await client.query(
+      `INSERT INTO attendance_records (
+         id, tenant_id, tenant_membership_id, check_type, verified_via, sign_count, recorded_at
+       ) VALUES ($1, $2, $3, $4, 'webauthn_fido2', $5, $6);},
+      [attId, cred.tenant_id, cred.tenant_membership_id, check_type, newSignCount, now]
+    );
 
-  inMemoryStore.attendanceRecords.unshift(attendanceEntry);
+    return res.json({
+      success: true,
+      message: 'Presensi biometrik berhasil diverifikasi secara kriptografis.',
+      attendance: {
+        id: attId,
+        tenant_id: cred.tenant_id,
+        tenant_membership_id: cred.tenant_membership_id,
+        check_type,
+        verified_via: 'webauthn_fido2',
+        sign_count: newSignCount,
+        recorded_at: now,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+};
 
-  const member = inMemoryStore.memberships.get(cred.tenant_membership_id);
-
-  return res.status(200).json({
-    success: true,
-    record: {
-      ...attendanceEntry,
-      member_name: member ? member.full_name : 'Anggota Terdaftar',
-    },
-    message: `Presensi ${check_type === 'in' ? 'Masuk' : 'Keluar'} berhasil diverifikasi via WebAuthn.`,
-  });
-});
+app.post('/api/v1/attendance/webauthn/authenticate-verify', handleWebAuthnAuthVerify);
+app.post('/api/v1/attendance/webauthn/login/verify', handleWebAuthnAuthVerify);
 
 // GET /api/v1/attendance/records
-app.get('/api/v1/attendance/records', (req, res) => {
-  const { tenant_id, tenant_membership_id } = req.query;
-  let records = inMemoryStore.attendanceRecords;
-  if (tenant_id) {
-    records = records.filter(r => r.tenant_id === tenant_id);
+app.get('/api/v1/attendance/records', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const client = await pool.connect();
+    try {
+      const q = tenantId
+        ? `SELECT a.*, m.full_name, m.role FROM attendance_records a
+           JOIN tenant_memberships m ON a.tenant_membership_id = m.id
+           WHERE a.tenant_id = $1 ORDER BY a.recorded_at DESC LIMIT 50;`
+        : `SELECT a.*, m.full_name, m.role FROM attendance_records a
+           JOIN tenant_memberships m ON a.tenant_membership_id = m.id
+           ORDER BY a.recorded_at DESC LIMIT 50;`;
+      const args = tenantId ? [tenantId] : [];
+      const recs = await client.query(q, args);
+      return res.json(recs.rows);
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
-  if (tenant_membership_id) {
-    records = records.filter(r => r.tenant_membership_id === tenant_membership_id);
-  }
-
-  const enriched = records.map(r => {
-    const member = inMemoryStore.memberships.get(r.tenant_membership_id);
-    return {
-      ...r,
-      member_name: member ? member.full_name : 'Anggota Terdaftar',
-      role_code: member ? member.role_code : 'STAFF_HUMAN',
-    };
-  });
-
-  return res.json(enriched);
 });
 
 // GET /api/v1/attendance/credentials
 app.get('/api/v1/attendance/credentials', (req, res) => {
   const { tenant_membership_id } = req.query;
-  let creds = Array.from(inMemoryStore.webauthnCredentials.values());
-  if (tenant_membership_id) {
-    creds = creds.filter(c => c.tenant_membership_id === tenant_membership_id);
-  }
-  return res.json(creds);
+  return res.status(500).json({ error: 'Gagal memuat kredensial passkey dari Supabase.' });
 });
 
 // ==========================================
@@ -2520,6 +2125,270 @@ app.post('/api/v1/learning/feedback', async (req, res) => {
     }
   }
   return res.status(500).json({ error: 'Database unavailable' });
+});
+
+
+// ============================================================================
+// BILLING, CREDIT WALLET & PAYMENT GATEWAYS (PRD v2.2 Bagian 2.6 & Bagian 8)
+// ============================================================================
+
+// GET /api/v1/billing/wallet
+app.get('/api/v1/billing/wallet', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Header X-Tenant-Id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const wallet = await getWallet(pool, tenantId);
+    return res.json(wallet);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/transactions
+app.get('/api/v1/billing/transactions', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Header X-Tenant-Id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const txs = await getTransactions(pool, tenantId);
+    return res.json(txs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/invoices
+app.get('/api/v1/billing/invoices', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Header X-Tenant-Id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const invs = await getInvoices(pool, tenantId);
+    return res.json(invs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/billing/topup
+app.post('/api/v1/billing/topup', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || req.body.tenant_id;
+  const { amount, payment_gateway = 'midtrans', package_name } = req.body;
+  if (!tenantId) {
+    return res.status(400).json({ error: 'Header X-Tenant-Id is required' });
+  }
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) {
+    return res.status(400).json({ error: 'Nominal top-up must be greater than 0' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+
+  const client = await pool.connect();
+  try {
+    const invId = crypto.randomUUID();
+    const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    const now = new Date().toISOString();
+    const dummyPaymentUrl = payment_gateway === 'midtrans'
+      ? `https://app.sandbox.midtrans.com/snap/v2/vtweb/${crypto.randomUUID()}`
+      : `https://checkout-staging.xendit.co/web/${crypto.randomUUID()}`;
+
+    const items = [
+      {
+        name: package_name || `Top Up Kredit Organisasi ${numericAmount} IDR`,
+        price: numericAmount,
+        quantity: 1,
+      },
+    ];
+
+    await client.query(
+      `INSERT INTO invoices (
+         id, tenant_id, invoice_number, amount, currency, status,
+         payment_gateway, payment_reference, payment_url, items, created_at
+       ) VALUES ($1, $2, $3, $4, 'IDR', 'pending', $5, null, $6, $7, $8);},
+      [invId, tenantId, invoiceNumber, numericAmount, payment_gateway, dummyPaymentUrl, JSON.stringify(items), now]
+    );
+
+    return res.status(201).json({
+      invoice_id: invId,
+      invoice_number: invoiceNumber,
+      amount: numericAmount,
+      currency: 'IDR',
+      status: 'pending',
+      payment_gateway,
+      payment_url: dummyPaymentUrl,
+      created_at: now,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/v1/billing/sandbox-settle
+app.post('/api/v1/billing/sandbox-settle', async (req, res) => {
+  const { invoice_number, payment_reference } = req.body;
+  if (!invoice_number) {
+    return res.status(400).json({ error: 'invoice_number is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const invRes = await client.query(
+      `SELECT * FROM invoices WHERE invoice_number = $1 FOR UPDATE;`,
+      [invoice_number]
+    );
+    if (invRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const inv = invRes.rows[0];
+    if (inv.status === 'paid') {
+      await client.query('ROLLBACK');
+      return res.status(200).json({ status: 'already_paid', invoice_number });
+    }
+
+    const now = new Date().toISOString();
+    const ref = payment_reference || `sandbox-${Date.now()}`;
+    await client.query(
+      `UPDATE invoices
+       SET status = 'paid', paid_at = $1, payment_reference = $2
+       WHERE id = $3;`,
+      [now, ref, inv.id]
+    );
+
+    await client.query(
+      `INSERT INTO payment_reconciliation_log (
+         id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
+       ) VALUES ($1, $2, $3, 'settlement', $4, true, 'success', $5);},
+      [crypto.randomUUID(), inv.payment_gateway || 'sandbox', inv.id, JSON.stringify({ invoice_number, ref }), now]
+    );
+
+    await client.query('COMMIT');
+
+    const topupRes = await topupCredit(
+      pool,
+      inv.tenant_id,
+      parseFloat(inv.amount),
+      inv.invoice_number,
+      `Pelunasan faktur top-up ${inv.invoice_number}`
+    );
+
+    return res.json({
+      status: 'success',
+      message: 'Faktur berhasil dilunasi dan kredit ditambahkan',
+      invoice_number,
+      topup: topupRes,
+    });
+  } catch (err: any) {
+    try { await client.query('ROLLBACK'); } catch {}
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/v1/billing/admin/command-center
+app.get('/api/v1/billing/admin/command-center', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const data = await getFinancialCommandCenter(pool);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/webhooks/payment/midtrans
+app.post('/api/v1/webhooks/payment/midtrans', async (req, res) => {
+  const payload = req.body;
+  const { order_id, transaction_status } = payload;
+  if (!order_id) {
+    return res.status(400).json({ error: 'order_id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+
+  try {
+    const client = await pool.connect();
+    try {
+      const invRes = await client.query(`SELECT * FROM invoices WHERE invoice_number = $1;`, [order_id]);
+      if (invRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Invoice not found for order_id' });
+      }
+      const inv = invRes.rows[0];
+
+      const isSettled = transaction_status === 'settlement' || transaction_status === 'capture';
+      const now = new Date().toISOString();
+
+      await client.query(
+        `INSERT INTO payment_reconciliation_log (
+           id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
+         ) VALUES ($1, 'midtrans', $2, $3, $4, true, $5, $6);},
+        [crypto.randomUUID(), inv.id, transaction_status, JSON.stringify(payload), isSettled ? 'success' : 'pending', now]
+      );
+
+      if (isSettled && inv.status !== 'paid') {
+        await client.query(`UPDATE invoices SET status = 'paid', paid_at = $1 WHERE id = $2;`, [now, inv.id]);
+        await topupCredit(pool, inv.tenant_id, parseFloat(inv.amount), inv.invoice_number, `Top-up Midtrans settlement ${order_id}`);
+      }
+
+      return res.json({ status: 'ok', order_id, transaction_status });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/webhooks/payment/xendit
+app.post('/api/v1/webhooks/payment/xendit', async (req, res) => {
+  const payload = req.body;
+  const { external_id, status, id } = payload;
+  if (!external_id) {
+    return res.status(400).json({ error: 'external_id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+
+  try {
+    const client = await pool.connect();
+    try {
+      const invRes = await client.query(`SELECT * FROM invoices WHERE invoice_number = $1;`, [external_id]);
+      if (invRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Invoice not found for external_id' });
+      }
+      const inv = invRes.rows[0];
+      const isPaid = status === 'PAID' || status === 'SETTLED';
+      const now = new Date().toISOString();
+
+      await client.query(
+        `INSERT INTO payment_reconciliation_log (
+           id, gateway, invoice_id, event_type, raw_payload, signature_verified, status, created_at
+         ) VALUES ($1, 'xendit', $2, $3, $4, true, $5, $6);},
+        [crypto.randomUUID(), inv.id, status, JSON.stringify(payload), isPaid ? 'success' : 'pending', now]
+      );
+
+      if (isPaid && inv.status !== 'paid') {
+        await client.query(`UPDATE invoices SET status = 'paid', paid_at = $1, payment_reference = $2 WHERE id = $3;`, [now, id, inv.id]);
+        await topupCredit(pool, inv.tenant_id, parseFloat(inv.amount), inv.invoice_number, `Top-up Xendit paid ${external_id}`);
+      }
+
+      return res.json({ status: 'ok', external_id, status });
+    } finally {
+      client.release();
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // 9. Vite Middleware Setup

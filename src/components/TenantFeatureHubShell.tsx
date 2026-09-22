@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
 import { WorkforceHubScreen } from './WorkforceHubScreen';
+import { BillingHubScreen } from './BillingHubScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -37,6 +38,26 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
         tenant={tenant}
         onBack={() => setActiveRoute('/hub')}
       />
+    );
+  }
+
+  if (activeRoute.startsWith('/finance') || activeRoute.startsWith('/billing')) {
+    return (
+      <div className="min-h-screen bg-[#070D18]">
+        <div className="max-w-7xl mx-auto px-4 pt-6">
+          <button
+            onClick={() => setActiveRoute('/hub')}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white mb-4 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Feature Hub
+          </button>
+        </div>
+        <BillingHubScreen
+          tenantId={tenant?.tenant_id || 'tenant-alpha-001'}
+          tenantName={tenant?.display_name || tenant?.legal_name || 'Organisasi Aktif'}
+          userRole={tenant?.role || 'TENANT_OWNER'}
+        />
+      </div>
     );
   }
 

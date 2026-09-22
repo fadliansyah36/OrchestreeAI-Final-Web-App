@@ -26,7 +26,9 @@ import {
   BookOpen,
   History,
   XCircle,
+  DollarSign,
 } from 'lucide-react';
+import { FinancialCommandCenter } from './FinancialCommandCenter';
 
 interface LLMProvider {
   id: string;
@@ -133,7 +135,7 @@ export function AdminConsoleMfa() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   // Admin Dashboard Tabs
-  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning'>('providers');
+  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial'>('providers');
 
   // Continuous Learning States (Fase 5 / PRD v2.2 Bagian 8.11)
   const [outcomes, setOutcomes] = useState<DecisionOutcome[]>([]);
@@ -586,10 +588,22 @@ export function AdminConsoleMfa() {
               }`}
             >
               <Sparkles className="w-4 h-4" />
-              <span>Continuous Learning (Fase 5)</span>
+              <span>Continuous Learning Engine</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
                 {confidences.length} Skills
               </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('financial')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'financial'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>Financial Command Center</span>
             </button>
           </div>
 
@@ -599,7 +613,7 @@ export function AdminConsoleMfa() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Pemantauan Adapter Model Router (PRD v2.2 Bagian 8.2)
+                    Pemantauan Adapter Model Router & Health
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Routing otomatis dengan fallback chain: NVIDIA NIM → OpenRouter → Gemini.
@@ -1309,6 +1323,11 @@ export function AdminConsoleMfa() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TAB 6: Financial Command Center */}
+          {activeTab === 'financial' && (
+            <FinancialCommandCenter />
           )}
         </div>
       )}

@@ -25,7 +25,11 @@ const FORBIDDEN_PATTERNS = [
   { pattern: /scenario_data/i, name: 'scenario_data' },
   { pattern: /\bplaceholder\b/i, name: 'placeholder' },
   { pattern: /TODO_replace_with_real/i, name: 'TODO_replace_with_real' },
-  { pattern: /Math\.random\(\)/, name: 'Math.random() for data generation' }
+  { pattern: /Math\.random\(\)/, name: 'Math.random() for data generation' },
+  { pattern: /in-memory fallback/i, name: 'in-memory fallback' },
+  { pattern: /memorystore/i, name: 'memorystore' },
+  { pattern: /cloud sql/i, name: 'cloud sql' },
+  { pattern: /cloudsql/i, name: 'cloudsql' }
 ];
 
 const IGNORED_DIRS = new Set([

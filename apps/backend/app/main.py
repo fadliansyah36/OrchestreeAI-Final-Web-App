@@ -14,6 +14,8 @@ from app.api.v1.workforce import router as workforce_router
 from app.api.v1.kanban_and_attendance import router as kanban_and_attendance_router
 from app.api.v1.orchestration import router as orchestration_router
 from app.api.v1.learning import router as learning_router
+from app.api.v1.billing import router as billing_router
+from app.api.v1.webhooks import router as webhooks_router
 
 app = FastAPI(
     title="OrchestreeAI API",
@@ -43,6 +45,8 @@ app.include_router(workforce_router)
 app.include_router(kanban_and_attendance_router)
 app.include_router(orchestration_router)
 app.include_router(learning_router)
+app.include_router(billing_router)
+app.include_router(webhooks_router)
 
 
 @app.get("/")
