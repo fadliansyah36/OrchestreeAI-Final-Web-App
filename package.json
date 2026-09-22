@@ -10,8 +10,8 @@
     "clean": "rm -rf dist server.js",
     "ci:content-gate": "node scripts/ci-content-gate.js",
     "ci:openapi": "PYTHONPATH=apps/backend python3 apps/backend/scripts/check_openapi_diff.py",
-    "ci:import-linter": "PYTHONPATH=apps/backend /root/.local/bin/lint-imports --config apps/backend/.importlinter",
-    "ci:backend-test": "PYTHONPATH=apps/backend /root/.local/bin/pytest apps/backend/tests",
+    "ci:import-linter": "PYTHONPATH=apps/backend lint-imports --config apps/backend/.importlinter",
+    "ci:backend-test": "PYTHONPATH=apps/backend pytest apps/backend/tests",
     "supabase:link": "python3 infra/supabase/link.py",
     "db:migrate": "cd apps/backend && alembic upgrade head",
     "lint": "tsc --noEmit && node scripts/ci-content-gate.js"

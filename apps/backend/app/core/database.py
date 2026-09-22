@@ -5,11 +5,73 @@ audit kebijakan RLS, dan pemeriksaan status ekstensi Postgres (pgcrypto, vector,
 """
 
 import os
-from typing import Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from typing import Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urlparse
+import uuid
 import sqlalchemy as sa
 from sqlalchemy import text
 from app.core.config import settings
+
+_engine: Optional[sa.Engine] = None
+
+
+def get_database_engine() -> sa.Engine:
+    """Mengambil atau membuat singleton SQLAlchemy Engine runtime (orchestree_app)."""
+    global _engine
+    if _engine is None:
+        url = get_runtime_database_url()
+        if not url:
+            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+        _engine = sa.create_engine(
+            url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+        )
+    return _engine
+
+
+@contextmanager
+def tenant_tx(
+    tenant_id: Union[str, uuid.UUID],
+    user_id: Optional[Union[str, uuid.UUID]] = None,
+    actor_type: str = "human_user",
+    request_id: Optional[str] = None,
+) -> Generator[sa.Connection, None, None]:
+    """
+    Context manager transaksi database dengan penegakan RLS ketat (PRD v2.2 Bagian 9.3).
+    Menjalankan:
+    - SET LOCAL ROLE orchestree_app;
+    - set_config('app.tenant_id', tenant_id, true)
+    - set_config('app.user_id', user_id, true)
+    - set_config('app.actor_type', actor_type, true)
+    - set_config('app.request_id', request_id, true)
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                text("SELECT set_config('app.tenant_id', :val, true);"),
+                {"val": str(tenant_id)},
+            )
+            if user_id:
+                conn.execute(
+                    text("SELECT set_config('app.user_id', :val, true);"),
+                    {"val": str(user_id)},
+                )
+            if actor_type:
+                conn.execute(
+                    text("SELECT set_config('app.actor_type', :val, true);"),
+                    {"val": str(actor_type)},
+                )
+            if request_id:
+                conn.execute(
+                    text("SELECT set_config('app.request_id', :val, true);"),
+                    {"val": str(request_id)},
+                )
+            yield conn
 
 
 def format_postgres_url(raw_url: Optional[str]) -> Optional[str]:
@@ -45,7 +107,7 @@ def verify_db_connection_and_role(target_url: Optional[str] = None) -> Tuple[boo
     1. Database dapat dihubungi dan merespons ping.
     2. Role yang digunakan memiliki atribut NOBYPASSRLS (rolbypassrls = False).
     """
-    url = target_url or get_runtime_database_url()
+    url = target_url if target_url is not None else get_runtime_database_url()
     if not url:
         return False, "DATABASE_URL belum dikonfigurasi di file .env atau environment runtime.", {}
 
@@ -89,7 +151,7 @@ def verify_rls_table_enforcement(target_url: Optional[str] = None) -> Tuple[bool
     Memverifikasi bahwa seluruh tabel yang memiliki kolom 'tenant_id'
     mengaktifkan rowsecurity = true dan forcerowsecurity = true.
     """
-    url = target_url or get_runtime_database_url() or get_migrator_database_url()
+    url = target_url if target_url is not None else (get_runtime_database_url() or get_migrator_database_url())
     if not url:
         return False, "DATABASE_URL belum dikonfigurasi untuk verifikasi kebijakan RLS.", {}
 
@@ -143,7 +205,7 @@ def verify_extensions_and_migrations(target_url: Optional[str] = None) -> Tuple[
     1. Ekstensi pgcrypto, vector, dan pg_trgm terpasang aktif di Postgres.
     2. Tabel alembic_version ada dan mencatat revisi migrasi.
     """
-    url = target_url or get_migrator_database_url() or get_runtime_database_url()
+    url = target_url if target_url is not None else (get_migrator_database_url() or get_runtime_database_url())
     if not url:
         return False, "DATABASE_URL_MIGRATOR / DATABASE_URL belum dikonfigurasi.", {}
 

@@ -45,22 +45,19 @@ def test_step_1_env_schema():
 
 
 def test_step_2_db_connection_unconfigured():
-    # Menguji evaluasi fail-closed ketika URL tidak terjangkau
-    ok, detail, data = verify_db_connection_and_role(target_url=None)
-    if not os.getenv("DATABASE_URL"):
-        assert ok is False
-        assert "belum dikonfigurasi" in detail or "Gagal" in detail
+    # Menguji evaluasi fail-closed ketika URL tidak dikonfigurasi
+    ok, detail, data = verify_db_connection_and_role(target_url="")
+    assert ok is False
+    assert "belum dikonfigurasi" in detail or "Gagal" in detail
 
 
 def test_step_3_rls_unconfigured():
-    ok, detail, data = verify_rls_table_enforcement(target_url=None)
-    if not os.getenv("DATABASE_URL"):
-        assert ok is False
-        assert "belum dikonfigurasi" in detail or "Gagal" in detail
+    ok, detail, data = verify_rls_table_enforcement(target_url="")
+    assert ok is False
+    assert "belum dikonfigurasi" in detail or "Gagal" in detail
 
 
 def test_step_4_migrations_unconfigured():
-    ok, detail, data = verify_extensions_and_migrations(target_url=None)
-    if not os.getenv("DATABASE_URL_MIGRATOR") and not os.getenv("DATABASE_URL"):
-        assert ok is False
-        assert "belum dikonfigurasi" in detail or "Gagal" in detail
+    ok, detail, data = verify_extensions_and_migrations(target_url="")
+    assert ok is False
+    assert "belum dikonfigurasi" in detail or "Gagal" in detail

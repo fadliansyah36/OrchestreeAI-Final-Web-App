@@ -386,7 +386,7 @@
           "Onboarding"
         ],
         "summary": "Registrasi Tenant Baru (Self-Service Tenant Creation)",
-        "description": "Mendaftarkan perusahaan/tenant baru secara mandiri:\n1. Mengatur konteks tenant baru via tenant_tx(new_tenant_id) untuk memenuhi kebijakan RLS.\n2. Membuat entri baru pada tabel `tenants`.\n3. Menghubungkan paket langganan awal (`subscription_plans`).\n4. Mendaftarkan user sebagai anggota pertama di `tenant_memberships`.\n5. Menetapkan role `TENANT_OWNER` di `user_roles`.\n6. Mencatat aksi di `audit_logs`.",
+        "description": "Mendaftarkan perusahaan/tenant baru secara mandiri:\n1. Membuat entri baru pada tabel `tenants`.\n2. Menghubungkan paket langganan awal (`subscription_plans`).\n3. Mendaftarkan user sebagai anggota pertama di `tenant_memberships`.\n4. Menetapkan role `TENANT_OWNER` di `user_roles`.\n5. Mencatat aksi di `audit_logs`.",
         "operationId": "register_tenant_api_v1_onboarding_register_tenant_post",
         "requestBody": {
           "content": {

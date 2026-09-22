@@ -10,9 +10,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@orchestree/design-tokens": "workspace:*",
-    "@orchestree/ui": "workspace:*",
-    "@orchestree/api-types": "workspace:*",
+    "@orchestree/design-tokens": "*",
+    "@orchestree/ui": "*",
+    "@orchestree/api-types": "*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "next": "^15.0.0",

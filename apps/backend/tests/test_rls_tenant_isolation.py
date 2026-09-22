@@ -71,17 +71,23 @@ def test_rls_database_tables_scan_suite():
     Memindai seluruh tabel bertenant yang terdaftar di schema database
     dan memverifikasi penegakan kebijakan RLS pada tingkat database Postgres.
     """
-    # Deteksi tabel database bertenant (akan aktif setelah migrasi skema tabel tenant)
-    registered_tenant_tables = []
+    from app.core.database import verify_rls_table_enforcement, tenant_tx
+    from sqlalchemy import text
 
-    if not registered_tenant_tables:
-        pytest.skip(
-            "Menunggu tabel tenant pertama dimigrasikan pada Fase 1. "
-            "Suite otomatis memindai seluruh tabel bertenant begitu skema Alembic dibuat."
-        )
+    ok, detail, data = verify_rls_table_enforcement()
+    assert ok is True, f"Verifikasi RLS gagal: {detail}"
+    assert data.get("tenant_tables_count", 0) > 0, "Wajib ada tabel bertenant aktif di database"
 
-    tenant_a = TenantCredentials.create("tenant-alpha", "usr-1")
-    tenant_b = TenantCredentials.create("tenant-beta", "usr-2")
+    registered_tenant_tables = [
+        "tenant_memberships",
+        "tenant_capability_overrides",
+        "tenant_company_codes",
+        "hr_approval_queue",
+        "audit_logs",
+    ]
+
+    tenant_a = TenantCredentials.create("11111111-1111-1111-1111-111111111111", "aaaa0001-0000-0000-0000-000000000001")
+    tenant_b = TenantCredentials.create("22222222-2222-2222-2222-222222222222", "bbbb0002-0000-0000-0000-000000000002")
 
     for table in registered_tenant_tables:
         RLSMatrixVerifier.verify_tenant_boundary_contract(
@@ -90,3 +96,11 @@ def test_rls_database_tables_scan_suite():
             tenant_b=tenant_b,
             sample_tenant_b_row_id="sample-id",
         )
+
+        # Uji langsung pada tingkat SQL transaction dengan tenant_tx
+        with tenant_tx(tenant_a.tenant_id) as conn:
+            # Query baris milik Tenant B dari konteks Tenant A: RLS wajib mengembalikan 0 baris
+            query = text(f"SELECT count(*) FROM {table} WHERE tenant_id = :other_tenant;")
+            count = conn.execute(query, {"other_tenant": tenant_b.tenant_id}).scalar()
+            assert count == 0, f"Pelanggaran RLS: Tenant A dapat melihat baris Tenant B pada tabel {table}"
+

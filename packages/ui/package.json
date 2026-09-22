@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@orchestree/design-tokens": "workspace:*",
+    "@orchestree/design-tokens": "*",
     "lucide-react": "^0.546.0"
   },
   "peerDependencies": {
