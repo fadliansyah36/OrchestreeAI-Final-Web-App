@@ -482,6 +482,26 @@ class GeminiAdapter(LLMProviderAdapter):
                 error_message=str(e),
             )
 
+    async def embed_text(self, text: str, model: Optional[str] = None, output_dimension: int = 1536) -> List[float]:
+        """Menghasilkan representasi vektor embedding teks menggunakan Gemini Embedding API."""
+        if not self.api_key:
+            raise ValueError("Gemini API key is not configured for embedding generation.")
+        emb_model = model or "gemini-embedding-001"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{emb_model}:embedContent?key={self.api_key}"
+        payload = {
+            "content": {"parts": [{"text": text}]},
+            "outputDimensionality": output_dimension,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            res = await client.post(url, json=payload)
+            if res.status_code != 200:
+                raise RuntimeError(f"Gemini embedding error {res.status_code}: {res.text[:200]}")
+            data = res.json()
+            embedding_vals = data.get("embedding", {}).get("values", [])
+            if not embedding_vals:
+                raise RuntimeError(f"Gemini embedding empty: {res.text[:200]}")
+            return embedding_vals
+
     async def health_check(self) -> Dict[str, Any]:
         start = time.perf_counter()
         if not self.api_key:
@@ -514,6 +534,13 @@ class ModelRouter:
             "openai": GptImage2Adapter(),
             "gemini": GeminiAdapter(),
         }
+
+    async def embed_text(self, text: str, output_dimension: int = 1536) -> List[float]:
+        """Menghasilkan representasi vektor teks untuk memori/rag melalui GeminiAdapter aktif."""
+        gemini = self.adapters.get("gemini")
+        if isinstance(gemini, GeminiAdapter):
+            return await gemini.embed_text(text=text, output_dimension=output_dimension)
+        raise RuntimeError("Embedding adapter tidak tersedia di ModelRouter.")
 
     async def route(self, request: ModelRouterRequest) -> ModelRouterResponse:
         """

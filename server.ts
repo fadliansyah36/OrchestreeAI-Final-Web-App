@@ -31,6 +31,7 @@ import {
   authorizePDP,
   authorizePDPAsync,
   getContinuousLearningService,
+  getMemoryHybridSearchService,
 } from './src/server/cognitiveCore';
 import { checkAiDataPermission, checkDepartmentCap } from './src/server/abacService';
 import { createProactiveRouter } from './src/server/proactiveServer';
@@ -2707,6 +2708,152 @@ app.patch('/api/v1/tenants/:tenant_id/departments/:id/budget', async (req, res) 
 
 // Mount Proactive Channels, Notifications, Webhooks & Ask AI Chat Router
 app.use(createProactiveRouter(pool, modelRouterService));
+
+// =========================================================================
+// 8. Memory Management & Global Search (PRD v2.2 Bagian 8.4, 11.2, 11.5)
+// =========================================================================
+const memoryHybridSearchService = getMemoryHybridSearchService(pool);
+
+// Global Search Endpoint
+app.post('/api/v1/tenants/:tenant_id/memory/search', async (req, res) => {
+  const { tenant_id } = req.params;
+  const { query, category, limit = 5 } = req.body;
+  const user = (req as any).user || {
+    id: null,
+    tenant_id,
+    roles: ['TENANT_ADMIN', 'EMPLOYEE'],
+    actor_type: 'human_user',
+  };
+
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'Parameter query wajib diisi string non-kosong.' });
+  }
+
+  const subject = {
+    tenant_id,
+    user_id: user.id || undefined,
+    roles: user.roles || ['EMPLOYEE'],
+    capabilities: ['memory.search', 'data.read'],
+    actor_type: user.actor_type || 'human_user',
+    agent_id: user.agent_id || undefined,
+  };
+
+  try {
+    const results = await memoryHybridSearchService.hybridSearch(
+      tenant_id,
+      query.trim(),
+      subject,
+      Number(limit) || 5,
+      category || undefined
+    );
+
+    return res.json({
+      query: query.trim(),
+      total_found: results.length,
+      results: results.map(r => ({
+        document_id: r.document_id,
+        chunk_id: r.chunk_id,
+        title: r.title,
+        content: r.content,
+        summary: r.summary,
+        category: r.category,
+        confidence: r.confidence,
+        rrf_score: r.rrf_score,
+        similarity: r.similarity,
+        metadata: r.metadata,
+      })),
+    });
+  } catch (err: any) {
+    console.error('Error during memory search:', err);
+    return res.status(500).json({ error: err.message || 'Gagal menjalankan hybrid memory search' });
+  }
+});
+
+// List Recent Ingested Memory Documents
+app.get('/api/v1/tenants/:tenant_id/memory/documents', async (req, res) => {
+  const { tenant_id } = req.params;
+  const limit = Number(req.query.limit) || 50;
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    const result = await client.query(
+      `SELECT id, tenant_id, title, summary, category, source_type, source_id,
+              data_classification, confidence, decay_factor, access_count,
+              last_accessed_at, created_at, updated_at
+       FROM memory_documents
+       WHERE tenant_id = $1::uuid
+       ORDER BY created_at DESC
+       LIMIT $2;`,
+      [tenant_id, limit]
+    );
+
+    return res.json(result.rows);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Ingest Memory Document
+app.post('/api/v1/tenants/:tenant_id/memory/documents', async (req, res) => {
+  const { tenant_id } = req.params;
+  const { title, content, summary, category = 'knowledge', data_classification = 'internal', metadata } = req.body;
+  const user = (req as any).user || {
+    id: null,
+    tenant_id,
+    roles: ['TENANT_ADMIN'],
+    actor_type: 'human_user',
+  };
+
+  if (!title || !content) {
+    return res.status(400).json({ error: 'Field title dan content wajib diisi.' });
+  }
+
+  const subject = {
+    tenant_id,
+    user_id: user.id || undefined,
+    roles: user.roles || ['TENANT_ADMIN'],
+    capabilities: ['memory.documents.create', 'data.write'],
+    actor_type: user.actor_type || 'human_user',
+  };
+
+  try {
+    const doc = await memoryHybridSearchService.ingestDocument(
+      tenant_id,
+      {
+        title,
+        content,
+        summary,
+        category,
+        data_classification,
+        metadata,
+        created_by_user_id: user.id || undefined,
+      },
+      subject
+    );
+
+    return res.status(201).json(doc);
+  } catch (err: any) {
+    console.error('Error during memory ingestion:', err);
+    return res.status(500).json({ error: err.message || 'Gagal menyimpan dokumen memori' });
+  }
+});
+
+// Consolidate Memory Decay
+app.post('/api/v1/tenants/:tenant_id/memory/consolidate', async (req, res) => {
+  const { tenant_id } = req.params;
+  try {
+    const result = await memoryHybridSearchService.consolidateDecay(tenant_id);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // 9. Vite Middleware Setup
 async function startServer() {

@@ -19,6 +19,7 @@ import { TenantRegistrationResponse } from '../types';
 import { WorkforceHubScreen } from './WorkforceHubScreen';
 import { BillingHubScreen } from './BillingHubScreen';
 import { ProactiveChannelsScreen } from './ProactiveChannelsScreen';
+import { IntelligenceHubScreen } from './IntelligenceHubScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -36,6 +37,15 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   if (activeRoute.startsWith('/workforce')) {
     return (
       <WorkforceHubScreen
+        tenant={tenant}
+        onBack={() => setActiveRoute('/hub')}
+      />
+    );
+  }
+
+  if (activeRoute.startsWith('/knowledge') || activeRoute.startsWith('/brain')) {
+    return (
+      <IntelligenceHubScreen
         tenant={tenant}
         onBack={() => setActiveRoute('/hub')}
       />

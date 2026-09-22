@@ -18,6 +18,8 @@ from app.api.v1.billing import router as billing_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.proactive import router as proactive_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.memory import router as memory_router
+from app.skills.f01_memflow.tools import register_memflow_tools
 
 app = FastAPI(
     title="OrchestreeAI API",
@@ -27,6 +29,15 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Startup event: register builtin skills & memflow tools
+@app.on_event("startup")
+async def startup_event():
+    try:
+        register_memflow_tools()
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").warning(f"Could not register memflow tools on startup: {e}")
 
 # CORS configuration
 origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()]
@@ -51,6 +62,7 @@ app.include_router(billing_router)
 app.include_router(webhooks_router)
 app.include_router(proactive_router)
 app.include_router(chat_router)
+app.include_router(memory_router)
 
 
 @app.get("/")

@@ -22,12 +22,13 @@ import { BillingHubScreen } from './components/BillingHubScreen';
 import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { StartupGateReport } from './components/StartupGateReport';
 import { ProactiveChannelsScreen } from './components/ProactiveChannelsScreen';
+import { IntelligenceHubScreen } from './components/IntelligenceHubScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');

@@ -699,6 +699,36 @@ export class ModelRouterService {
       console.warn('[ModelRouter] Failed to log usage:', e);
     }
   }
+
+  /**
+   * Menghasilkan vektor embedding 1536 menggunakan Gemini Embedding API
+   */
+  async embedText(text: string, outputDimension: number = 1536): Promise<number[]> {
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not configured for embedding generation.');
+    }
+    const model = 'gemini-embedding-001';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: { parts: [{ text }] },
+        outputDimensionality: outputDimension,
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Gemini Embedding API error HTTP ${resp.status}: ${errText.slice(0, 150)}`);
+    }
+    const data = await resp.json();
+    const values = data.embedding?.values;
+    if (!values || !Array.isArray(values) || values.length === 0) {
+      throw new Error('Gemini embedding returned empty vector');
+    }
+    return values;
+  }
 }
 
 /**
@@ -764,6 +794,83 @@ export class MCPToolRegistryService {
         output_schema: {
           type: 'object',
           properties: { is_valid: { type: 'boolean' }, formatted_target: { type: 'string' } },
+        },
+        is_active: true,
+      },
+      // --- F.01-MEMFLOW Built-in Tools (PRD v2.2 Bagian 8.4, 11.2, 11.5) ---
+      {
+        id: 'tool-memory-search',
+        tool_name: 'memory.search',
+        risk_tier: 'low',
+        category: 'memory',
+        description: 'Pencarian semantik dan leksikal hybrid (HNSW kNN + tsvector + RRF) pada Company Brain',
+        input_schema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string' },
+            category: { type: 'string' },
+            limit: { type: 'number' },
+          },
+          required: ['query'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { results: { type: 'array' }, total_found: { type: 'number' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-memory-remember',
+        tool_name: 'memory.remember',
+        risk_tier: 'medium',
+        category: 'memory',
+        description: 'Menyimpan pengetahuan baru, insight kontekstual, atau dokumen referensi ke Company Brain',
+        input_schema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            content: { type: 'string' },
+            category: { type: 'string' },
+            data_classification: { type: 'string', enum: ['public', 'internal', 'confidential', 'restricted'] },
+          },
+          required: ['title', 'content'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { document_id: { type: 'string' }, status: { type: 'string' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-memory-session-resume',
+        tool_name: 'memory.session_resume',
+        risk_tier: 'low',
+        category: 'memory',
+        description: 'Memulihkan memori dan context snapshot sesi percakapan/eksekusi sebelumnya',
+        input_schema: {
+          type: 'object',
+          properties: { session_id: { type: 'string' } },
+          required: ['session_id'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { session_id: { type: 'string' }, context: { type: 'object' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-memory-consolidate',
+        tool_name: 'memory.consolidate',
+        risk_tier: 'high',
+        category: 'memory',
+        description: 'Menjalankan peluruhan (decay) bobot confidence memori jangka panjang',
+        input_schema: {
+          type: 'object',
+          properties: { dry_run: { type: 'boolean' } },
+        },
+        output_schema: {
+          type: 'object',
+          properties: { scanned_documents: { type: 'number' }, decayed_documents: { type: 'number' } },
         },
         is_active: true,
       },
@@ -888,6 +995,74 @@ export class MCPToolRegistryService {
         const isValid = digits.length >= 9;
         output = { is_valid: isValid, channel_type: 'whatsapp', original_value: val, formatted_target: formatted };
       }
+    } else if (toolName === 'memory.search') {
+      const memoryService = getMemoryHybridSearchService(this.pool);
+      const query = inputData.query || '';
+      const limit = Number(inputData.limit) || 5;
+      const category = inputData.category || undefined;
+      const items = await memoryService.hybridSearch(subject.tenant_id, query, subject, limit, category);
+      output = {
+        query,
+        total_found: items.length,
+        results: items.map(it => ({
+          document_id: it.document_id,
+          title: it.title,
+          content: it.content,
+          summary: it.summary,
+          category: it.category,
+          confidence: it.confidence,
+          rrf_score: it.rrf_score,
+          similarity: it.similarity,
+        })),
+      };
+    } else if (toolName === 'memory.remember') {
+      const memoryService = getMemoryHybridSearchService(this.pool);
+      const res = await memoryService.ingestDocument(
+        subject.tenant_id,
+        {
+          title: inputData.title || 'Untitled Memory',
+          content: inputData.content || '',
+          category: inputData.category || 'knowledge',
+          data_classification: inputData.data_classification || 'internal',
+          created_by_agent_id: subject.agent_id,
+          created_by_user_id: subject.user_id,
+        },
+        subject
+      );
+      output = res;
+    } else if (toolName === 'memory.session_resume') {
+      const sessionId = inputData.session_id || '';
+      let contextData: any = {};
+      if (this.pool && sessionId) {
+        try {
+          const client = await this.pool.connect();
+          try {
+            await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [subject.tenant_id]);
+            const r = await client.query(
+              `SELECT id, current_node, status, context_payload, created_at, updated_at
+               FROM workflow_executions
+               WHERE id = $1 AND tenant_id = $2;`,
+              [sessionId, subject.tenant_id]
+            );
+            if (r.rows.length > 0) {
+              contextData = r.rows[0];
+            }
+          } finally {
+            client.release();
+          }
+        } catch (dbErr) {
+          console.warn('[memory.session_resume] DB lookup error:', dbErr);
+        }
+      }
+      output = {
+        session_id: sessionId,
+        status: contextData.status ? 'resumed' : 'not_found',
+        context: contextData,
+      };
+    } else if (toolName === 'memory.consolidate') {
+      const memoryService = getMemoryHybridSearchService(this.pool);
+      const res = await memoryService.consolidateDecay(subject.tenant_id);
+      output = res;
     }
 
     const duration = Date.now() - start;
@@ -1812,4 +1987,439 @@ export class ContinuousLearningService {
 
 export function getContinuousLearningService(pool?: pg.Pool | null): ContinuousLearningService {
   return ContinuousLearningService.getInstance(pool);
+}
+
+/**
+ * =========================================================================
+ * Memory & Hybrid Search Service (TypeScript / Express)
+ * Sesuai PRD v2.2 Bagian 8.4, 11.2 & 11.5 (F.01-MEMFLOW):
+ * - Hybrid Search (pgvector kNN HNSW + tsvector full-text + Reciprocal Rank Fusion / RRF)
+ * - Grounding Pipeline yang difilter otorisasi RLS + ABAC
+ * - Memory Ingestion & Chunking dengan vector embedding 1536 dimensi (Gemini)
+ * - Memory Consolidator: Job peluruhan (decay) confidence seiring waktu
+ * =========================================================================
+ */
+export interface MemoryDocumentInput {
+  title: string;
+  content: string;
+  summary?: string;
+  category?: string;
+  source_type?: string;
+  source_id?: string;
+  data_classification?: 'public' | 'internal' | 'confidential' | 'restricted';
+  confidence?: number;
+  decay_factor?: number;
+  created_by_agent_id?: string;
+  created_by_user_id?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface MemorySearchItem {
+  document_id: string;
+  chunk_id?: string;
+  title: string;
+  content: string;
+  summary?: string;
+  category: string;
+  data_classification: string;
+  confidence: number;
+  rrf_score: number;
+  similarity?: number;
+  metadata?: Record<string, any>;
+}
+
+export class MemoryHybridSearchService {
+  private static instance: MemoryHybridSearchService;
+  private modelRouter: ModelRouterService;
+
+  private constructor(private pool: pg.Pool | null) {
+    this.modelRouter = getModelRouter(pool);
+  }
+
+  public static getInstance(pool?: pg.Pool | null): MemoryHybridSearchService {
+    if (!MemoryHybridSearchService.instance) {
+      MemoryHybridSearchService.instance = new MemoryHybridSearchService(pool || null);
+    }
+    return MemoryHybridSearchService.instance;
+  }
+
+  /**
+   * Menyimpan dokumen memori Company Brain, membagi menjadi chunk, dan menghasilkan embedding 1536
+   */
+  async ingestDocument(
+    tenantId: string,
+    doc: MemoryDocumentInput,
+    subject?: PDPSubject
+  ): Promise<{ document_id: string; title: string; chunks_count: number; status: string }> {
+    if (!this.pool) {
+      throw new Error('Database pool tidak tersedia untuk penyimpanan memori.');
+    }
+
+    if (subject) {
+      const decision = authorizePDP(
+        subject,
+        'memory.documents.create',
+        {
+          resource_type: 'memory_documents',
+          resource_id: doc.source_id || 'new_doc',
+          owner_tenant_id: tenantId,
+          data_classification: doc.data_classification || 'internal',
+        }
+      );
+      if (!decision.is_authorized) {
+        throw new Error(`PDP Access Denied untuk pembuatan memori: ${decision.reason}`);
+      }
+    }
+
+    const docId = crypto.randomUUID();
+    const chunks = this.chunkText(doc.content, 1200, 150);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+
+      // 1. Simpan dokumen master
+      await client.query(
+        `INSERT INTO memory_documents (
+          id, tenant_id, title, content, summary, category, source_type,
+          source_id, data_classification, confidence, decay_factor,
+          created_by_agent_id, created_by_user_id, metadata
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb
+        );`,
+        [
+          docId,
+          tenantId,
+          doc.title,
+          doc.content,
+          doc.summary || doc.content.slice(0, 200) + '...',
+          doc.category || 'knowledge',
+          doc.source_type || 'manual',
+          doc.source_id || null,
+          doc.data_classification || 'internal',
+          doc.confidence ?? 1.0,
+          doc.decay_factor ?? 0.05,
+          doc.created_by_agent_id || null,
+          doc.created_by_user_id || null,
+          JSON.stringify(doc.metadata || {}),
+        ]
+      );
+
+      // 2. Simpan setiap chunk dan generate vector embedding
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkText = chunks[i];
+        const chunkId = crypto.randomUUID();
+        const vector = await this.modelRouter.embedText(chunkText, 1536);
+        const vectorStr = `[${vector.join(',')}]`;
+
+        await client.query(
+          `INSERT INTO memory_embeddings (
+            id, tenant_id, document_id, chunk_index, chunk_content,
+            embedding, model_name, token_count, metadata
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6::vector, $7, $8, $9::jsonb
+          );`,
+          [
+            chunkId,
+            tenantId,
+            docId,
+            i,
+            chunkText,
+            vectorStr,
+            'gemini-embedding-001',
+            chunkText.split(/\s+/).length,
+            JSON.stringify({ source_doc_title: doc.title }),
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+      return {
+        document_id: docId,
+        title: doc.title,
+        chunks_count: chunks.length,
+        status: 'ingested',
+      };
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Hybrid Search: pgvector kNN HNSW + tsvector full-text + Reciprocal Rank Fusion (RRF)
+   * Dilengkapi otorisasi PDP (ABAC) dan audit logging
+   */
+  async hybridSearch(
+    tenantId: string,
+    query: string,
+    subject?: PDPSubject,
+    topK: number = 5,
+    category?: string,
+    rrfK: number = 60
+  ): Promise<MemorySearchItem[]> {
+    if (!this.pool || !query.trim()) return [];
+
+    const queryVector = await this.modelRouter.embedText(query, 1536);
+    const vectorStr = `[${queryVector.join(',')}]`;
+
+    const client = await this.pool.connect();
+    let vecRows: any[] = [];
+    let textRows: any[] = [];
+
+    try {
+      await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+
+      // 1. Vector Search kNN
+      let vecSql = `
+        SELECT 
+          e.document_id,
+          e.id as chunk_id,
+          d.title,
+          e.chunk_content,
+          d.summary,
+          d.category,
+          d.data_classification,
+          d.confidence,
+          d.metadata,
+          1 - (e.embedding <=> $1::vector) as similarity
+        FROM memory_embeddings e
+        JOIN memory_documents d ON e.document_id = d.id
+        WHERE e.tenant_id = $2::uuid
+      `;
+      const vecParams: any[] = [vectorStr, tenantId];
+      if (category) {
+        vecSql += ` AND d.category = $3`;
+        vecParams.push(category);
+      }
+      vecSql += ` ORDER BY e.embedding <=> $1::vector ASC LIMIT 20;`;
+
+      const vecRes = await client.query(vecSql, vecParams);
+      vecRows = vecRes.rows;
+
+      // 2. Full-text Search tsvector
+      let textSql = `
+        SELECT 
+          d.id as document_id,
+          NULL as chunk_id,
+          d.title,
+          d.content as chunk_content,
+          d.summary,
+          d.category,
+          d.data_classification,
+          d.confidence,
+          d.metadata,
+          ts_rank(d.search_vector, plainto_tsquery('indonesian', $1)) as text_score
+        FROM memory_documents d
+        WHERE d.tenant_id = $2::uuid
+          AND (
+            d.search_vector @@ plainto_tsquery('indonesian', $1)
+            OR d.title ILIKE '%' || $1 || '%'
+          )
+      `;
+      const textParams: any[] = [query, tenantId];
+      if (category) {
+        textSql += ` AND d.category = $3`;
+        textParams.push(category);
+      }
+      textSql += ` ORDER BY text_score DESC LIMIT 20;`;
+
+      const textRes = await client.query(textSql, textParams);
+      textRows = textRes.rows;
+    } finally {
+      client.release();
+    }
+
+    // 3. Reciprocal Rank Fusion (RRF)
+    const candidates = new Map<string, any>();
+
+    // Vektor rank
+    vecRows.forEach((row, idx) => {
+      const docId = row.document_id;
+      const rank = idx + 1;
+      const rrf = 1 / (rrfK + rank);
+      candidates.set(docId, {
+        document_id: docId,
+        chunk_id: row.chunk_id,
+        title: row.title,
+        content: row.chunk_content,
+        summary: row.summary,
+        category: row.category,
+        data_classification: row.data_classification,
+        confidence: Number(row.confidence) || 1.0,
+        similarity: Number(row.similarity),
+        rrf_score: rrf,
+        metadata: row.metadata || {},
+      });
+    });
+
+    // Teks rank
+    textRows.forEach((row, idx) => {
+      const docId = row.document_id;
+      const rank = idx + 1;
+      const rrf = 1 / (rrfK + rank);
+      if (candidates.has(docId)) {
+        const item = candidates.get(docId);
+        item.rrf_score += rrf;
+      } else {
+        candidates.set(docId, {
+          document_id: docId,
+          chunk_id: null,
+          title: row.title,
+          content: (row.chunk_content || '').slice(0, 1200),
+          summary: row.summary,
+          category: row.category,
+          data_classification: row.data_classification,
+          confidence: Number(row.confidence) || 1.0,
+          similarity: undefined,
+          rrf_score: rrf,
+          metadata: row.metadata || {},
+        });
+      }
+    });
+
+    // Kalikan dengan confidence score
+    for (const item of candidates.values()) {
+      item.rrf_score = item.rrf_score * item.confidence;
+    }
+
+    const sorted = Array.from(candidates.values()).sort((a, b) => b.rrf_score - a.rrf_score);
+
+    // 4. Otorisasi PDP (ABAC) per item
+    const authorizedResults: MemorySearchItem[] = [];
+    for (const cand of sorted) {
+      if (subject) {
+        const authDecision = authorizePDP(
+          subject,
+          'data.read',
+          {
+            resource_type: 'memory_documents',
+            resource_id: cand.document_id,
+            owner_tenant_id: tenantId,
+            data_classification: cand.data_classification,
+          }
+        );
+        if (!authDecision.is_authorized) {
+          continue;
+        }
+      }
+      authorizedResults.push(cand);
+      if (authorizedResults.length >= topK) break;
+    }
+
+    // 5. Audit Log ke memory_access_log
+    if (this.pool && authorizedResults.length > 0) {
+      const auditClient = await this.pool.connect();
+      try {
+        await auditClient.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+        const actorType = subject?.actor_type || 'human_user';
+        const actorId = subject?.agent_id || subject?.user_id || 'anonymous';
+
+        for (const res of authorizedResults) {
+          await auditClient.query(
+            `INSERT INTO memory_access_log (
+              tenant_id, document_id, actor_type, actor_id,
+              action, query_text, similarity_score, abac_decision, context
+            ) VALUES (
+              $1, $2, $3, $4, 'search_read', $5, $6, 'ALLOW', $7::jsonb
+            );
+            UPDATE memory_documents
+            SET access_count = access_count + 1, last_accessed_at = now()
+            WHERE id = $2;`,
+            [
+              tenantId,
+              res.document_id,
+              actorType,
+              actorId,
+              query,
+              res.rrf_score,
+              JSON.stringify({ similarity: res.similarity, category: res.category }),
+            ]
+          );
+        }
+      } catch (logErr) {
+        console.warn('[MemorySearch] Failed to write access log:', logErr);
+      } finally {
+        auditClient.release();
+      }
+    }
+
+    return authorizedResults;
+  }
+
+  /**
+   * Memory Consolidator: Job peluruhan (decay) confidence memori
+   */
+  async consolidateDecay(tenantId?: string): Promise<{
+    tenant_id: string;
+    scanned_documents: number;
+    decayed_documents: number;
+    status: string;
+  }> {
+    if (!this.pool) return { tenant_id: tenantId || 'none', scanned_documents: 0, decayed_documents: 0, status: 'no_db' };
+
+    const client = await this.pool.connect();
+    try {
+      if (tenantId) {
+        await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+      }
+
+      const sql = tenantId
+        ? `SELECT id, confidence, decay_factor, coalesce(last_accessed_at, created_at) as ref_time FROM memory_documents WHERE tenant_id = $1::uuid AND confidence > 0.10;`
+        : `SELECT id, confidence, decay_factor, coalesce(last_accessed_at, created_at) as ref_time FROM memory_documents WHERE confidence > 0.10;`;
+      const params = tenantId ? [tenantId] : [];
+
+      const res = await client.query(sql, params);
+      let updatedCount = 0;
+      const now = Date.now();
+
+      for (const row of res.rows) {
+        const docId = row.id;
+        const currentConf = Number(row.confidence);
+        const decayFactor = Number(row.decay_factor) || 0.05;
+        const refTime = new Date(row.ref_time).getTime();
+        const daysElapsed = (now - refTime) / (1000 * 60 * 60 * 24);
+
+        if (daysElapsed >= 1.0) {
+          const newConf = Math.max(0.10, currentConf * Math.exp(-decayFactor * (daysElapsed / 7.0)));
+          if (Math.abs(newConf - currentConf) > 0.001) {
+            await client.query(
+              `UPDATE memory_documents SET confidence = $1, updated_at = now() WHERE id = $2;`,
+              [Number(newConf.toFixed(4)), docId]
+            );
+            updatedCount++;
+          }
+        }
+      }
+
+      return {
+        tenant_id: tenantId || 'all_tenants',
+        scanned_documents: res.rows.length,
+        decayed_documents: updatedCount,
+        status: 'consolidated',
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  private chunkText(text: string, maxChars: number = 1200, overlap: number = 150): string[] {
+    if (text.length <= maxChars) return [text];
+    const chunks: string[] = [];
+    let start = 0;
+    while (start < text.length) {
+      const end = start + maxChars;
+      const chunk = text.slice(start, end).trim();
+      if (chunk) chunks.push(chunk);
+      start += maxChars - overlap;
+    }
+    return chunks;
+  }
+}
+
+export function getMemoryHybridSearchService(pool?: pg.Pool | null): MemoryHybridSearchService {
+  return MemoryHybridSearchService.getInstance(pool);
 }
