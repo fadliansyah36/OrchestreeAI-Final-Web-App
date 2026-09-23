@@ -39,6 +39,16 @@ from app.domains.enterprise.event_engine import (
     EventEvaluationResult,
     EnterpriseEventEngine,
 )
+from app.domains.enterprise.project_health import (
+    SpecialistAgentProfile,
+    ProjectHealthDiagnostic,
+    SpecialistAgentContribution,
+    ContributingSpecialistTrace,
+    ExecutiveRecommendation,
+    MultiAgentCollaborationSession,
+    DEFAULT_SPECIALIST_AGENTS,
+    EnterpriseProjectHealthEngine,
+)
 
 __all__ = [
     "SourceSignal",
@@ -69,6 +79,15 @@ __all__ = [
     "KnowledgeEventRule",
     "EventEvaluationResult",
     "EnterpriseEventEngine",
+    "SpecialistAgentProfile",
+    "ProjectHealthDiagnostic",
+    "SpecialistAgentContribution",
+    "ContributingSpecialistTrace",
+    "ExecutiveRecommendation",
+    "MultiAgentCollaborationSession",
+    "DEFAULT_SPECIALIST_AGENTS",
+    "EnterpriseProjectHealthEngine",
 ]
+
 
 

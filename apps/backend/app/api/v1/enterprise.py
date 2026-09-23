@@ -60,6 +60,14 @@ from orchestree.domains.enterprise.event_engine import (
     KnowledgeEventRule,
     EventEvaluationResult,
 )
+from orchestree.domains.enterprise.project_health import (
+    EnterpriseProjectHealthEngine,
+    ProjectHealthDiagnostic,
+    MultiAgentCollaborationSession,
+    ExecutiveRecommendation,
+    DEFAULT_SPECIALIST_AGENTS,
+)
+
 
 
 
@@ -2245,6 +2253,129 @@ async def approve_knowledge_rule_endpoint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
     return updated.model_dump() if hasattr(updated, "model_dump") else updated.__dict__
+
+
+# =========================================================================
+# SPECIALIST AGENT REGISTRY & MULTI-AGENT PARALLEL COLLABORATION
+# (PRD v2.2 Bagian 8.13.7)
+# =========================================================================
+
+@router.get("/specialist-agents")
+async def list_specialist_agents_endpoint(
+    tenant_id: str,
+    db=Depends(get_db_connection),
+):
+    """
+    Daftar profil agen spesialis domain (Finance, Supply Chain, Legal, Commercial, Workforce).
+    """
+    await assert_enterprise_tier(tenant_id, db)
+    return [agent.model_dump() if hasattr(agent, "model_dump") else agent.__dict__ for agent in DEFAULT_SPECIALIST_AGENTS.values()]
+
+
+class ProjectHealthInput(BaseModel):
+    project_name: str
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+
+
+@router.post("/projects/{project_ref_id}/health")
+async def assess_project_health_endpoint(
+    tenant_id: str,
+    project_ref_id: str,
+    input_data: ProjectHealthInput,
+    db=Depends(get_db_connection),
+):
+    """
+    Menghitung diagnostik kesehatan proyek (jadwal, anggaran, utilisasi sumber daya) dan menyimpannya.
+    """
+    await assert_enterprise_tier(tenant_id, db)
+    engine = EnterpriseProjectHealthEngine(db_pool=db)
+
+    diagnostic: ProjectHealthDiagnostic = engine.calculate_health_diagnostic(
+        project_ref_id=project_ref_id,
+        project_name=input_data.project_name,
+        metrics=input_data.metrics,
+    )
+
+    # Persist ke DB
+    import json
+    t_uuid = uuid.UUID(tenant_id)
+    await db.execute(
+        """
+        INSERT INTO project_health_scores (
+            tenant_id, project_ref_id, project_name, overall_health_score,
+            health_status, schedule_adherence_score, budget_burn_score,
+            resource_allocation_score, risk_factors, metrics_snapshot,
+            last_assessed_at, updated_at
+        ) VALUES (
+            $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, now(), now()
+        )
+        ON CONFLICT (tenant_id, project_ref_id) DO UPDATE SET
+            overall_health_score = EXCLUDED.overall_health_score,
+            health_status = EXCLUDED.health_status,
+            schedule_adherence_score = EXCLUDED.schedule_adherence_score,
+            budget_burn_score = EXCLUDED.budget_burn_score,
+            resource_allocation_score = EXCLUDED.resource_allocation_score,
+            risk_factors = EXCLUDED.risk_factors,
+            metrics_snapshot = EXCLUDED.metrics_snapshot,
+            last_assessed_at = now(),
+            updated_at = now();
+        """,
+        t_uuid,
+        project_ref_id,
+        input_data.project_name,
+        diagnostic.overall_health_score,
+        diagnostic.health_status,
+        diagnostic.schedule_adherence_score,
+        diagnostic.budget_burn_score,
+        diagnostic.resource_allocation_score,
+        json.dumps(diagnostic.risk_factors),
+        json.dumps(diagnostic.metrics_snapshot),
+    )
+
+    return diagnostic.model_dump() if hasattr(diagnostic, "model_dump") else diagnostic.__dict__
+
+
+class MultiAgentCollaborationInput(BaseModel):
+    project_name: str
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+    specialist_agent_codes: Optional[List[str]] = None
+
+
+@router.post("/projects/{project_ref_id}/multi-agent-collaboration")
+async def run_multi_agent_collaboration_endpoint(
+    tenant_id: str,
+    project_ref_id: str,
+    input_data: MultiAgentCollaborationInput,
+    db=Depends(get_db_connection),
+):
+    """
+    Menjalankan kolaborasi multi-agent paralel lintas spesialis domain.
+    PENEGAKAN DEFINITION OF DONE:
+    - Menghasilkan SATU Executive Recommendation terpadu
+    - Setiap kontribusi agen dapat ditelusuri (traceability) via trace_id.
+    """
+    await assert_enterprise_tier(tenant_id, db)
+    engine = EnterpriseProjectHealthEngine(db_pool=db)
+
+    # 1. Diagnostik awal
+    health: ProjectHealthDiagnostic = engine.calculate_health_diagnostic(
+        project_ref_id=project_ref_id,
+        project_name=input_data.project_name,
+        metrics=input_data.metrics,
+    )
+
+    # 2. Kolaborasi paralel multi-agent
+    session: MultiAgentCollaborationSession = await engine.run_parallel_multi_agent_collaboration(
+        tenant_id=tenant_id,
+        project_ref_id=project_ref_id,
+        project_name=input_data.project_name,
+        health=health,
+        specialist_agent_codes=input_data.specialist_agent_codes,
+        db_connection=db,
+    )
+
+    return session.model_dump() if hasattr(session, "model_dump") else session.__dict__
+
 
 
 
