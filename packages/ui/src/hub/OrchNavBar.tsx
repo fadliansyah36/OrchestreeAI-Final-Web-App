@@ -33,7 +33,9 @@ import {
   Server,
   Share2,
   Sun,
-  Moon
+  Moon,
+  BarChart3,
+  MessageSquare
 } from 'lucide-react';
 
 export interface NavDomainItem {
@@ -74,18 +76,10 @@ export function OrchNavBar({
   const [searchQuery, setSearchQuery] = useState('');
 
   const clientDomains: NavDomainItem[] = [
-    // Kelompok Kerja & Tim
-    {
-      id: 'dashboard',
-      label: 'Beranda Ringkasan',
-      description: 'Ringkasan kerja harian, skor, dan aksi cepat',
-      icon: TrendingUp,
-      route: 'dashboard',
-      category: 'Kerja & Tim'
-    },
+    // 1. Kelompok Kerja & Tim (PRD Resmi)
     {
       id: 'workforce',
-      label: 'Manajemen Tenaga Kerja',
+      label: 'Tenaga Kerja',
       description: 'Struktur tim kolaboratif manusia dan pekerja kecerdasan',
       icon: Users,
       route: 'workforce',
@@ -93,10 +87,18 @@ export function OrchNavBar({
     },
     {
       id: 'kanban',
-      label: 'Papan Tugas Terkoordinasi',
+      label: 'Papan Kerja',
       description: 'Manajemen alur kerja dan distribusi tugas operasional',
       icon: Briefcase,
       route: 'kanban',
+      category: 'Kerja & Tim'
+    },
+    {
+      id: 'analytics',
+      label: 'Analitik & Peringkat',
+      description: 'Skor kinerja bulanan, leaderboard human vs AI, dan dimensi kerja',
+      icon: BarChart3,
+      route: 'analytics',
       category: 'Kerja & Tim'
     },
     {
@@ -110,7 +112,7 @@ export function OrchNavBar({
     {
       id: 'permissions',
       label: 'Izin & Privasi Data AI',
-      description: 'Kendali perizinan akses dokumen dan privasi perusahaan',
+      description: 'Kendali perizinan akses dokumen dan kebijakan ABAC perusahaan',
       icon: ShieldCheck,
       route: 'permissions',
       category: 'Kerja & Tim'
@@ -124,14 +126,22 @@ export function OrchNavBar({
       category: 'Kerja & Tim'
     },
 
-    // Kelompok Penjualan & Pelanggan
+    // 2. Kelompok Penjualan & Komunikasi (PRD Resmi: Omnichannel dan Proactive DIPISAHKAN TOTAL)
+    {
+      id: 'omnichannel',
+      label: 'Penjualan & Omnichannel',
+      description: 'Pipeline CRM 8 tahap, AI handoff, inbox komunikasi pelanggan multi-kanal',
+      icon: MessageSquare,
+      route: 'omnichannel',
+      category: 'Penjualan & Komunikasi'
+    },
     {
       id: 'proactive',
-      label: 'Saluran Proaktif & Omnichannel',
-      description: 'Integrasi percakapan otomatis lintas kanal komunikasi',
+      label: 'Agen Proaktif',
+      description: 'Bot staf internal resmi, laporan terjadwal, dan preferensi notifikasi tim',
       icon: Megaphone,
       route: 'proactive',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'crm_pipeline',
@@ -139,7 +149,7 @@ export function OrchNavBar({
       description: 'Manajemen prospek dan estimasi konversi transaksi',
       icon: TrendingUp,
       route: 'crm_pipeline',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'crm_personas',
@@ -147,7 +157,7 @@ export function OrchNavBar({
       description: 'Segmentasi dan preferensi interaksi pelanggan',
       icon: Bot,
       route: 'crm_personas',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'commerce_catalog',
@@ -155,7 +165,7 @@ export function OrchNavBar({
       description: 'Daftar produk, inventaris, dan harga resmi',
       icon: ShoppingBag,
       route: 'commerce_catalog',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'commerce_orders',
@@ -163,7 +173,7 @@ export function OrchNavBar({
       description: 'Pencatatan dan pelacakan transaksi penjualan',
       icon: FileCheck,
       route: 'commerce_orders',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'marketing_campaigns',
@@ -171,7 +181,7 @@ export function OrchNavBar({
       description: 'Penyusunan materi promosi dan penjangkauan pelanggan',
       icon: Megaphone,
       route: 'marketing_campaigns',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'service_requests',
@@ -179,7 +189,7 @@ export function OrchNavBar({
       description: 'Penanganan tiket kendala dan kepuasan pelanggan',
       icon: Headphones,
       route: 'service_requests',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'sales_coach',
@@ -187,7 +197,7 @@ export function OrchNavBar({
       description: 'Rekomendasi taktik negosiasi dan peningkatan konversi',
       icon: Sparkles,
       route: 'sales_coach',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'sales_guardrails',
@@ -195,7 +205,7 @@ export function OrchNavBar({
       description: 'Aturan kepatuhan diskon dan etika komunikasi',
       icon: Sliders,
       route: 'sales_guardrails',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'revenue_intelligence',
@@ -203,7 +213,7 @@ export function OrchNavBar({
       description: 'Atribusi pendapatan, proyeksi pipeline, dan analitik nilai',
       icon: TrendingUp,
       route: 'revenue_intelligence',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
     {
       id: 'message_experiments',
@@ -211,33 +221,42 @@ export function OrchNavBar({
       description: 'Pengujian varian pesan, tingkat respons, dan efektivitas komunikasi',
       icon: Sparkles,
       route: 'message_experiments',
-      category: 'Penjualan & Pelanggan'
+      category: 'Penjualan & Komunikasi'
     },
 
-    // Kelompok Kecerdasan & Kreatif
+    // 3. Kelompok Kecerdasan & Data (PRD Resmi)
     {
       id: 'intelligence',
-      label: 'Pusat Kecerdasan Pasar',
-      description: 'Pemantauan kompetitor, tren industri, dan wawasan prospek',
+      label: 'Kecerdasan Eksternal',
+      description: 'Pemantauan kompetitor, tren industri, dan wawasan prospek pasar',
       icon: Compass,
       route: 'intelligence',
-      category: 'Kecerdasan & Kreatif'
+      category: 'Kecerdasan & Data'
     },
     {
       id: 'selection',
-      label: 'Seleksi Universal Tenaga Kerja',
+      label: 'Seleksi Cerdas',
       description: 'Rekrutmen terpadu pekerja manusia dan pekerja kecerdasan',
-      icon: Users,
+      icon: CheckCircle2,
       route: 'selection',
-      category: 'Kecerdasan & Kreatif'
+      category: 'Kecerdasan & Data'
     },
     {
       id: 'generative',
-      label: 'Studio Kreatif Generatif',
-      description: 'Pembuatan aset visual, naskah promosi, dan materi konten',
+      label: 'Studio Kreatif',
+      description: 'Pembuatan aset visual, naskah promosi, dan materi konten terverifikasi',
       icon: Sparkles,
       route: 'generative',
-      category: 'Kecerdasan & Kreatif'
+      category: 'Kecerdasan & Data'
+    },
+    {
+      id: 'enterprise',
+      label: 'Tenaga Kerja Enterprise',
+      description: 'Chief of Staff otonom, Context Fabric 8 dimensi, dan pelaporan korporat',
+      icon: ShieldCheck,
+      route: 'enterprise',
+      category: 'Kecerdasan & Data',
+      tierRequired: 'ENTERPRISE'
     },
     {
       id: 'agentcat',
@@ -245,17 +264,15 @@ export function OrchNavBar({
       description: 'Penyebaran template spesialisasi pekerja kecerdasan',
       icon: Layers,
       route: 'agentcat',
-      category: 'Kecerdasan & Kreatif'
+      category: 'Kecerdasan & Data'
     },
-
-    // Kelompok Integrasi & Enterprise
     {
       id: 'integrations',
       label: 'Integrasi Akun Multi-Channel',
       description: 'Koneksi WhatsApp, Shopify, Tokopedia, Instagram, Gmail, dan alat eksternal',
       icon: Share2,
       route: 'integrations',
-      category: 'Integrasi & Enterprise'
+      category: 'Kecerdasan & Data'
     },
     {
       id: 'data_quality',
@@ -263,132 +280,121 @@ export function OrchNavBar({
       description: 'Resolusi konflik sumber data, validasi ketersediaan, dan integritas metrik',
       icon: Database,
       route: 'data_quality',
-      category: 'Integrasi & Enterprise'
-    },
-    {
-      id: 'enterprise',
-      label: 'Tenaga Kerja Skala Enterprise',
-      description: 'Chief of Staff otonom, Context Fabric 8 dimensi, dan pelaporan korporat',
-      icon: ShieldCheck,
-      route: 'enterprise',
-      category: 'Integrasi & Enterprise',
-      tierRequired: 'ENTERPRISE'
+      category: 'Kecerdasan & Data'
     },
 
-    // Kelompok Komersial & Pengaturan
+    // 4. Kelompok Pengaturan (PRD Resmi)
     {
       id: 'billing',
-      label: 'Tagihan & Alokasi Kredit',
-      description: 'Status langganan, saldo kredit operasional, dan invoice',
+      label: 'Kredit & Tagihan',
+      description: 'Status langganan, saldo kredit operasional, invoice, dan alokasi ledger',
       icon: CreditCard,
       route: 'billing',
-      category: 'Komersial & Pengaturan'
+      category: 'Pengaturan'
     },
     {
       id: 'onboarding',
-      label: 'Pembaruan Profil Organisasi',
-      description: 'Pengaturan identitas perusahaan dan penyesuaian paket',
+      label: 'Pengaturan',
+      description: 'Profil organisasi, konfigurasi anggota, dan penyesuaian sistem',
       icon: Settings,
       route: 'onboarding',
-      category: 'Komersial & Pengaturan'
+      category: 'Pengaturan'
     }
   ];
 
   const adminDomains: NavDomainItem[] = [
-    // Kelompok Platform & Ringkasan
+    // 1. Kelompok Operasional & Tenant (11 Hub Resmi Super Admin)
     {
       id: 'admin_super_hub',
-      label: 'Ringkasan Kendali Platform',
-      description: 'Metrik kesehatan sistem, statistik tenant, dan alur operasional',
+      label: 'Ringkasan Platform',
+      description: 'KPI tenant aktif, MRR, pertumbuhan platform, dan slot uji coba 36',
       icon: ShieldCheck,
       route: 'admin_super_hub',
-      category: 'Platform & Ringkasan'
+      category: 'Operasional & Tenant'
     },
-    {
-      id: 'admin_startup_gate',
-      label: 'Laporan Gerbang Kesiapan',
-      description: 'Pemeriksaan integritas dependensi dan koneksi sebelum operasional',
-      icon: Terminal,
-      route: 'startup_gate',
-      category: 'Platform & Ringkasan'
-    },
-
-    // Kelompok Tenant & Komersial
     {
       id: 'admin_tenants',
-      label: 'Manajemen Organisasi Tenant',
-      description: 'Daftar perusahaan terdaftar, status berlangganan, dan kuota',
+      label: 'Manajemen Tenant',
+      description: 'CRUD organisasi perusahaan, status langganan, dan alokasi kuota',
       icon: Users,
       route: 'admin_tenants',
-      category: 'Tenant & Komersial'
+      category: 'Operasional & Tenant'
     },
     {
       id: 'admin_prospects',
-      label: 'Pendaftaran Prospek & Uji Coba',
-      description: 'Penerimaan prospek baru dan aktivasi akun evaluasi',
-      icon: Compass,
+      label: 'Prospek & Uji Coba',
+      description: '36 slot uji coba atomik, aktivasi tenant evaluasi, dan jadwal demo',
+      icon: Briefcase,
       route: 'admin_prospects',
-      category: 'Tenant & Komersial'
+      category: 'Operasional & Tenant'
     },
     {
       id: 'admin_finance',
-      label: 'Pusat Komando Keuangan',
-      description: 'Rekonsiliasi transaksi, saldo kredit platform, dan pendapatan',
+      label: 'Manajemen Komersial',
+      description: 'Paket langganan, Credit Metering, Financial Command Center, dan Rekonsiliasi Pembayaran',
       icon: CreditCard,
       route: 'admin_finance',
-      category: 'Tenant & Komersial'
+      category: 'Operasional & Tenant'
     },
 
-    // Kelompok Kecerdasan & Ekstensi
+    // 2. Kelompok Kecerdasan & Tool AI (11 Hub Resmi Super Admin)
     {
       id: 'admin_model_routing',
-      label: 'Tata Kelola Perutean Model',
-      description: 'Konfigurasi prioritas penyedia dan toleransi latensi model',
+      label: 'Model & Perutean AI',
+      description: 'Provider LLM tunggal (NVIDIA NIM/OpenRouter/Gemini/GPT-Image-2) & failover PDP',
       icon: Cpu,
       route: 'admin_model_routing',
-      category: 'Kecerdasan & Ekstensi'
+      category: 'Kecerdasan & Tool AI'
+    },
+    {
+      id: 'admin_mcp',
+      label: 'Tata Kelola Tool AI',
+      description: 'Registry MCP Tools, audit izin perkakas AI, dan kill-switch otonom',
+      icon: Layers,
+      route: 'admin_mcp',
+      category: 'Kecerdasan & Tool AI'
     },
     {
       id: 'admin_agent_catalog',
-      label: 'Katalog Template Blueprint',
-      description: 'Audit keamanan kebijakan dan rilis bertahap blueprint agen',
-      icon: Layers,
+      label: 'Katalog Jabatan & Skill AI',
+      description: '15 Jabatan Utama terstandarisasi, struktur organisasi, dan blueprint agen',
+      icon: Brain,
       route: 'admin_agent_catalog',
-      category: 'Kecerdasan & Ekstensi'
-    },
-    {
-      id: 'admin_tokenopt',
-      label: 'Monitoring Efisiensi Token',
-      description: 'Analitik penghematan biaya dan telemetri penyimpanan semantik',
-      icon: TrendingUp,
-      route: 'admin_tokenopt',
-      category: 'Kecerdasan & Ekstensi'
+      category: 'Kecerdasan & Tool AI'
     },
     {
       id: 'admin_integrations',
-      label: 'Direktori Aplikasi & Integrasi Eksternal',
-      description: 'Tata kelola otorisasi aplikasi pihak ketiga dan integrasi multi-kanal',
+      label: 'Registrasi Aplikasi Pihak Ketiga',
+      description: 'Konfigurasi OAuth App, webhook, dan status kapabilitas integrasi',
       icon: Share2,
       route: 'admin_integrations',
-      category: 'Kecerdasan & Ekstensi'
+      category: 'Kecerdasan & Tool AI'
     },
 
-    // Kelompok Keamanan & Sistem
+    // 3. Kelompok Tata Kelola & Audit (11 Hub Resmi Super Admin)
     {
-      id: 'admin_mfa',
-      label: 'Konsol Keamanan & MFA',
-      description: 'Autentikasi multi-faktor dan proteksi akun Super Admin',
-      icon: Key,
-      route: 'admin_mfa',
-      category: 'Keamanan & Sistem'
+      id: 'admin_master_data',
+      label: 'Data Induk',
+      description: 'Master data 10 kategori departemen, klasifikasi industri, dan mata uang',
+      icon: Database,
+      route: 'admin_master_data',
+      category: 'Tata Kelola & Audit'
     },
     {
-      id: 'admin_data_quality',
-      label: 'Pusat Kualitas Data & Audit',
-      description: 'Validasi skema, konsistensi metrik, dan log aktivitas sistem',
-      icon: Database,
-      route: 'admin_data_quality',
-      category: 'Keamanan & Sistem'
+      id: 'admin_mfa',
+      label: 'Keamanan & Audit',
+      description: 'Audit ledger transaksi PDP, verifikasi MFA Super Admin, dan log insiden',
+      icon: Key,
+      route: 'admin_mfa',
+      category: 'Tata Kelola & Audit'
+    },
+    {
+      id: 'admin_startup_gate',
+      label: 'Monitoring Sistem',
+      description: 'Kesehatan provider, gerbang kesiapan startup fail-closed, tracing & antrian tugas',
+      icon: Terminal,
+      route: 'startup_gate',
+      category: 'Tata Kelola & Audit'
     }
   ];
 

@@ -47,6 +47,20 @@
   color-scheme: dark;
 }
 
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+#root {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+  min-height: 100vh;
+}
+
 body {
   background-color: var(--orch-surface-base);
   color: var(--orch-text-primary);

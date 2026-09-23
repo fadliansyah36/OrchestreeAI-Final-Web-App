@@ -342,45 +342,45 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   };
 
   return (
-    <div className="min-h-screen bg-[#070D18] text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#070D18] text-slate-100 flex flex-col w-full min-w-0 max-w-full overflow-x-hidden">
       {/* Top Navbar */}
-      <div className="border-b border-slate-800/80 bg-[#0B1426]/90 backdrop-blur sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="border-b border-slate-800/80 bg-[#0B1426]/90 backdrop-blur sticky top-0 z-30 px-3 sm:px-8 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full min-w-0">
+        <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 flex-1">
           <button
             onClick={onBack}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Kembali</span>
+            <span className="hidden xs:inline">Kembali</span>
           </button>
-          <span className="text-slate-700">/</span>
-          <div className="flex items-center space-x-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <span className="text-slate-700 shrink-0">/</span>
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
               <Sparkles className="w-4 h-4" />
             </div>
-            <div>
-              <h1 className="text-sm font-bold text-white tracking-wide">Kanal Komunikasi Proaktif & Ask AI</h1>
-              <p className="text-[11px] text-slate-400">Meta WhatsApp Business, Telegram Bot & Asisten Kognitif</p>
+            <div className="min-w-0">
+              <h1 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">Agen Proaktif Platform</h1>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">Bot Staf Internal &amp; Laporan Terjadwal OrchestreeAI</p>
             </div>
           </div>
         </div>
 
         {/* Quick Action: Ask AI Assistant */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 self-end sm:self-auto shrink-0">
           <button
             onClick={() => setIsAskAiOpen(true)}
-            className="flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 text-xs font-semibold text-emerald-300 hover:brightness-110 transition cursor-pointer"
+            className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 text-xs font-semibold text-emerald-300 hover:brightness-110 transition cursor-pointer"
           >
             <Bot className="w-4 h-4 text-emerald-400" />
-            <span>Ask AI Assistant</span>
+            <span>Tanya AI Asisten</span>
           </button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-8 py-6 flex-1 flex flex-col space-y-6">
+      <div className="max-w-7xl mx-auto w-full px-3 sm:px-8 py-5 sm:py-6 flex-1 flex flex-col space-y-6 min-w-0 max-w-full overflow-hidden">
         {/* Navigation Tabs */}
-        <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+        <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab('channels')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition cursor-pointer ${

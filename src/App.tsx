@@ -47,6 +47,8 @@ import { AgentBlueprintCatalogScreen } from './components/AgentBlueprintCatalogS
 import { EnterpriseHubScreen } from './components/EnterpriseHubScreen';
 import { IntegrationsHubScreen } from './components/IntegrationsHubScreen';
 import { DataQualityCenterScreen } from './components/DataQualityCenterScreen';
+import { OmnichannelHubScreen } from './components/OmnichannelHubScreen';
+import { JobTitleReconciliationPanel } from './components/JobTitleReconciliationPanel';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
@@ -155,30 +157,31 @@ export default function App() {
   const isPublicPage = activeWorkspace === 'client' && (clientSubView === 'landing' || clientSubView === 'onboarding');
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-[#0B1220] text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-200`}>
+    <div className={`min-h-screen max-w-full overflow-x-hidden ${theme === 'dark' ? 'dark bg-[#0B1220] text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-200`}>
       {/* Platform Top Navigation Bar */}
       <nav
         id="platform-navbar"
-        className="border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-[#0B1220]/90 backdrop-blur sticky top-0 z-30"
+        className="border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-[#0B1220]/90 backdrop-blur sticky top-0 z-30 w-full"
       >
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-4">
           {/* Logo Brand */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
             <button
               onClick={() => {
                 setActiveWorkspace('client');
                 setClientSubView(activeTenant ? 'dashboard' : 'landing');
               }}
-              className="flex items-center gap-3 cursor-pointer text-left"
+              className="flex items-center gap-2 sm:gap-2.5 cursor-pointer text-left shrink-0"
+              title="OrchestreeAI Beranda"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-sky-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-sky-600 flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-sm shrink-0">
                 O
               </div>
-              <div>
-                <span className="font-bold tracking-tight text-lg text-slate-900 dark:text-white">
+              <div className="flex items-center">
+                <span className="font-bold tracking-tight text-sm sm:text-lg text-slate-900 dark:text-white">
                   Orchestree<span className="text-emerald-500">.AI</span>
                 </span>
-                <span className="hidden sm:inline-block ml-2 text-[11px] uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
+                <span className="hidden lg:inline-block ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">
                   Sistem Operasi
                 </span>
               </div>
@@ -186,7 +189,7 @@ export default function App() {
           </div>
 
           {/* Workspace Switcher */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 dark:bg-slate-900/90 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
             <button
               type="button"
               id="workspace-btn-client"
@@ -196,60 +199,63 @@ export default function App() {
                   setClientSubView('dashboard');
                 }
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeWorkspace === 'client'
                   ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Ruang Kerja Tenant"
             >
-              <Building2 className="w-3.5 h-3.5" />
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden md:inline">Ruang Kerja Tenant</span>
-              <span className="md:hidden">Tenant</span>
+              <span className="hidden sm:inline md:hidden">Tenant</span>
             </button>
 
             <button
               type="button"
               id="workspace-btn-admin"
               onClick={() => setActiveWorkspace('admin')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeWorkspace === 'admin'
                   ? 'bg-white dark:bg-blue-600 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Super Admin"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden md:inline">Super Admin</span>
-              <span className="md:hidden">Admin</span>
+              <span className="hidden sm:inline md:hidden">Admin</span>
             </button>
 
             <button
               type="button"
               id="workspace-btn-gate"
               onClick={() => setActiveWorkspace('startup_gate')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 activeWorkspace === 'startup_gate'
                   ? 'bg-white dark:bg-amber-600 text-slate-900 dark:text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Gerbang Kesiapan"
             >
-              <Terminal className="w-3.5 h-3.5" />
+              <Terminal className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden md:inline">Gerbang Kesiapan</span>
-              <span className="md:hidden">Kesiapan</span>
+              <span className="hidden sm:inline md:hidden">Kesiapan</span>
             </button>
           </div>
 
           {/* Right Action: Menu Trigger & Theme Toggle */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {!isPublicPage && (
               <button
                 type="button"
                 id="open-orch-navbar-btn"
                 onClick={() => setIsNavMenuOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shrink-0"
                 title="Buka menu navigasi seluruh domain"
               >
-                <LayoutGrid className="w-4 h-4 text-emerald-500" />
-                <span className="hidden sm:inline">Menu Domain</span>
+                <LayoutGrid className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="hidden lg:inline">Menu Domain</span>
               </button>
             )}
 
@@ -258,7 +264,7 @@ export default function App() {
               id="theme-toggle-btn"
               onClick={toggleTheme}
               aria-label="Ganti tema tampilan"
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -361,6 +367,22 @@ export default function App() {
                 tenant={activeTenant}
                 onBack={() => setClientSubView('dashboard')}
               />
+            )}
+
+            {(clientSubView === 'omnichannel' || clientSubView === 'sales-marketing') && (
+              <OmnichannelHubScreen
+                tenant={activeTenant}
+                onBack={() => setClientSubView('dashboard')}
+              />
+            )}
+
+            {clientSubView === 'analytics' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <HomeOverviewScreen
+                  tenant={activeTenant}
+                  onNavigateDetail={(target) => setClientSubView(target)}
+                />
+              </div>
             )}
 
             {clientSubView === 'intelligence' && (
@@ -590,6 +612,36 @@ export default function App() {
               <TokenOptimizationScreen
                 tenantId="d1159d6d-0044-42ea-8007-d549a0011402"
               />
+            )}
+
+            {adminSubView === 'admin_mcp' && (
+              <AdminSuperHubScreen
+                initialTab="mcp-governance"
+                onNavigate={(tab) => {
+                  if (tab === 'overview') setAdminSubView('admin_overview');
+                }}
+              />
+            )}
+
+            {adminSubView === 'admin_master_data' && (
+              <div className="py-4">
+                <JobTitleReconciliationPanel
+                  tenantId={activeTenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+                  userRole="SUPER_ADMIN"
+                />
+              </div>
+            )}
+
+            {(adminSubView === 'admin_commercial') && (
+              <FinancialCommandCenter />
+            )}
+
+            {(adminSubView === 'admin_security') && (
+              <AdminConsoleMfa />
+            )}
+
+            {(adminSubView === 'admin_monitoring') && (
+              <StartupGateReport />
             )}
 
             {adminSubView === 'admin_integrations' && (

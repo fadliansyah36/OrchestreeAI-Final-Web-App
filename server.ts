@@ -88,6 +88,9 @@ const jobTitleReconciliationService = new JobTitleReconciliationService(pool!);
 const tokenOptService = new TokenOptService(pool!);
 const agentCatalogService = new AgentCatalogService(pool!);
 
+// Mount Proactive Communication & Notification Router (Internal WhatsApp/Telegram/Alerts)
+app.use('/api/v1/proactive', createProactiveRouter(pool, modelRouterService));
+
 let supabaseClient: any = null;
 function getSupabase() {
   if (!supabaseClient && supabaseKey) {
