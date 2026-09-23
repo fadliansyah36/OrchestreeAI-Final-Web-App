@@ -97,3 +97,56 @@ Tiga pelanggaran dalam satu laporan ini:
 1. Menambahkan *in-memory fallback store* tanpa izin (melanggar Bagian 2.1).
 2. Mengganti backend menjadi Express + Vite SPA, bukan Python/FastAPI (melanggar Bagian 1).
 3. Menyarankan Cloud SQL sebagai solusi database, padahal Supabase sudah ditetapkan (melanggar Bagian 2.3).
+
+---
+
+## 9. Tata Kelola UI/UX Dashboard (Berlaku Permanen — Bukan Tugas Sekali Jalan)
+
+Aturan berikut WAJIB dipatuhi pada **setiap** pekerjaan UI baru maupun perubahan atas UI yang sudah ada di `apps/client` dan `apps/admin`, sepanjang umur proyek — bukan hanya berlaku sekali saat audit/refactor besar dilakukan. **Tidak berlaku untuk Landing Page publik** (`apps/client/app/(public)/`), yang mengikuti aturannya sendiri.
+
+### 9.1 Navigasi Dua Lapis Wajib
+- Setiap Dashboard (`apps/client`, `apps/admin`) WAJIB memakai **Bottom Navigation** (maksimum 5 item fitur paling sering diakses, ikon+label, target sentuh ≥48px, badge angka dari data nyata) DAN **`<OrchNavBar>`** (menu lengkap seluruh domain, dikelompokkan per kategori, status terkunci/terbuka mengikuti `feature_capabilities` nyata).
+- Setiap domain/fitur baru yang dibangun WAJIB didaftarkan ke `<OrchNavBar>` pada saat yang sama — dilarang ada fitur baru tanpa jalur navigasi resmi.
+
+### 9.2 Struktur Feature Hub Konsisten
+- Setiap domain WAJIB dibungkus `FeatureHubScreen` (PRD v2.2 Bagian 4.2): header domain, slot analitik ringkas, grid kartu kategori sub-fitur, feed insight bila relevan.
+- Pola navigasi Hub → detail → aksi WAJIB konsisten lintas domain (breadcrumb, tombol kembali, pola modal/drawer) — dilarang gaya navigasi unik per domain.
+- Angka yang tampil di Hub dan layar detail terkait WAJIB berasal dari query yang sama (audit konsistensi Bagian 22.3 PRD v2.2 berlaku permanen, bukan sekali audit).
+
+### 9.3 Home Overview (Client) & Ringkasan Platform (Admin)
+- `HomeOverviewScreen` WAJIB memuat, seluruhnya dari data nyata: ringkasan kerja hari ini, aksi cepat yang memicu Orchestration Engine nyata, grid kategori domain, panel analitik/statistik, dan **Leaderboard Ranking Human vs AI Agent** (toggle Semua/Human/AI Agent) dari `performance_scores_monthly` nyata.
+- Setiap widget baru di Home Overview WAJIB memakai `EmptyState` jujur saat data kosong — dilarang mengisi dengan angka ilustrasi apapun, termasuk untuk keperluan demo/screenshot internal.
+
+### 9.4 Design Token & Anti-Slop (Permanen)
+- SELURUH warna, tipografi, spacing, radius, elevasi WAJIB dari `packages/design-tokens` (Bagian 5.3–5.5 PRD v2.2) — dilarang warna hex baru langsung di komponen, dilarang elemen HTML polos tanpa restyle token.
+- Checklist Anti-Slop (Bagian 5.2) WAJIB dijalankan sebagai bagian dari setiap perubahan UI, bukan hanya saat audit besar terjadwal.
+
+### 9.5 Dark/Light Mode Wajib Berfungsi Penuh
+- Setiap komponen baru WAJIB diuji di kedua tema sebelum dianggap selesai — toggle harus benar-benar mengubah `data-theme` di DOM dan seluruh token warna ikut berubah. Regresi tema pada komponen baru dianggap bug *blocking*, bukan cacat kosmetik minor.
+
+### 9.6 Responsive Wajib Diuji Nyata, Bukan Diasumsikan
+- Setiap komponen/layar baru WAJIB diuji nyata pada minimal 3 lebar viewport (mobile ~375px, tablet ~768px, desktop ~1280px) sebelum dianggap selesai — modal, card, container, button, image, dan tabel/chart tidak boleh overflow/terpotong pada lebar manapun. Ini berlaku permanen untuk setiap perubahan UI, bukan hanya saat audit responsive besar dijalankan sekali.
+
+---
+
+## 10. Kebersihan Repository — Artefak Uji Coba & File Sementara
+
+AI Agent Coding sering meninggalkan file sisa hasil proses verifikasi (skrip debug sekali pakai, dump data uji, log percobaan, folder `tmp_test/`, dsb.) yang tertinggal di repository setelah tugas selesai. Ini **dilarang** dan diatur tegas sebagai berikut.
+
+### 10.1 Dua Kategori File Terkait Pengujian — Jangan Disamakan
+1. **Test suite permanen** (`apps/backend/tests/`, `apps/client/**/*.test.tsx`, `apps/admin/**/*.test.tsx`, suite Playwright E2E) — ini bagian dari kode produksi, WAJIB di-commit dan dipelihara, bukan dihapus.
+2. **Artefak verifikasi sementara/sekali pakai** — skrip ad-hoc untuk mengecek sesuatu secara manual (mis. `check_connection.py`, `debug_output.json`, `test_manual.ts` di root, log hasil `curl`, dump respons API untuk dibaca sendiri oleh AI Agent Coding saat diagnosis) — ini **bukan** bagian dari kode produk dan **WAJIB DIHAPUS** sebelum tugas dilaporkan selesai.
+
+### 10.2 Aturan Wajib
+- Setiap kali AI Agent Coding membuat file HANYA untuk verifikasi/diagnosis sendiri selama satu sesi kerja (bukan untuk dijalankan ulang sebagai bagian dari CI/test suite resmi), file tersebut **wajib dihapus di akhir sesi yang sama**, sebelum melaporkan tugas selesai — bukan dibiarkan menumpuk di repo.
+- Bila sebuah skrip verifikasi dianggap berguna untuk dipakai ulang (bukan sekali pakai), file tersebut wajib dipindahkan ke lokasi resmi (`apps/backend/tests/`, atau `scripts/` dengan dokumentasi singkat kegunaannya) dan didaftarkan secara sadar — bukan tertinggal secara tidak sengaja.
+- Dilarang membuat file scratch di root repository ATAU di dalam folder kode produksi (`apps/*/app`, `apps/*/src`). Bila perlu ruang kerja sementara, gunakan direktori yang sudah masuk `.gitignore` (mis. `.scratch/`) yang tidak pernah ikut ter-commit.
+- Sebelum menyatakan tugas selesai, jalankan `git status` dan review setiap file baru yang muncul — file yang tidak jelas kegunaannya dalam struktur repo resmi (Bagian B `OrchestreeAI_Fase_Prompt_Implementasi.md`) WAJIB dihapus atau dijelaskan eksplisit alasan tetap ada.
+
+### 10.3 Penegakan CI
+- Tambahkan job CI yang menolak commit berisi pola nama file mencurigakan di luar folder resmi: `debug_*`, `temp_*`, `tmp_*`, `test_manual*`, `*_scratch*`, `check_*.py` di root, `*.log` yang ter-commit — kecuali sudah masuk `.gitignore` sejak awal.
+- CI Content Gate yang sudah ada (Bagian 4) diperluas untuk turut memindai keberadaan file-file semacam ini, sebagai bagian dari gate yang sama.
+
+### 10.4 Tambahan pada Self-Check Bagian 4
+- [ ] `git status`/`git diff --stat` sudah direview, tidak ada file sisa verifikasi/debug ikut ter-commit.
+- [ ] Setiap file baru di luar struktur repo resmi sudah dihapus atau dipindah ke lokasi resmi dengan alasan jelas.

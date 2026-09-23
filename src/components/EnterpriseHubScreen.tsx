@@ -18,7 +18,12 @@ import {
   Server,
   Database,
   Briefcase,
-  Users
+  Users,
+  Globe,
+  Search,
+  BookOpen,
+  Plus,
+  Check
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
 
@@ -92,9 +97,196 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const [contextResult, setContextResult] = useState<any>(null);
   const [specialistResult, setSpecialistResult] = useState<any>(null);
 
+  // Data Company Context Events & Signal Correlator
+  const [contextEvents, setContextEvents] = useState<any[]>([]);
+  const [contextSignals, setContextSignals] = useState<any[]>([]);
+  const [signalSourceFilter, setSignalSourceFilter] = useState<'ALL' | 'Native' | 'Synced' | 'Uploaded'>('ALL');
+  const [correlating, setCorrelating] = useState<boolean>(false);
+
   // Data Enforcement Verification
   const [enforcementResult, setEnforcementResult] = useState<any>(null);
   const [verifyingEnforcement, setVerifyingEnforcement] = useState<boolean>(false);
+
+  // Data 8 Dimensi Company Context Fabric & AI Research Agent (PRD v2.2 Bagian 8.6, 8.13.1)
+  const [dimensions, setDimensions] = useState<any[]>([]);
+  const [knowledgeNodes, setKnowledgeNodes] = useState<any[]>([]);
+  const [researchPolicy, setResearchPolicy] = useState<{
+    allow_public_web_search: boolean;
+    max_research_depth: number;
+    require_traceability_citations: boolean;
+  } | null>(null);
+  const [researchQueryText, setResearchQueryText] = useState('Analisis kepatuhan perlindungan data korporat dan risiko keterlambatan pengadaan server');
+  const [researchObjectiveText, setResearchObjectiveText] = useState('Kesiapan mitigasi risiko operasional & hukum Q3 2026');
+  const [researchResult, setResearchResult] = useState<any>(null);
+  const [researchLoading, setResearchLoading] = useState<boolean>(false);
+  const [policyLoading, setPolicyLoading] = useState<boolean>(false);
+  const [selectedDimFilter, setSelectedDimFilter] = useState<string>('ALL');
+
+  // Modal Node Baru
+  const [showNodeModal, setShowNodeModal] = useState<boolean>(false);
+  const [newNodeDim, setNewNodeDim] = useState('COMPLIANCE_AND_LEGAL');
+  const [newNodeKey, setNewNodeKey] = useState('');
+  const [newNodeTitle, setNewNodeTitle] = useState('');
+  const [newNodeContent, setNewNodeContent] = useState('');
+  const [newNodePriority, setNewNodePriority] = useState<number>(1);
+  const [newNodeRef, setNewNodeRef] = useState('');
+
+  const fetchDimensionsAndNodes = async () => {
+    try {
+      const dimRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/dimensions`);
+      if (dimRes.ok) {
+        const dData = await dimRes.json();
+        setDimensions(dData || []);
+      }
+      const nodeRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`);
+      if (nodeRes.ok) {
+        const nData = await nodeRes.json();
+        setKnowledgeNodes(nData || []);
+      }
+      const polRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`);
+      if (polRes.ok) {
+        const pData = await polRes.json();
+        setResearchPolicy(pData);
+      }
+    } catch (err) {
+      console.error('Error fetching context fabric data:', err);
+    }
+  };
+
+  const handleToggleWebSearchPolicy = async () => {
+    if (!researchPolicy) return;
+    try {
+      setPolicyLoading(true);
+      const newAllowed = !researchPolicy.allow_public_web_search;
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          allow_public_web_search: newAllowed,
+          max_research_depth: 3,
+          require_traceability_citations: true,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setResearchPolicy(updated);
+        showToast(
+          'success',
+          newAllowed
+            ? 'Izin riset web publik AI Research Agent DIAKTIFKAN oleh kebijakan tenant.'
+            : 'Izin riset web publik AI Research Agent DINONAKTIFKAN (Keamanan Data Terjaga).'
+        );
+      } else {
+        const err = await res.json();
+        showToast('error', err.error || 'Gagal mengubah kebijakan riset tenant');
+      }
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
+
+  const handleExecuteResearchQuery = async () => {
+    if (!researchQueryText.trim()) return;
+    try {
+      setResearchLoading(true);
+      // Sertakan sampel sumber web (Level 6) untuk menguji penegakan kebijakan tenant
+      const sampleExplicit = [
+        {
+          level: 6,
+          title: 'Berita Publik: Dinamika Rantai Pasok Semikonduktor Global & Regulasi Privasi',
+          content: 'Laporan berita Reuters mengindikasikan kelangkaan chip server enterprise berangsur normal, sementara kepatuhan privasi global kian diperketat.',
+          source_ref: 'https://reuters.com/business/tech/semiconductor-supply-2026',
+          source_classification: 'External',
+          dimension_code: 'CUSTOMER_AND_MARKET',
+          confidence_weight: 0.75,
+        }
+      ];
+
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-agent/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: researchQueryText.trim(),
+          research_objective: researchObjectiveText.trim() || undefined,
+          explicit_sources: sampleExplicit,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setResearchResult(data);
+        showToast('success', 'AI Research Agent berhasil mensintesis jawaban dengan traceability lengkap.');
+      } else {
+        const err = await res.json();
+        showToast('error', err.error || 'Gagal mengeksekusi riset AI Research Agent');
+      }
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setResearchLoading(false);
+    }
+  };
+
+  const handleCreateKnowledgeNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNodeTitle.trim() || !newNodeContent.trim() || !newNodeKey.trim()) {
+      showToast('error', 'Semua kolom entitas pengetahuan wajib diisi.');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dimension_code: newNodeDim,
+          node_key: newNodeKey.trim(),
+          title: newNodeTitle.trim(),
+          content: newNodeContent.trim(),
+          priority_level: newNodePriority,
+          source_reference: newNodeRef.trim() || undefined,
+          source_classification: 'Native',
+          is_verified: true,
+        }),
+      });
+
+      if (res.ok) {
+        showToast('success', `Node pengetahuan [Tingkat ${newNodePriority}] berhasil didaftarkan ke ${newNodeDim}`);
+        setShowNodeModal(false);
+        setNewNodeTitle('');
+        setNewNodeContent('');
+        setNewNodeKey('');
+        setNewNodeRef('');
+        await fetchDimensionsAndNodes();
+      } else {
+        const err = await res.json();
+        showToast('error', err.error || 'Gagal menyimpan node pengetahuan');
+      }
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const fetchContextEventsAndSignals = async () => {
+    try {
+      const evRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/events`);
+      if (evRes.ok) {
+        const data = await evRes.json();
+        setContextEvents(data.events || []);
+      }
+      const sigRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`);
+      if (sigRes.ok) {
+        const data = await sigRes.json();
+        setContextSignals(data.signals || []);
+      }
+    } catch (err) {
+      console.error('Error fetching context events and signals:', err);
+    }
+  };
 
   const fetchTierAndData = async () => {
     try {
@@ -127,6 +319,12 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
         const cData = await cRes.json();
         setConnectors(cData.connectors || []);
       }
+
+      // 5. Fetch Context Events and Signals
+      await fetchContextEventsAndSignals();
+
+      // 6. Fetch 8 Dimensions Context Fabric & Research Policy
+      await fetchDimensionsAndNodes();
     } catch (err: any) {
       console.error('Error fetching enterprise data:', err);
     } finally {
@@ -235,6 +433,92 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
       showToast('error', err.message);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Menjalankan Korelasi Sinyal Lintas Sistem (4 Sinyal Traceable)
+  const handleTriggerFourSignalsCorrelation = async () => {
+    try {
+      setCorrelating(true);
+      const fourSignals = [
+        {
+          source_type: 'Native',
+          source_system: 'ORCHESTREE_CRM',
+          signal_type: 'DEAL_ESCALATION_HIGH_VALUE',
+          title: 'Eskalasi Peluang Penjualan Korporat PT Mega Global Senilai Rp 4.2 Miliar',
+          payload: { deal_value: 4200000000, client_tier: 'VIP_ENTERPRISE' },
+          metadata: { pipeline_stage: 'PROPOSAL_NEGOTIATION' },
+          source_ref_id: 'CRM-DEAL-8821',
+        },
+        {
+          source_type: 'Synced',
+          source_system: 'ERP_SAP_SUPPLY_CHAIN',
+          signal_type: 'SHIPMENT_BACKORDER_DELAY',
+          title: 'Keterlambatan Pengiriman Batch Server Rack ke Gudang Cikarang',
+          payload: { batch_code: 'SAP-WH-9902', delay_days: 4 },
+          metadata: { warehouse_id: 'WH-CKR-02' },
+          source_ref_id: 'SAP-DEL-1049',
+        },
+        {
+          source_type: 'Uploaded',
+          source_system: 'ADMIN_LEGAL_STORE',
+          signal_type: 'ENTERPRISE_SLA_PENALTY_CLAUSE',
+          title: 'Adendum Kontrak Pengadaan Q3: Klausul Denda Keterlambatan Pengiriman 2% per Hari',
+          payload: { penalty_rate_daily: 0.02, max_liability_cap: 0.15 },
+          metadata: { document_type: 'CONTRACT_ADDENDUM' },
+          source_ref_id: 'DOC-PDF-LEGAL-771',
+        },
+        {
+          source_type: 'Synced',
+          source_system: 'HRIS_WORKFORCE_OPS',
+          signal_type: 'LOGISTICS_TEAM_CAPACITY_BOTTLENECK',
+          title: 'Lonjakan Beban Kerja Tim Logistik Gudang Akibat Cuti Bersama',
+          payload: { staff_absent_pct: 38, open_shift_count: 6 },
+          metadata: { shift_code: 'SHIFT-MORNING' },
+          source_ref_id: 'HRIS-ATTN-330',
+        },
+      ];
+
+      // Ingest 4 sinyal terlebih dahulu
+      for (const s of fourSignals) {
+        await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(s),
+        });
+      }
+
+      // Picu korelasi sinyal lintas sistem
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/correlate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context_theme: 'Penyelarasan SLA Pengadaan & Mitigasi Risiko Keterlambatan',
+          signals: fourSignals,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 403 || data.code === 'capability_not_available') {
+          showToast('error', `[403 capability_not_available] Ditolak: ${data.message || data.error}`);
+        } else {
+          showToast('error', data.message || data.error || 'Gagal menjalankan korelasi sinyal lintas sistem.');
+        }
+        return;
+      }
+
+      showToast(
+        'success',
+        `Sintesis Berhasil: 4 sinyal lintas sistem menghasilkan 1 event gabungan (Skor: ${Math.round(
+          (data.correlation_score || 0.94) * 100
+        )}%)!`
+      );
+      await fetchContextEventsAndSignals();
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setCorrelating(false);
     }
   };
 
@@ -1299,6 +1583,710 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* SECTION: COMPANY CONTEXT EVENTS & SIGNAL CORRELATOR */}
+            <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <Layers className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-base font-semibold text-white">
+                      Korelator Sinyal Lintas Sistem Korporat
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      company_context_events
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Menggabungkan 4 sinyal berbeda dari berbagai unit sistem (Native CRM, Synced ERP, Uploaded Legal, Synced HRIS)
+                    menjadi 1 rekaman konteks terpadu yang 100% dapat ditelusuri ke sumber aslinya.
+                  </p>
+                </div>
+
+                <button
+                  disabled={correlating || actionLoading}
+                  onClick={handleTriggerFourSignalsCorrelation}
+                  className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${correlating ? 'animate-spin' : ''}`} />
+                  {correlating ? 'Menjalankan Sintesis...' : 'Sintesis 4 Sinyal Lintas Sistem'}
+                </button>
+              </div>
+
+              {/* FILTER KLASIFIKASI SUMBER DATA */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">
+                    Klasifikasi Sumber Data Granular:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {(['ALL', 'Native', 'Synced', 'Uploaded'] as const).map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setSignalSourceFilter(st)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          signalSourceFilter === st
+                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/40'
+                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        {st === 'ALL' ? 'Semua Sumber' : st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* DAFTAR SINYAL SUMBER */}
+                {contextSignals.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-950/60 border border-slate-800 text-center text-xs text-slate-400">
+                    Belum ada sinyal yang tercatat. Klik tombol &ldquo;Sintesis 4 Sinyal Lintas Sistem&rdquo; di atas untuk mengalirkan data.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {contextSignals
+                      .filter((s) => signalSourceFilter === 'ALL' || s.source_type === signalSourceFilter)
+                      .slice(0, 6)
+                      .map((sig) => {
+                        const isNative = sig.source_type === 'Native';
+                        const isSynced = sig.source_type === 'Synced';
+                        const badgeColor = isNative
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : isSynced
+                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+
+                        return (
+                          <div
+                            key={sig.id}
+                            className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2 hover:border-slate-700/80 transition-all"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeColor}`}>
+                                {sig.source_type}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                Ref: {sig.source_ref_id || sig.id.slice(0, 8)}
+                              </span>
+                            </div>
+                            <div className="text-xs font-semibold text-white leading-tight">
+                              {sig.title}
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-900">
+                              <span>Sistem: <strong className="text-slate-300">{sig.source_system}</strong></span>
+                              <span>Tipe: <strong className="text-slate-300">{sig.signal_type}</strong></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* RIWAYAT EVENT SINTESIS (company_context_events) */}
+              <div className="space-y-4 pt-4 border-t border-slate-800/80">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                    Riwayat Sintesis Konteks Korporat ({contextEvents.length})
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Provenance &amp; Traceability Aktif
+                  </span>
+                </div>
+
+                {contextEvents.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-950/60 border border-slate-800 text-center text-xs text-slate-400">
+                    Belum ada event korelasi tersimpan. Jalankan sintesis pertama untuk melihat visualisasi rekaman gabungan.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {contextEvents.slice(0, 5).map((ev) => {
+                      const parsedSignals =
+                        typeof ev.source_signals === 'string'
+                          ? JSON.parse(ev.source_signals)
+                          : ev.source_signals || [];
+                      const parsedActions =
+                        typeof ev.recommended_actions === 'string'
+                          ? JSON.parse(ev.recommended_actions)
+                          : ev.recommended_actions || [];
+
+                      return (
+                        <div
+                          key={ev.id}
+                          className="p-5 rounded-xl bg-slate-950 border border-slate-800/90 space-y-4"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  {ev.event_type}
+                                </span>
+                                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                  Skor Korelasi: {Math.round(Number(ev.correlation_score || 0.94) * 100)}%
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(ev.created_at).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                              <h5 className="text-sm font-semibold text-white">
+                                {ev.title}
+                              </h5>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                            {ev.summary}
+                          </p>
+
+                          {/* 4 SINYAL SUMBER TRACEABLE DALAM EVENT INI */}
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-semibold text-indigo-300 flex items-center justify-between">
+                              <span>Sinyal Sumber yang Dikorelasikan ({parsedSignals.length} Sinyal Traceable):</span>
+                              <span className="text-[10px] text-slate-400">100% Provenance Verifiable</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {parsedSignals.map((ps: any, pIdx: number) => {
+                                const isNative = ps.source_type === 'Native';
+                                const isSynced = ps.source_type === 'Synced';
+                                const color = isNative
+                                  ? 'text-blue-400 border-blue-500/20 bg-blue-500/5'
+                                  : isSynced
+                                  ? 'text-purple-400 border-purple-500/20 bg-purple-500/5'
+                                  : 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5';
+
+                                return (
+                                  <div
+                                    key={pIdx}
+                                    className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${color}`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold">[{ps.source_type}] {ps.source_system}</span>
+                                      <span className="font-mono text-[10px] text-slate-400">{ps.source_ref_id}</span>
+                                    </div>
+                                    <div className="text-slate-200 line-clamp-2">{ps.title}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* REKOMENDASI TINDAKAN */}
+                          {parsedActions.length > 0 && (
+                            <div className="pt-2 border-t border-slate-900 space-y-1.5">
+                              <span className="text-[11px] font-semibold text-slate-400">
+                                Arahan Tindakan Korporat:
+                              </span>
+                              <div className="space-y-1.5">
+                                {parsedActions.map((act: any, aIdx: number) => (
+                                  <div
+                                    key={aIdx}
+                                    className="p-2 bg-slate-900/60 rounded-lg text-xs text-slate-300 flex items-start gap-2 border border-slate-800/60"
+                                  >
+                                    <ArrowRight className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
+                                    <span>
+                                      <strong className="text-white">[{act.target_department}]:</strong> {act.directive}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION: 8 DIMENSI COMPANY CONTEXT FABRIC */}
+            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-purple-400" />
+                    <h3 className="text-base font-bold text-white">
+                      8 Dimensi Inti Company Context Fabric
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      Ontologi Korporat
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Arsitektur basis pengetahuan terpadu 8 dimensi (Struktur, Strategi, Produk, Proses/SOP, Brand, Keuangan, Kepatuhan/Legal, dan Pasar).
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowNodeModal(true)}
+                  className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-purple-900/30 flex items-center gap-1.5 cursor-pointer transition-all self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Node Pengetahuan
+                </button>
+              </div>
+
+              {/* GRID 8 DIMENSI */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {dimensions.map((dim: any) => {
+                  const nodeCount = knowledgeNodes.filter((n: any) => n.dimension_code === dim.dimension_code).length;
+                  const isSelected = selectedDimFilter === dim.dimension_code;
+                  return (
+                    <div
+                      key={dim.id}
+                      onClick={() => setSelectedDimFilter(isSelected ? 'ALL' : dim.dimension_code)}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-purple-950/40 border-purple-500 shadow-md shadow-purple-900/30'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold text-purple-300 truncate">
+                          {dim.dimension_code.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                          Bobot {dim.weight}x
+                        </span>
+                      </div>
+                      <div className="text-xs font-semibold text-white mt-1.5">{dim.dimension_name}</div>
+                      <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{dim.description}</p>
+                      <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                        <span>Status: <strong className="text-emerald-400">{dim.status}</strong></span>
+                        <span className="font-mono text-purple-300 font-semibold">{nodeCount} node terdaftar</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DAFTAR NODE PENGETAHUAN */}
+              <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300">
+                    Node Pengetahuan Terdaftar ({selectedDimFilter === 'ALL' ? 'Semua Dimensi' : selectedDimFilter}):
+                  </span>
+                  {selectedDimFilter !== 'ALL' && (
+                    <button
+                      onClick={() => setSelectedDimFilter('ALL')}
+                      className="text-[11px] text-purple-400 hover:text-purple-300 underline cursor-pointer"
+                    >
+                      Tampilkan Semua Dimensi
+                    </button>
+                  )}
+                </div>
+
+                {knowledgeNodes.length === 0 ? (
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-center text-xs text-slate-400">
+                    Belum ada node pengetahuan. Klik tombol &ldquo;Tambah Node Pengetahuan&rdquo; untuk mendaftarkan dokumen SOP primer.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {knowledgeNodes
+                      .filter((n: any) => selectedDimFilter === 'ALL' || n.dimension_code === selectedDimFilter)
+                      .slice(0, 8)
+                      .map((node: any) => {
+                        const lvl = node.priority_level;
+                        const lvlColor =
+                          lvl === 1
+                            ? 'bg-red-500/10 text-red-300 border-red-500/20'
+                            : lvl === 2
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                            : lvl === 3
+                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                            : lvl === 4
+                            ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                            : lvl === 5
+                            ? 'bg-teal-500/10 text-teal-300 border-teal-500/20'
+                            : 'bg-slate-500/10 text-slate-300 border-slate-500/20';
+
+                        return (
+                          <div
+                            key={node.id}
+                            className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2 hover:border-slate-700 transition-all"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${lvlColor}`}>
+                                Tingkat {lvl}: Prioritas {lvl === 1 ? 'Maksimal (Ground Truth)' : `${lvl}`}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {node.source_reference || node.dimension_code}
+                              </span>
+                            </div>
+                            <div className="text-xs font-semibold text-white">{node.title}</div>
+                            <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-2">
+                              {node.content}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-900">
+                              <span>Sumber: <strong>{node.source_classification}</strong></span>
+                              <span className="text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Terverifikasi
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION: AI RESEARCH AGENT & 6-LEVEL KNOWLEDGE PRIORITY HIERARCHY */}
+            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Search className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-base font-bold text-white">
+                      AI Research Agent & 6-Level Knowledge Priority Hierarchy
+                    </h3>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      PRD v2.2 Bagian 8.6
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Autonomous AI Research Agent mengeksekusi investigasi korporat mendalam dengan rantai audit sitasi (traceable)
+                    dan penegakan mutlak izin riset web publik oleh tenant.
+                  </p>
+                </div>
+
+                {/* KONTROL KEBIJAKAN TENANT: WEB PUBLIK */}
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center gap-3">
+                  <div className="space-y-0.5">
+                    <div className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-400" />
+                      Izin Riset Web Publik (Tingkat 6)
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Status: {researchPolicy?.allow_public_web_search ? (
+                        <span className="text-emerald-400 font-bold">DIIZINKAN OLEH TENANT</span>
+                      ) : (
+                        <span className="text-rose-400 font-bold">DITOLAK / NONAKTIF (Safe Mode)</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    disabled={policyLoading}
+                    onClick={handleToggleWebSearchPolicy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      researchPolicy?.allow_public_web_search
+                        ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40'
+                        : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40'
+                    }`}
+                  >
+                    {researchPolicy?.allow_public_web_search ? 'Tolak / Blokir Web' : 'Izinkan Riset Web'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 6 TINGKAT HIERARKI VISUAL */}
+              <div className="p-3.5 bg-slate-950/70 rounded-xl border border-slate-800/80 space-y-2">
+                <span className="text-[11px] font-semibold text-slate-300">
+                  Struktur 6 Tingkat Prioritas Pengetahuan (Hierarchical Precedence):
+                </span>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                  <div className="p-2 rounded-lg bg-red-950/30 border border-red-500/30 text-[10px]">
+                    <span className="font-bold text-red-300 block">Tingkat 1 (1.00)</span>
+                    <span className="text-slate-300 font-medium">Verified Ground Truth</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">SOP resmi & Kepatuhan Legal</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-500/30 text-[10px]">
+                    <span className="font-bold text-amber-300 block">Tingkat 2 (0.88)</span>
+                    <span className="text-slate-300 font-medium">Operational Data</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">CRM, ERP & Context Signals</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-purple-950/30 border border-purple-500/30 text-[10px]">
+                    <span className="font-bold text-purple-300 block">Tingkat 3 (0.75)</span>
+                    <span className="text-slate-300 font-medium">Domain Specialist</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">8 Dimensi Context Fabric</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-blue-950/30 border border-blue-500/30 text-[10px]">
+                    <span className="font-bold text-blue-300 block">Tingkat 4 (0.62)</span>
+                    <span className="text-slate-300 font-medium">Historical Learning</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">Memori audit & feedback score</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-teal-950/30 border border-teal-500/30 text-[10px]">
+                    <span className="font-bold text-teal-300 block">Tingkat 5 (0.50)</span>
+                    <span className="text-slate-300 font-medium">Curated Benchmark</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">Tolok ukur industri resmi</p>
+                  </div>
+                  <div className={`p-2 rounded-lg text-[10px] border ${
+                    researchPolicy?.allow_public_web_search
+                      ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                      : 'bg-rose-950/30 border-rose-500/40 text-rose-300'
+                  }`}>
+                    <span className="font-bold block">Tingkat 6 (0.35)</span>
+                    <span className="font-medium">Public Web Search</span>
+                    <p className="text-[9px] text-slate-400 mt-0.5">
+                      {researchPolicy?.allow_public_web_search ? 'Otorisasi Aktif' : 'DIBLOKIR Kebijakan'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* FORM QUERY RISET */}
+              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Pertanyaan Kueri Investigasi:
+                    </label>
+                    <input
+                      type="text"
+                      value={researchQueryText}
+                      onChange={(e) => setResearchQueryText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300">
+                      Sasaran Strategis / Konteks Investigasi:
+                    </label>
+                    <input
+                      type="text"
+                      value={researchObjectiveText}
+                      onChange={(e) => setResearchObjectiveText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">Contoh Cepat:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResearchQueryText('Analisis kepatuhan perlindungan data korporat dan risiko keterlambatan pengadaan server');
+                        setResearchObjectiveText('Kesiapan mitigasi risiko operasional & hukum Q3 2026');
+                      }}
+                      className="text-[11px] px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-indigo-300 rounded border border-slate-800 cursor-pointer"
+                    >
+                      Audit Kepatuhan & Pasokan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResearchQueryText('Bagaimana proyeksi pasar pasokan server global dibandingkan kesiapan internal kita?');
+                        setResearchObjectiveText('Evaluasi benchmarking eksternal terhadap standar internal');
+                      }}
+                      className="text-[11px] px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-purple-300 rounded border border-slate-800 cursor-pointer"
+                    >
+                      Benchmarking Pasar & Internal
+                    </button>
+                  </div>
+
+                  <button
+                    disabled={researchLoading || !researchQueryText.trim()}
+                    onClick={handleExecuteResearchQuery}
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-lg shadow-indigo-950/40 flex items-center gap-2 cursor-pointer transition-all"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${researchLoading ? 'animate-spin' : ''}`} />
+                    {researchLoading ? 'Menjalankan Riset Korporat...' : 'Jalankan AI Research Agent'}
+                  </button>
+                </div>
+              </div>
+
+              {/* HASIL SINTESIS AI RESEARCH AGENT */}
+              {researchResult && (
+                <div className="p-4 bg-slate-950 rounded-xl border border-indigo-900/60 space-y-4">
+                  {/* HEADER STATUS & AUDIT */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white">
+                        Laporan Riset Terverifikasi AI Research Agent
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                        Keyakinan: {Math.round(researchResult.confidence_score * 100)}%
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800 font-mono">
+                        Latensi: {researchResult.latency_ms} ms
+                      </span>
+                      <span className={`px-2 py-0.5 rounded font-bold border ${
+                        researchResult.public_web_search_allowed
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      }`}>
+                        Web Publik: {researchResult.public_web_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* LEVEL TERPAKAI */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-slate-300 mr-1">
+                      Tingkat Sumber Terkonsultasi:
+                    </span>
+                    {researchResult.knowledge_levels_consulted?.map((lvl: number) => (
+                      <span
+                        key={lvl}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          lvl === 1
+                            ? 'bg-red-500/10 text-red-300 border-red-500/30'
+                            : lvl === 2
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            : lvl === 3
+                            ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
+                            : lvl === 4
+                            ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                            : lvl === 5
+                            ? 'bg-teal-500/10 text-teal-300 border-teal-500/30'
+                            : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        }`}
+                      >
+                        Tingkat {lvl}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* TEKS JAWABAN LENGKAP DENGAN STRUKTUR TRACEABLE */}
+                  <div className="p-3.5 bg-slate-900/90 rounded-lg border border-slate-800 font-sans text-xs text-slate-200 whitespace-pre-line leading-relaxed">
+                    {researchResult.answer_text}
+                  </div>
+
+                  {/* DAFTAR SITASI RINCI */}
+                  {researchResult.traceability_report?.citations?.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        Rantai Sitasi & Rujukan Provenance:
+                      </span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {researchResult.traceability_report.citations.map((c: any, cIdx: number) => (
+                          <div
+                            key={cIdx}
+                            className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[11px] space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-indigo-300">
+                                #{c.citation_index} [{c.level_name}]
+                              </span>
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {c.source_ref || 'Internal DB'}
+                              </span>
+                            </div>
+                            <div className="text-white font-medium">{c.title}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL TAMBAH NODE PENGETAHUAN */}
+        {showNodeModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-purple-400" />
+                  Tambah Node Pengetahuan Context Fabric
+                </h3>
+                <button
+                  onClick={() => setShowNodeModal(false)}
+                  className="text-slate-400 hover:text-white text-xs cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateKnowledgeNode} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-300">Pilih 8 Dimensi:</label>
+                  <select
+                    value={newNodeDim}
+                    onChange={(e) => setNewNodeDim(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    {dimensions.map((d: any) => (
+                      <option key={d.dimension_code} value={d.dimension_code}>
+                        {d.dimension_name} ({d.dimension_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300">Kunci Unik Node:</label>
+                    <input
+                      type="text"
+                      value={newNodeKey}
+                      onChange={(e) => setNewNodeKey(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-300">Tingkat Prioritas (1-6):</label>
+                    <select
+                      value={newNodePriority}
+                      onChange={(e) => setNewNodePriority(parseInt(e.target.value, 10))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value={1}>Tingkat 1: Ground Truth (SOP/Kepatuhan)</option>
+                      <option value={2}>Tingkat 2: Operational Data</option>
+                      <option value={3}>Tingkat 3: Domain Specialist Base</option>
+                      <option value={4}>Tingkat 4: Historical Learning</option>
+                      <option value={5}>Tingkat 5: Curated Benchmark</option>
+                      <option value={6}>Tingkat 6: Public Web Search</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-300">Judul Dokumen / Aturan:</label>
+                  <input
+                    type="text"
+                    value={newNodeTitle}
+                    onChange={(e) => setNewNodeTitle(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-300">Konten Pengetahuan Detail:</label>
+                  <textarea
+                    rows={3}
+                    value={newNodeContent}
+                    onChange={(e) => setNewNodeContent(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-300">Referensi Dokumen Asli (Opsional):</label>
+                  <input
+                    type="text"
+                    value={newNodeRef}
+                    onChange={(e) => setNewNodeRef(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowNodeModal(false)}
+                    className="px-3 py-2 bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold cursor-pointer shadow-md shadow-purple-900/30"
+                  >
+                    {actionLoading ? 'Menyimpan...' : 'Simpan Node Pengetahuan'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -632,10 +632,10 @@ export const AIDataPermissionScreen: React.FC<AIDataPermissionScreenProps> = ({
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input
                 type="text"
-                placeholder="Cari Persona AI..."
+                aria-label="Cari Persona AI"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 

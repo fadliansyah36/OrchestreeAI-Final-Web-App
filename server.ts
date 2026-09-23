@@ -5898,6 +5898,136 @@ app.get('/api/v1/tenants/:tenantId/enterprise/enforcement-check', async (req, re
   }
 });
 
+// 14. Company Context Events & Signals (PRD v2.2 Bagian 8.13.1)
+app.get('/api/v1/tenants/:tenantId/enterprise/context/events', async (req, res) => {
+  try {
+    const limit = parseInt(String(req.query.limit || 50), 10);
+    const events = await enterpriseService.listCompanyContextEvents(req.params.tenantId, limit);
+    return res.json({ events, count: events.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/enterprise/context/signals', async (req, res) => {
+  try {
+    const signal = await enterpriseService.ingestCompanyContextSignal(req.params.tenantId, req.body);
+    return res.status(201).json({ status: 'INGESTED', data: signal });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/enterprise/context/signals', async (req, res) => {
+  try {
+    const { source_type, limit = 50 } = req.query;
+    const signals = await enterpriseService.listCompanyContextSignals(
+      req.params.tenantId,
+      typeof source_type === 'string' ? source_type : undefined,
+      parseInt(String(limit), 10)
+    );
+    return res.json({ signals, count: signals.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/enterprise/context/correlate', async (req, res) => {
+  try {
+    const { signals, context_theme } = req.body || {};
+    const result = await enterpriseService.correlateCrossSystemSignals(
+      req.params.tenantId,
+      signals,
+      context_theme
+    );
+    return res.status(201).json(result);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 400);
+    return res.status(status).json({
+      error: err.code || 'correlation_error',
+      code: err.code || 'correlation_error',
+      message: err.message,
+    });
+  }
+});
+
+// 15. 8 Dimensi Company Context Fabric & AI Research Agent (PRD v2.2 Bagian 8.6, 8.13.1)
+app.get('/api/v1/tenants/:tenantId/enterprise/context-fabric/dimensions', async (req, res) => {
+  try {
+    const dimensions = await enterpriseService.listContextFabricDimensions(req.params.tenantId);
+    return res.json(dimensions);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/enterprise/context-fabric/nodes', async (req, res) => {
+  try {
+    const { dimension_code, priority_level, limit } = req.query;
+    const nodes = await enterpriseService.listContextKnowledgeNodes(
+      req.params.tenantId,
+      typeof dimension_code === 'string' ? dimension_code : undefined,
+      priority_level ? parseInt(String(priority_level), 10) : undefined,
+      limit ? parseInt(String(limit), 10) : 100
+    );
+    return res.json(nodes);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/enterprise/context-fabric/nodes', async (req, res) => {
+  try {
+    const node = await enterpriseService.createOrUpdateContextKnowledgeNode(req.params.tenantId, req.body);
+    return res.status(201).json(node);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 400);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/enterprise/research-policy', async (req, res) => {
+  try {
+    const policy = await enterpriseService.getTenantResearchPolicy(req.params.tenantId);
+    return res.json(policy);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+app.put('/api/v1/tenants/:tenantId/enterprise/research-policy', async (req, res) => {
+  try {
+    const policy = await enterpriseService.updateTenantResearchPolicy(req.params.tenantId, req.body);
+    return res.json(policy);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 400);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/enterprise/research-agent/query', async (req, res) => {
+  try {
+    const { query, researchObjective, explicitSources, allowWebOverride } = req.body || {};
+    if (!query || !query.trim()) {
+      return res.status(400).json({ error: 'Parameter query wajib diisi.' });
+    }
+    const result = await enterpriseService.executeResearchAgentQuery(req.params.tenantId, {
+      query: query.trim(),
+      researchObjective,
+      explicitSources,
+      allowWebOverride,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+
 // 9. Vite Middleware Setup
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
