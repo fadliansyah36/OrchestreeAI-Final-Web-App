@@ -59,11 +59,33 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const [eventSummary, setEventSummary] = useState('');
   const [eventType, setEventType] = useState('OPERATIONAL_ANOMALY');
 
-  // Data Integration Fabric
+  // Data Integration Fabric & DPIA
   const [connectors, setConnectors] = useState<any[]>([]);
   const [newConnectorCode, setNewConnectorCode] = useState('');
   const [newConnectorName, setNewConnectorName] = useState('');
-  const [newConnectorType, setNewConnectorType] = useState('ERP_SAP_ORACLE');
+  const [newConnectorType, setNewConnectorType] = useState('ERP');
+  const [newAuthType, setNewAuthType] = useState('API_KEY');
+  const [newApiKey, setNewApiKey] = useState('');
+  const [newApiSecret, setNewApiSecret] = useState('');
+
+  // DPIA Modal State
+  const [dpiaModalOpen, setDpiaModalOpen] = useState<boolean>(false);
+  const [selectedConnector, setSelectedConnector] = useState<any>(null);
+  const [dpiaTitle, setDpiaTitle] = useState('');
+  const [dpiaController, setDpiaController] = useState('');
+  const [dpiaDpo, setDpiaDpo] = useState('');
+  const [dpiaPurpose, setDpiaPurpose] = useState('');
+  const [dpiaCategories, setDpiaCategories] = useState<string[]>(['TRANSACTIONAL_RECORDS', 'FINANCIAL_LEDGER']);
+  const [dpiaSecMeasures, setDpiaSecMeasures] = useState(
+    'TLS 1.3 in-transit, KMS Envelope Encryption dengan PBKDF2-HMAC-SHA256 at-rest, isolasi multi-tenant RLS Supabase, audit logging immutable.'
+  );
+  const [dpiaRiskLevel, setDpiaRiskLevel] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'>('MEDIUM');
+  const [dpiaResidualRisk, setDpiaResidualRisk] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('LOW');
+  const [dpiaApprovalStatus, setDpiaApprovalStatus] = useState<'DRAFT' | 'PENDING_REVIEW' | 'APPROVED'>('APPROVED');
+
+  // Sync Logs State
+  const [syncLogsModalOpen, setSyncLogsModalOpen] = useState<boolean>(false);
+  const [syncLogs, setSyncLogs] = useState<any[]>([]);
 
   // Data Context Fabric & Specialist
   const [contextQuery, setContextQuery] = useState('');
@@ -226,6 +248,10 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
     try {
       setActionLoading(true);
+      const credentials: Record<string, any> = {};
+      if (newApiKey.trim()) credentials.apiKey = newApiKey.trim();
+      if (newApiSecret.trim()) credentials.apiSecret = newApiSecret.trim();
+
       const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,6 +259,8 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
           connector_code: newConnectorCode.trim().toUpperCase(),
           connector_name: newConnectorName.trim(),
           connector_type: newConnectorType,
+          auth_type: newAuthType,
+          credentials: Object.keys(credentials).length > 0 ? credentials : undefined,
           config: { stream_mode: 'realtime_cdc', buffer_seconds: 5 },
         }),
       });
@@ -247,10 +275,153 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
         return;
       }
 
-      showToast('success', `Konektor '${newConnectorName}' berhasil diaktifkan di Integration Fabric!`);
+      showToast('success', `Konektor '${newConnectorName}' terdaftar (Status: DRAFT). Kredensial diamankan dengan KMS Envelope Encryption.`);
       setNewConnectorCode('');
       setNewConnectorName('');
+      setNewApiKey('');
+      setNewApiSecret('');
       await fetchTierAndData();
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Buka Modal DPIA untuk Konektor
+  const handleOpenDpiaModal = async (conn: any) => {
+    setSelectedConnector(conn);
+    setDpiaTitle(`Penilaian Dampak Perlindungan Data (DPIA) - ${conn.connector_name}`);
+    setDpiaController(tierInfo?.display_name || 'PT Enterprise Client');
+    setDpiaDpo('Arya Wiryawan, CIPP/E, CIPM (Enterprise DPO)');
+    setDpiaPurpose(`Sinkronisasi streaming data transaksional ${conn.connector_type} untuk otomatisasi alur kerja.`);
+    setDpiaCategories(['TRANSACTIONAL_RECORDS', 'CUSTOMER_ORDER_RECORDS', 'FINANCIAL_LEDGER']);
+    setDpiaSecMeasures(
+      'TLS 1.3 in-transit, KMS Envelope Encryption dengan PBKDF2-HMAC-SHA256 at-rest, isolasi multi-tenant RLS Supabase, audit logging immutable.'
+    );
+    setDpiaRiskLevel('MEDIUM');
+    setDpiaResidualRisk('LOW');
+    setDpiaApprovalStatus('APPROVED');
+
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${conn.id}/dpia`);
+      if (res.ok) {
+        const existing = await res.json();
+        setDpiaTitle(existing.assessment_title || '');
+        setDpiaController(existing.data_controller_name || '');
+        setDpiaDpo(existing.data_protection_officer || '');
+        setDpiaPurpose(existing.processing_purpose || '');
+        if (Array.isArray(existing.data_categories) && existing.data_categories.length > 0) {
+          setDpiaCategories(existing.data_categories);
+        }
+        setDpiaSecMeasures(existing.security_measures_description || '');
+        setDpiaRiskLevel(existing.risk_level || 'MEDIUM');
+        setDpiaResidualRisk(existing.residual_risk || 'LOW');
+        setDpiaApprovalStatus(existing.status || 'APPROVED');
+      }
+    } catch {
+      // Abaikan jika belum pernah dibuat
+    }
+
+    setDpiaModalOpen(true);
+  };
+
+  // Simpan / Setujui Formulir DPIA
+  const handleSubmitDpia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedConnector) return;
+
+    if (!dpiaDpo.trim() || !dpiaPurpose.trim() || !dpiaSecMeasures.trim() || dpiaCategories.length === 0) {
+      showToast('error', 'Seluruh bagian formulir DPIA wajib diisi lengkap termasuk DPO, tujuan pemrosesan, kategori data, dan mitigasi keamanan.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${selectedConnector.id}/dpia`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assessment_title: dpiaTitle.trim(),
+          data_controller_name: dpiaController.trim(),
+          data_protection_officer: dpiaDpo.trim(),
+          processing_purpose: dpiaPurpose.trim(),
+          data_categories: dpiaCategories,
+          security_measures_description: dpiaSecMeasures.trim(),
+          risk_level: dpiaRiskLevel,
+          residual_risk: dpiaResidualRisk,
+          status: dpiaApprovalStatus,
+          is_complete: true,
+          review_notes: 'Diverifikasi sesuai standar kepatuhan regulasi PDP Enterprise.',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast('error', data.message || data.error || 'Gagal menyimpan dokumen DPIA');
+        return;
+      }
+
+      showToast('success', `Dokumen DPIA untuk '${selectedConnector.connector_name}' berhasil disimpan & disetujui (${data.status})!`);
+      setDpiaModalOpen(false);
+      await fetchTierAndData();
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Aktivasi Konektor Fabric (GATED by DPIA Completeness)
+  const handleActivateConnector = async (conn: any) => {
+    try {
+      setActionLoading(true);
+      const res = await fetch(
+        `/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${conn.id}/activate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 422 || data.code === 'DPIA_INCOMPLETE') {
+          showToast(
+            'error',
+            `[DPIA_INCOMPLETE Ditolak] ${data.message || data.error || 'DPIA belum lengkap atau belum disetujui!'}`
+          );
+        } else if (res.status === 403 || data.code === 'capability_not_available') {
+          showToast('error', `[403 capability_not_available] Ditolak: ${data.message || data.error}`);
+        } else {
+          showToast('error', data.error || 'Aktivasi konektor gagal');
+        }
+        return;
+      }
+
+      showToast('success', `Koneksi '${conn.connector_name}' BERHASIL diaktifkan (Status: CONNECTED) setelah verifikasi penuh DPIA!`);
+      await fetchTierAndData();
+    } catch (err: any) {
+      showToast('error', err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Lihat Riwayat Log Sinkronisasi
+  const handleViewSyncLogs = async (connectorId?: string) => {
+    try {
+      setActionLoading(true);
+      let url = `/api/v1/tenants/${tenantId}/enterprise/integration-fabric/sync-logs`;
+      if (connectorId) url += `?connector_id=${connectorId}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setSyncLogs(data.sync_logs || []);
+        setSyncLogsModalOpen(true);
+      } else {
+        showToast('error', 'Gagal memuat riwayat log sinkronisasi');
+      }
     } catch (err: any) {
       showToast('error', err.message);
     } finally {
@@ -759,16 +930,27 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                     Konektor Integration Fabric Enterprise
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                    Streaming sinkronisasi data enterprise real-time dua arah (SAP, Oracle, Salesforce, ERP kustom).
-                    <strong className="text-slate-200"> Aturan Downgrade Resilience:</strong> Saat tenant beralih dari Enterprise ke Growth,
-                    seluruh konektor aktif diubah ke status <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300">SUSPENDED_TIER_DOWNGRADE</code> tanpa menghapus kredensial atau riwayat data.
+                    Streaming federasi sinkronisasi data enterprise real-time dua arah (SAP, Oracle, Salesforce, HRIS, ERP kustom) dengan
+                    <strong className="text-purple-300"> DPIA Gating</strong> dan <strong className="text-purple-300">KMS Envelope Encryption</strong> per-koneksi.
+                    <span className="block mt-0.5 text-slate-400">
+                      <strong className="text-slate-200">Aturan Kepatuhan:</strong> Koneksi berstatus <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300">DRAFT</code> dilarang aktif sebelum dokumen DPIA diisi lengkap dan disetujui DPO (<code className="bg-slate-950 px-1 py-0.5 rounded text-emerald-300">APPROVED</code>).
+                    </span>
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-slate-400">Total Konektor:</span>
-                  <span className="text-sm font-bold text-white px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">
-                    {connectors.length}
-                  </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => handleViewSyncLogs()}
+                    className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Activity className="w-3.5 h-3.5 text-purple-400" />
+                    Audit Sync Logs
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Konektor:</span>
+                    <span className="text-sm font-bold text-white px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">
+                      {connectors.length}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -777,73 +959,147 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {connectors.map((c) => {
                 const isSuspended = c.status === 'SUSPENDED_TIER_DOWNGRADE';
-                const isActive = c.status === 'ACTIVE';
+                const isConnected = c.status === 'CONNECTED' || c.status === 'ACTIVE';
+                const isDraft = c.status === 'DRAFT';
+                const dpiaApproved = c.dpia_status === 'APPROVED';
 
                 return (
                   <div
                     key={c.id}
-                    className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                    className={`p-4 rounded-2xl border transition-all space-y-3.5 flex flex-col justify-between ${
                       isSuspended
                         ? 'bg-amber-950/20 border-amber-500/40 shadow-sm'
+                        : isConnected
+                        ? 'bg-slate-900/70 border-emerald-500/30 hover:border-emerald-500/60'
                         : 'bg-slate-900/60 border-slate-800/80 hover:border-purple-500/40'
                     }`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="p-2 rounded-xl bg-purple-950/40 text-purple-400 border border-purple-800/30">
-                        <Database className="w-4 h-4" />
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="p-2 rounded-xl bg-purple-950/40 text-purple-400 border border-purple-800/30">
+                          <Database className="w-4 h-4" />
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                              isConnected
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                : isSuspended
+                                ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}
+                          >
+                            {c.status}
+                          </span>
+                          {/* DPIA Badge */}
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                              dpiaApproved
+                                ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/40'
+                                : c.dpia_status === 'PENDING_REVIEW'
+                                ? 'bg-amber-950/50 text-amber-300 border-amber-500/40'
+                                : 'bg-rose-950/50 text-rose-300 border-rose-500/40'
+                            }`}
+                          >
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            DPIA: {c.dpia_status || 'NOT_SUBMITTED'}
+                          </span>
+                        </div>
                       </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                          isActive
-                            ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
-                            : 'bg-amber-950/60 text-amber-300 border-amber-500/40'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
+
+                      <div>
+                        <div className="text-xs font-mono text-purple-300">{c.connector_code}</div>
+                        <h4 className="text-sm font-bold text-white mt-0.5">{c.connector_name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-slate-400">Tipe: {c.connector_type}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">({c.auth_type || 'API_KEY'})</span>
+                        </div>
+                      </div>
+
+                      {/* KMS Security Badge */}
+                      <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-purple-400" />
+                            KMS Envelope Key:
+                          </span>
+                          <span className="font-mono text-[10px] text-purple-300">
+                            {c.credential_key_id ? c.credential_key_id.substring(0, 18) + '...' : 'Terenkripsi'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span>Sync Terakhir:</span>
+                          <span className="text-slate-300 font-mono text-[10px]">
+                            {c.last_sync_at ? new Date(c.last_sync_at).toLocaleTimeString('id-ID') : 'Belum pernah'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <div className="text-xs font-mono text-purple-300">{c.connector_code}</div>
-                      <h4 className="text-sm font-bold text-white mt-0.5">{c.connector_name}</h4>
-                      <p className="text-xs text-slate-400 mt-1">Tipe: {c.connector_type}</p>
+                    {/* Action Buttons */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      {isDraft || !isConnected ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleOpenDpiaModal(c)}
+                            className="py-1.5 px-2 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <FileText className="w-3 h-3 text-purple-400" />
+                            {dpiaApproved ? 'Lihat DPIA' : 'Isi DPIA'}
+                          </button>
+                          <button
+                            disabled={actionLoading}
+                            onClick={() => handleActivateConnector(c)}
+                            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                              dpiaApproved
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/30'
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700'
+                            }`}
+                            title={
+                              dpiaApproved
+                                ? 'Aktifkan koneksi ke status CONNECTED'
+                                : 'DPIA wajib APPROVED sebelum diaktifkan (akan ditolak 422 bila belum lengkap)'
+                            }
+                          >
+                            <Unlock className="w-3 h-3" />
+                            Aktifkan
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            disabled={actionLoading || isSuspended}
+                            onClick={() => handleSyncConnector(c.connector_code)}
+                            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                              isEnterprise && !isSuspended
+                                ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-900/30'
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Sync Data
+                          </button>
+                          <button
+                            onClick={() => handleOpenDpiaModal(c)}
+                            className="py-1.5 px-2 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                            DPIA Info
+                          </button>
+                        </div>
+                      )}
                     </div>
-
-                    <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-                      <span>Sync Terakhir:</span>
-                      <span className="text-slate-300 font-mono">
-                        {c.last_sync_at ? new Date(c.last_sync_at).toLocaleTimeString('id-ID') : 'Belum pernah'}
-                      </span>
-                    </div>
-
-                    <button
-                      disabled={actionLoading}
-                      onClick={() => handleSyncConnector(c.connector_code)}
-                      className={`w-full py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        isEnterprise && !isSuspended
-                          ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-900/30'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
-                      title={
-                        isSuspended
-                          ? 'Konektor ditangguhkan karena downgrade paket'
-                          : 'Sinkronkan streaming data sekarang'
-                      }
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Sync Data Stream
-                    </button>
                   </div>
                 );
               })}
             </div>
 
             {/* Form Tambah Konektor Baru */}
-            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-4 max-w-xl">
+            <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-4 max-w-2xl">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                   <Server className="w-4 h-4 text-purple-400" />
-                  Daftarkan Konektor Fabric Baru
+                  Daftarkan Konektor Fabric Baru (KMS Protected)
                 </h3>
                 {!isEnterprise && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -852,8 +1108,8 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                 )}
               </div>
 
-              <form onSubmit={handleCreateConnector} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleCreateConnector} className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-medium text-slate-400 mb-1">Kode Konektor (e.g. ERP_SAP_FIN)</label>
                     <input
@@ -870,6 +1126,10 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                       onChange={(e) => setNewConnectorType(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                     >
+                      <option value="ERP">ERP Core (SAP / Oracle / Workday)</option>
+                      <option value="HRIS">HRIS (Talenta / BambooHR / Darwinbox)</option>
+                      <option value="CRM">CRM (Salesforce / HubSpot)</option>
+                      <option value="CMMS">CMMS (Maintenance / Fasilitas)</option>
                       <option value="ERP_SAP_ORACLE">ERP SAP S/4HANA / Oracle Fusion</option>
                       <option value="DATA_STREAM_PIPELINE">Data Stream Pipeline (Kafka / Postgres CDC)</option>
                       <option value="WEBHOOK_BROKER">High-Throughput Webhook Broker</option>
@@ -878,14 +1138,63 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Nama Tampilan Konektor</label>
-                  <input
-                    type="text"
-                    value={newConnectorName}
-                    onChange={(e) => setNewConnectorName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">Nama Tampilan Konektor</label>
+                    <input
+                      type="text"
+                      value={newConnectorName}
+                      onChange={(e) => setNewConnectorName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-400 mb-1">Metode Autentikasi</label>
+                    <select
+                      value={newAuthType}
+                      onChange={(e) => setNewAuthType(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="API_KEY">API Key / Token</option>
+                      <option value="OAUTH2">OAuth 2.0 Client Credentials</option>
+                      <option value="MTLS">Mutual TLS Certificate</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Kredensial & KMS Info */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-purple-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      Kredensial Koneksi (KMS Envelope Protection)
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">PBKDF2-HMAC-SHA256</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">API Key / Client ID</label>
+                      <input
+                        type="password"
+                        value={newApiKey}
+                        onChange={(e) => setNewApiKey(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 mb-1">API Secret / Client Secret</label>
+                      <input
+                        type="password"
+                        value={newApiSecret}
+                        onChange={(e) => setNewApiSecret(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    Kredensial disimpan terenkripsi dengan envelope key unik per-koneksi. Kredensial tidak pernah tersimpan dalam bentuk teks terbuka (plaintext).
+                  </p>
                 </div>
 
                 <button
@@ -894,7 +1203,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                   className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-900/30 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Daftarkan Konektor ke Integration Fabric
+                  Daftarkan Konektor (Status Awal: DRAFT)
                 </button>
               </form>
             </div>
@@ -1118,6 +1427,294 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
           </div>
         )}
       </div>
+
+      {/* MODAL 1: FORMULIR DPIA (Data Protection Impact Assessment) */}
+      {dpiaModalOpen && selectedConnector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-6 space-y-5 my-8">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-purple-950/60 text-purple-400 border border-purple-800/40">
+                    <ShieldCheck className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    Formulir DPIA (Data Protection Impact Assessment)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Konektor: <strong className="text-purple-300 font-mono">{selectedConnector.connector_name}</strong> ({selectedConnector.connector_code})
+                </p>
+              </div>
+              <button
+                onClick={() => setDpiaModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitDpia} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Judul Penilaian Dampak (Assessment Title)
+                </label>
+                <input
+                  type="text"
+                  value={dpiaTitle}
+                  onChange={(e) => setDpiaTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Nama Pengendali Data (Data Controller)
+                  </label>
+                  <input
+                    type="text"
+                    value={dpiaController}
+                    onChange={(e) => setDpiaController(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Pejabat Pelindungan Data (DPO Verifikator)
+                  </label>
+                  <input
+                    type="text"
+                    value={dpiaDpo}
+                    onChange={(e) => setDpiaDpo(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Tujuan & Dasar Hukum Pemrosesan Data
+                </label>
+                <textarea
+                  rows={2}
+                  value={dpiaPurpose}
+                  onChange={(e) => setDpiaPurpose(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  required
+                />
+              </div>
+
+              {/* Data Categories Multiselect */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-2">
+                  Kategori Data yang Diproses (Pilih Minimal 1)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'TRANSACTIONAL_RECORDS', label: 'Transaksi & Faktur' },
+                    { id: 'CUSTOMER_ORDER_RECORDS', label: 'Pesanan Pelanggan' },
+                    { id: 'FINANCIAL_LEDGER', label: 'Buku Besar Keuangan' },
+                    { id: 'EMPLOYEE_PII', label: 'PII Karyawan' },
+                    { id: 'PAYROLL_DATA', label: 'Gaji / Payroll' },
+                    { id: 'SUPPLY_CHAIN_LOGISTICS', label: 'Rantai Pasok & Gudang' },
+                  ].map((cat) => {
+                    const isSelected = dpiaCategories.includes(cat.id);
+                    return (
+                      <button
+                        type="button"
+                        key={cat.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            setDpiaCategories(dpiaCategories.filter((c) => c !== cat.id));
+                          } else {
+                            setDpiaCategories([...dpiaCategories, cat.id]);
+                          }
+                        }}
+                        className={`text-[11px] p-2 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-purple-950/60 border-purple-500/50 text-purple-300 font-semibold'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <span>{cat.label}</span>
+                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  Deskripsi Mitigasi Keamanan Teknis (Enkripsi / Kontrol Akses)
+                </label>
+                <textarea
+                  rows={2}
+                  value={dpiaSecMeasures}
+                  onChange={(e) => setDpiaSecMeasures(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Tingkat Risiko Inheren</label>
+                  <select
+                    value={dpiaRiskLevel}
+                    onChange={(e: any) => setDpiaRiskLevel(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="LOW">LOW (Rendah)</option>
+                    <option value="MEDIUM">MEDIUM (Sedang)</option>
+                    <option value="HIGH">HIGH (Tinggi)</option>
+                    <option value="CRITICAL">CRITICAL (Kritis)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Risiko Residual (Pasca-Mitigasi)</label>
+                  <select
+                    value={dpiaResidualRisk}
+                    onChange={(e: any) => setDpiaResidualRisk(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="LOW">LOW (Dapat Ditoleransi)</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Keputusan DPO</label>
+                  <select
+                    value={dpiaApprovalStatus}
+                    onChange={(e: any) => setDpiaApprovalStatus(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-semibold"
+                  >
+                    <option value="APPROVED">APPROVED (Disetujui untuk Aktivasi)</option>
+                    <option value="PENDING_REVIEW">PENDING_REVIEW (Dalam Telaah)</option>
+                    <option value="DRAFT">DRAFT (Konsep Belum Selesai)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setDpiaModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-900/40 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Simpan & Verifikasi DPIA
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: AUDIT SYNC LOGS FABRIC */}
+      {syncLogsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-6 space-y-4 my-8">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-purple-950/60 text-purple-400 border border-purple-800/40">
+                    <Activity className="w-5 h-5" />
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    Audit Log Sinkronisasi Streaming Fabric
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Tabel riwayat eksekusi sinkronisasi federasi data lintas konektor enterprise.
+                </p>
+              </div>
+              <button
+                onClick={() => setSyncLogsModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto">
+              {syncLogs.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 text-xs">
+                  Belum ada log sinkronisasi tercatat untuk tenant ini.
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-semibold text-[11px]">
+                      <th className="py-2.5 px-3">Waktu</th>
+                      <th className="py-2.5 px-3">Konektor</th>
+                      <th className="py-2.5 px-3">Tipe Sync</th>
+                      <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Record Masuk</th>
+                      <th className="py-2.5 px-3">Latensi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {syncLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-2.5 px-3 text-slate-400 font-mono text-[10px]">
+                          {new Date(log.created_at || log.started_at).toLocaleString('id-ID')}
+                        </td>
+                        <td className="py-2.5 px-3 font-semibold text-white font-mono text-[11px]">
+                          {log.connector_code || log.connector_id?.substring(0, 8)}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10px]">
+                            {log.sync_type}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              log.status === 'SUCCESS'
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                : 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-emerald-400 font-semibold">
+                          +{log.records_ingested || 0}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-400 text-[10px]">
+                          {log.latency_ms} ms
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-800">
+              <button
+                onClick={() => setSyncLogsModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

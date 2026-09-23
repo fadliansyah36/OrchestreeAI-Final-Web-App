@@ -29,6 +29,8 @@ from app.api.v1.service import router as service_router
 from app.api.v1.sales import router as sales_router
 from app.api.v1.selection import router as selection_router
 from app.api.v1.generative import router as generative_router
+from app.api.v1.enterprise import router as enterprise_router
+from app.api.v1.permissions import router as permissions_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -88,6 +90,8 @@ app.include_router(service_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
 app.include_router(selection_router, prefix="/api/v1")
 app.include_router(generative_router, prefix="/api/v1")
+app.include_router(enterprise_router)
+app.include_router(permissions_router)
 
 
 @app.get("/")

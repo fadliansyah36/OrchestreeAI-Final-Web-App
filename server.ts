@@ -3411,6 +3411,421 @@ app.patch('/api/v1/tenants/:tenant_id/departments/:id/budget', async (req, res) 
   }
 });
 
+// =========================================================================
+// AI DATA PERMISSION MATRIX & AUDIT LEDGER (PRD v2.2 Bagian 3.3, 3.5, 14.2 & 16.1)
+// =========================================================================
+
+const STANDARD_PERSONAS_LIST = [
+  {
+    persona_type: 'hr_agent',
+    display_name: 'AI HR Agent',
+    role_title: 'Spesialis SDM & Kesejahteraan Karyawan',
+    description: 'Menangani proses rekrutmen, absensi, survei kepuasan, dan manajemen talenta.',
+    icon: 'users',
+    department: 'Human Resources'
+  },
+  {
+    persona_type: 'cfo_agent',
+    display_name: 'AI CFO & Financial Analyst',
+    role_title: 'Spesialis Keuangan & Anggaran',
+    description: 'Analisis arus kas, rekonsiliasi faktur, peramalan beban, dan pemantauan burn rate.',
+    icon: 'coins',
+    department: 'Finance'
+  },
+  {
+    persona_type: 'sales_agent',
+    display_name: 'AI Sales Representative',
+    role_title: 'Spesialis Penjualan & Pipeline',
+    description: 'Kualifikasi prospek, negosiasi kuotasi, tindak lanjut CRM, dan guardrail diskon.',
+    icon: 'briefcase',
+    department: 'Commercial'
+  },
+  {
+    persona_type: 'marketing_agent',
+    display_name: 'AI Marketing Strategist',
+    role_title: 'Spesialis Pemasaran & Konten',
+    description: 'Eksperimen pesan, kalender konten media sosial, dan atribusi konversi multi-channel.',
+    icon: 'sparkles',
+    department: 'Marketing'
+  },
+  {
+    persona_type: 'support_agent',
+    display_name: 'AI Customer Support Specialist',
+    role_title: 'Spesialis Layanan & Kepuasan Pelanggan',
+    description: 'Penyelesaian tiket omni-channel, panduan produk, dan eskalasi keluhan pelanggan.',
+    icon: 'headset',
+    department: 'Customer Experience'
+  },
+  {
+    persona_type: 'researcher_agent',
+    display_name: 'AI Market Researcher',
+    role_title: 'Peneliti Pasar & Radar Kompetitor',
+    description: 'Pemantauan intelijen pesaing, ekstraksi tren harga web, dan analisis diferensiasi.',
+    icon: 'search',
+    department: 'Corporate Strategy'
+  },
+  {
+    persona_type: 'ops_agent',
+    display_name: 'AI Operations Coordinator',
+    role_title: 'Spesialis Logistik & Rantai Pasok',
+    description: 'Sinkronisasi pesanan multi-kurir, pemantauan status gudang, dan eskalasi anomali.',
+    icon: 'truck',
+    department: 'Operations'
+  },
+  {
+    persona_type: 'chief_of_staff',
+    display_name: 'AI Chief of Staff (Arya)',
+    role_title: 'Kepala Staf & Pengawas Eksekutif',
+    description: 'Morning briefing eksekutif, koordinasi lintas agen otonom, dan sintesis keputusan strategis.',
+    icon: 'shield-check',
+    department: 'Executive Office'
+  }
+];
+
+const STANDARD_CONNECTORS_LIST = [
+  {
+    connector_code: 'ERP.CorporateBanking',
+    connector_name: 'ERP Corporate Banking Gateway',
+    connector_type: 'ERP',
+    data_classification: 'restricted',
+    description: 'Rekening giro korporat, mutasi bank otomatis, dan settlement keuangan.'
+  },
+  {
+    connector_code: 'ERP.SAP_FINANCE',
+    connector_name: 'SAP S/4HANA Finance Stream',
+    connector_type: 'ERP_SAP_ORACLE',
+    data_classification: 'confidential',
+    description: 'Buku besar umum (GL), jurnal akuntansi, dan faktur hutang-piutang.'
+  },
+  {
+    connector_code: 'CRM.Salesforce',
+    connector_name: 'Salesforce Enterprise CRM',
+    connector_type: 'CRM',
+    data_classification: 'internal',
+    description: 'Data kontak prospek bisnis, riwayat kesepakatan, dan peluang penjualan.'
+  },
+  {
+    connector_code: 'HRIS.Workday',
+    connector_name: 'Workday HCM & Payroll',
+    connector_type: 'HRIS',
+    data_classification: 'restricted',
+    description: 'Data PII personalia karyawan, histori kompensasi, dan struktur organisasi.'
+  },
+  {
+    connector_code: 'WMS.Logistics',
+    connector_name: 'Warehouse & Logistics Stream',
+    connector_type: 'CMMS',
+    data_classification: 'internal',
+    description: 'Stok gudang real-time, jadwal pengiriman kontainer, dan pelacakan kurir.'
+  },
+  {
+    connector_code: 'PAYMENT.CoreGateway',
+    connector_name: 'Core Payment Settlement Gateway',
+    connector_type: 'WEBHOOK_BROKER',
+    data_classification: 'confidential',
+    description: 'Notifikasi pembayaran Midtrans/Xendit, saldo e-wallet, dan status penagihan.'
+  }
+];
+
+// 1. Get Permission Matrix
+app.get('/api/v1/tenants/:tenant_id/permissions/matrix', async (req, res) => {
+  const { tenant_id } = req.params;
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    // Ambil konektor dari integration_fabric_connectors
+    const connectorRes = await client.query(
+      `SELECT connector_code, connector_name, connector_type, status, config
+       FROM integration_fabric_connectors
+       WHERE tenant_id = $1
+       ORDER BY created_at ASC;`,
+      [tenant_id]
+    );
+
+    const connectors = [...STANDARD_CONNECTORS_LIST];
+    const seenCodes = new Set(connectors.map(c => c.connector_code));
+
+    for (const row of connectorRes.rows) {
+      if (!seenCodes.has(row.connector_code)) {
+        connectors.push({
+          connector_code: row.connector_code,
+          connector_name: row.connector_name,
+          connector_type: row.connector_type,
+          data_classification: 'confidential',
+          description: `Konektor kustom: ${row.connector_name} (${row.status})`,
+        });
+        seenCodes.add(row.connector_code);
+      }
+    }
+
+    // Ambil seluruh kebijakan dari ai_data_permission_policies
+    const policyRes = await client.query(
+      `SELECT id, tenant_id, agent_persona_type, resource_type, resource_identifier,
+              action, data_classification, conditions, effect, priority, access_level,
+              created_at, updated_at
+       FROM ai_data_permission_policies
+       WHERE tenant_id = $1;`,
+      [tenant_id]
+    );
+
+    const matrix: Record<string, Record<string, any>> = {};
+    for (const pol of policyRes.rows) {
+      const persona = pol.agent_persona_type || '*';
+      const resId = pol.resource_identifier;
+      if (!matrix[persona]) matrix[persona] = {};
+      matrix[persona][resId] = {
+        policy_id: pol.id,
+        access_level: pol.access_level || (pol.effect === 'ALLOW' ? 'READ_ONLY' : 'NONE'),
+        effect: pol.effect,
+        action: pol.action,
+        data_classification: pol.data_classification,
+        priority: pol.priority,
+        updated_at: pol.updated_at,
+      };
+    }
+
+    return res.json({
+      tenant_id,
+      personas: STANDARD_PERSONAS_LIST,
+      connectors,
+      matrix,
+      total_configured_policies: policyRes.rows.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 2. Update Cell in Permission Matrix
+app.put('/api/v1/tenants/:tenant_id/permissions/matrix/cell', async (req, res) => {
+  const { tenant_id } = req.params;
+  const {
+    agent_persona_type,
+    connector_code,
+    access_level,
+    data_classification,
+    user_role,
+    user_id,
+  } = req.body;
+
+  const role = ((user_role || (req as any).user?.roles?.[0] || 'TENANT_ADMIN') as string).toUpperCase();
+  if (!['TENANT_OWNER', 'TENANT_ADMIN'].includes(role)) {
+    return res.status(403).json({
+      error: 'Hanya Pemilik Organisasi (TENANT_OWNER) atau Administrator (TENANT_ADMIN) yang diizinkan memodifikasi matriks izin data.'
+    });
+  }
+
+  if (!['NONE', 'READ_ONLY', 'READ_WRITE', 'ADMIN'].includes(access_level)) {
+    return res.status(400).json({ error: "access_level harus salah satu dari: 'NONE', 'READ_ONLY', 'READ_WRITE', 'ADMIN'" });
+  }
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN;');
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    const existingRes = await client.query(
+      `SELECT id, access_level, effect, data_classification
+       FROM ai_data_permission_policies
+       WHERE tenant_id = $1 AND agent_persona_type = $2 AND resource_identifier = $3
+       LIMIT 1;`,
+      [tenant_id, agent_persona_type, connector_code]
+    );
+
+    const existing = existingRes.rows[0];
+    const prevLevel = existing ? existing.access_level || 'READ_ONLY' : 'NONE';
+    let policyId: string | null = null;
+    let actionLogged = 'ai_data_permission.updated';
+
+    if (access_level === 'NONE') {
+      // Hapus policy row sehingga status kembali ke default fail-closed (DENIED_NO_POLICY)
+      if (existing) {
+        await client.query(`DELETE FROM ai_data_permission_policies WHERE id = $1;`, [existing.id]);
+      }
+      policyId = null;
+      actionLogged = 'ai_data_permission.revoked';
+    } else {
+      const actionStr = access_level === 'READ_ONLY' ? 'data.read' : '*';
+      const priorityVal = access_level === 'ADMIN' ? 200 : 100;
+      const connMeta = STANDARD_CONNECTORS_LIST.find(c => c.connector_code === connector_code);
+      const defaultClass = connMeta ? connMeta.data_classification : 'internal';
+      const classVal = data_classification || defaultClass;
+
+      if (existing) {
+        const updRes = await client.query(
+          `UPDATE ai_data_permission_policies
+           SET access_level = $1,
+               effect = 'ALLOW',
+               action = $2,
+               data_classification = $3,
+               priority = $4,
+               conditions = jsonb_build_object('access_level', $1::text),
+               updated_at = NOW()
+           WHERE id = $5
+           RETURNING id;`,
+          [access_level, actionStr, classVal, priorityVal, existing.id]
+        );
+        policyId = updRes.rows[0].id;
+        actionLogged = 'ai_data_permission.updated';
+      } else {
+        const insRes = await client.query(
+          `INSERT INTO ai_data_permission_policies (
+             id, tenant_id, agent_persona_type, resource_type,
+             resource_identifier, action, data_classification,
+             conditions, effect, priority, access_level,
+             created_at, updated_at
+           ) VALUES (
+             gen_random_uuid(), $1, $2, 'enterprise_system',
+             $3, $4, $5,
+             jsonb_build_object('access_level', $6::text), 'ALLOW', $7, $6,
+             NOW(), NOW()
+           ) RETURNING id;`,
+          [tenant_id, agent_persona_type, connector_code, actionStr, classVal, access_level, priorityVal]
+        );
+        policyId = insRes.rows[0].id;
+        actionLogged = 'ai_data_permission.created';
+      }
+    }
+
+    // CATAT DI AUDIT LEDGER (audit_logs)
+    const validUserId = user_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id) ? user_id : null;
+    await client.query(
+      `INSERT INTO audit_logs (
+         tenant_id, actor_type, actor_id, action,
+         resource_type, resource_id, payload_after, created_at
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, NOW()
+       );`,
+      [
+        tenant_id,
+        'human_user',
+        validUserId,
+        actionLogged,
+        'ai_data_permission_policy',
+        null,
+        JSON.stringify({
+          agent_persona_type,
+          connector_code,
+          previous_access_level: prevLevel,
+          new_access_level: access_level,
+          policy_id: policyId,
+          modified_by_role: role,
+          timestamp: new Date().toISOString()
+        })
+      ]
+    );
+
+    await client.query('COMMIT;');
+
+    return res.json({
+      success: true,
+      tenant_id,
+      agent_persona_type,
+      connector_code,
+      previous_access_level: prevLevel,
+      access_level,
+      policy_id: policyId,
+      audit_recorded: true
+    });
+  } catch (err: any) {
+    await client.query('ROLLBACK;');
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 3. Evaluate Access Test (Live PDP Evaluation Sandbox)
+app.post('/api/v1/tenants/:tenant_id/permissions/evaluate-test', async (req, res) => {
+  const { tenant_id } = req.params;
+  const {
+    agent_persona_type,
+    connector_code,
+    action,
+    data_classification,
+    resource_type,
+  } = req.body;
+
+  const decision = await checkAiDataPermission(
+    pool,
+    {
+      tenant_id,
+      agent_persona_type: agent_persona_type || 'hr_agent',
+      actor_type: 'ai_agent',
+    },
+    action || 'data.read',
+    {
+      resource_type: resource_type || 'enterprise_system',
+      resource_identifier: connector_code || 'ERP.CorporateBanking',
+      data_classification: data_classification || 'restricted',
+      owner_tenant_id: tenant_id,
+    }
+  );
+
+  return res.json({
+    tenant_id,
+    agent_persona_type,
+    connector_code,
+    is_authorized: decision.is_authorized,
+    decision: decision.decision,
+    reason: decision.reason,
+    policy_id: decision.policy_id,
+    data_classification: decision.data_classification,
+  });
+});
+
+// 4. Get Permission Audit Logs
+app.get('/api/v1/tenants/:tenant_id/permissions/audit-logs', async (req, res) => {
+  const { tenant_id } = req.params;
+  const limit = parseInt((req.query.limit as string) || '50', 10);
+
+  if (!pool) return res.status(503).json({ error: 'Database pool unavailable' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('SET LOCAL ROLE orchestree_app;');
+    await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenant_id]);
+
+    const result = await client.query(
+      `SELECT id, tenant_id, actor_type, actor_id, action,
+              resource_type, resource_id, payload_after, created_at
+       FROM audit_logs
+       WHERE tenant_id = $1
+         AND (action LIKE 'ai_data_permission%' OR action LIKE 'abac:%')
+       ORDER BY created_at DESC
+       LIMIT $2;`,
+      [tenant_id, limit]
+    );
+
+    return res.json({
+      tenant_id,
+      logs: result.rows.map(r => ({
+        id: r.id,
+        actor_type: r.actor_type,
+        actor_id: r.actor_id,
+        action: r.action,
+        resource_type: r.resource_type,
+        resource_id: r.resource_id,
+        payload: r.payload_after,
+        created_at: r.created_at,
+      }))
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Mount Proactive Channels, Notifications, Webhooks & Ask AI Chat Router
 app.use(createProactiveRouter(pool, modelRouterService));
 
@@ -5341,21 +5756,86 @@ app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors', a
 
 // 9. Integration Fabric: Stream Sync (Gated tier 3)
 app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/sync', async (req, res) => {
-  const { connector_code } = req.body;
+  const { connector_code, sync_type } = req.body;
   if (!connector_code) {
     return res.status(400).json({ error: 'connector_code wajib diisi.' });
   }
 
   try {
-    const result = await enterpriseService.syncFabricStream(req.params.tenantId, connector_code);
+    const result = await enterpriseService.syncFabricStream(req.params.tenantId, connector_code, sync_type);
     return res.json(result);
   } catch (err: any) {
     const status = err.status || 500;
     return res.status(status).json({
-      error: err.code || 'capability_not_available',
-      code: err.code || 'capability_not_available',
+      error: err.code || 'sync_failed',
+      code: err.code || 'sync_failed',
       message: err.message,
     });
+  }
+});
+
+// 9b. Integration Fabric: Activate Connector (Gated tier 3 & DPIA completeness)
+app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors/:connectorId/activate', async (req, res) => {
+  try {
+    const result = await enterpriseService.activateFabricConnector(req.params.tenantId, req.params.connectorId);
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'activation_rejected',
+      code: err.code || 'activation_rejected',
+      message: err.message,
+    });
+  }
+});
+
+// 9c. Integration Fabric: Submit / Update DPIA for Connector
+app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors/:connectorId/dpia', async (req, res) => {
+  try {
+    const result = await enterpriseService.createOrUpdateDpia(req.params.tenantId, req.params.connectorId, req.body);
+    return res.status(201).json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'dpia_submission_failed',
+      code: err.code || 'dpia_submission_failed',
+      message: err.message,
+    });
+  }
+});
+
+// 9d. Integration Fabric: Get DPIA for Connector
+app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors/:connectorId/dpia', async (req, res) => {
+  try {
+    const result = await enterpriseService.getDpiaForConnector(req.params.tenantId, req.params.connectorId);
+    if (!result) {
+      return res.status(404).json({ error: 'Catatan DPIA belum dibuat untuk konektor ini.' });
+    }
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 9e. Integration Fabric: List All Tenant DPIA Records
+app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/dpia-records', async (req, res) => {
+  try {
+    const records = await enterpriseService.listDpiaRecords(req.params.tenantId);
+    return res.json({ dpia_records: records, count: records.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 9f. Integration Fabric: List Sync Logs
+app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/sync-logs', async (req, res) => {
+  try {
+    const connectorId = req.query.connector_id as string | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const logs = await enterpriseService.listFabricSyncLogs(req.params.tenantId, connectorId, limit);
+    return res.json({ sync_logs: logs, count: logs.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

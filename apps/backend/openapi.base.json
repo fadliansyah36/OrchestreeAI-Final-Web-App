@@ -479,6 +479,94 @@
           }
         }
       }
+    },
+    "/api/v1/tenants/{tenant_id}/permissions/matrix": {
+      "get": {
+        "tags": ["Permissions & ABAC"],
+        "summary": "Get AI Data Permission Matrix",
+        "description": "Mengambil matriks izin data: baris AI Agent Personas, kolom Enterprise System Connections, sel access_level.",
+        "operationId": "get_permission_matrix",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matriks izin data agen AI bertenant.",
+            "content": { "application/json": { "schema": {} } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/permissions/matrix/cell": {
+      "put": {
+        "tags": ["Permissions & ABAC"],
+        "summary": "Update AI Data Permission Cell",
+        "description": "Memperbarui atau mencabut izin akses sel per persona x konektor. Hanya untuk TENANT_OWNER / TENANT_ADMIN. Tercatat di Audit Ledger.",
+        "operationId": "update_permission_cell",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hasil pembaruan sel matriks izin dan pencatatan audit.",
+            "content": { "application/json": { "schema": {} } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/permissions/evaluate-test": {
+      "post": {
+        "tags": ["Permissions & ABAC"],
+        "summary": "Evaluate Test AI Data Access PDP",
+        "description": "Evaluasi uji otorisasi PDP langsung terhadap sumber data perusahaan. Default fail-closed: DENIED_NO_POLICY.",
+        "operationId": "evaluate_access_test",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keputusan ABAC PDP dan entri audit log nyata.",
+            "content": { "application/json": { "schema": {} } }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/permissions/audit-logs": {
+      "get": {
+        "tags": ["Permissions & ABAC"],
+        "summary": "Get Permission Audit Logs",
+        "description": "Mengambil riwayat Audit Ledger khusus peristiwa izin data & evaluasi PDP.",
+        "operationId": "get_permission_audit_logs",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daftar entri audit log izin data.",
+            "content": { "application/json": { "schema": {} } }
+          }
+        }
+      }
     }
   },
   "components": {

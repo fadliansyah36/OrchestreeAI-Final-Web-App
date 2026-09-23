@@ -25,6 +25,7 @@ import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 import { CampaignBuilderScreen } from './CampaignBuilderScreen';
 import { ServiceRequestScreen } from './ServiceRequestScreen';
 import { EnterpriseHubScreen } from './EnterpriseHubScreen';
+import { AIDataPermissionScreen } from './AIDataPermissionScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -201,6 +202,18 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/security') || activeRoute.startsWith('/permissions')) {
+    return (
+      <AIDataPermissionScreen
+        tenantId={tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+        tenantName={tenant?.display_name || tenant?.legal_name || 'Organisasi Aktif'}
+        userRole={tenant?.role || 'TENANT_OWNER'}
+        userId={tenant?.user_id}
+        onBack={() => setActiveRoute('/hub')}
+      />
+    );
+  }
+
   const isEnterprise = tenantTier?.is_enterprise ?? false;
 
   const categoryCards: CategoryCard[] = [
@@ -295,9 +308,10 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     },
     {
       key: 'security',
-      label: 'Keamanan & Jejak Audit',
+      label: 'Keamanan & Izin Data AI (ABAC)',
       icon: 'shield',
-      route: '/security/audit',
+      route: '/security/permissions',
+      badgeCount: 8,
     },
     {
       key: 'billing',

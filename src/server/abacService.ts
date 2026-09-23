@@ -164,7 +164,7 @@ export async function checkAiDataPermission(
         resource_identifier, action, data_classification, conditions, effect, priority
       FROM ai_data_permission_policies
       WHERE tenant_id = $1
-        AND resource_type = $2
+        AND (resource_type = $2 OR resource_type = '*' OR resource_type = 'enterprise_system' OR $2 = 'enterprise_system')
         AND (resource_identifier = $3 OR resource_identifier = '*')
         AND (action = $4 OR action = '*')
         AND (

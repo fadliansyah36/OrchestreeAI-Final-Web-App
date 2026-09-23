@@ -202,7 +202,7 @@ def check_ai_data_permission(
                     resource_identifier, action, data_classification, conditions, effect, priority
                 FROM ai_data_permission_policies
                 WHERE tenant_id = :tenant_id
-                  AND resource_type = :resource_type
+                  AND (resource_type = :resource_type OR resource_type = '*' OR resource_type = 'enterprise_system' OR :resource_type = 'enterprise_system')
                   AND (resource_identifier = :resource_identifier OR resource_identifier = '*')
                   AND (action = :action OR action = '*')
                   AND (

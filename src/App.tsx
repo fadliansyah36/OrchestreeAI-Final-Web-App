@@ -35,12 +35,13 @@ import { MessageExperimentScreen } from './components/MessageExperimentScreen';
 import { SalesGuardrailsScreen } from './components/SalesGuardrailsScreen';
 import { UniversalSelectionHubScreen } from './components/UniversalSelectionHubScreen';
 import { GenerativeStudioHubScreen } from './components/GenerativeStudioHubScreen';
+import { AIDataPermissionScreen } from './components/AIDataPermissionScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails' | 'selection' | 'generative'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails' | 'selection' | 'generative' | 'permissions'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -355,6 +356,17 @@ export default function App() {
                 >
                   Studio Visual AI
                 </button>
+                <button
+                  id="nav-btn-permissions-matrix"
+                  onClick={() => setClientSubView('permissions')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'permissions'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Izin Data AI (ABAC)
+                </button>
               </div>
             )}
             <button
@@ -551,6 +563,15 @@ export default function App() {
                   tenant={activeTenant}
                 />
               </div>
+            )}
+            {clientSubView === 'permissions' && (
+              <AIDataPermissionScreen
+                tenantId={activeTenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+                tenantName={activeTenant?.display_name || activeTenant?.legal_name || 'Organisasi Aktif'}
+                userRole={activeTenant?.role || 'TENANT_OWNER'}
+                userId={activeTenant?.user_id}
+                onBack={() => setClientSubView('dashboard')}
+              />
             )}
           </div>
         )}
