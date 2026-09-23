@@ -83,18 +83,18 @@ class StaffMemberResponse(BaseModel):
 
 
 class CreateAgentRequest(BaseModel):
-    # Catatan Utang Teknis: Kolom persona_type saat ini menerima kode identifier bebas
-    # dari katalog yang disediakan dan akan digantikan oleh foreign key wajib job_title_id pada Fase 32a/32b.
     persona_type: str = Field(..., description="Tipe jabatan/persona AI")
     display_name: str = Field(..., min_length=2, max_length=100, description="Nama tampilan agen AI")
     department_id: Optional[str] = Field(default=None, description="UUID departemen penempatan")
     status: str = Field(default="active", description="'active', 'paused', atau 'error'")
+    job_title_id: Optional[str] = Field(default=None, description="UUID jabatan AI terstandarisasi (Shadow Mapping)")
 
 
 class UpdateAgentRequest(BaseModel):
     display_name: Optional[str] = None
     department_id: Optional[str] = None
     status: Optional[str] = None
+    job_title_id: Optional[str] = None
 
 
 class AgentResponse(BaseModel):
@@ -103,9 +103,93 @@ class AgentResponse(BaseModel):
     department_id: Optional[str]
     department_name: Optional[str] = None
     persona_type: str
+    job_title_id: Optional[str] = None
+    job_title_name: Optional[str] = None
+    job_title_code: Optional[str] = None
+    category_tag: Optional[str] = None
+    structural_role_name: Optional[str] = None
+    level_code: Optional[str] = None
     display_name: str
     status: str
     created_at: str
+
+
+class StructuralRoleResponse(BaseModel):
+    id: str
+    role_code: str
+    name: str
+    description: Optional[str] = None
+    hierarchy_rank: int
+    is_reference: bool = True
+
+
+class JobLevelResponse(BaseModel):
+    id: str
+    level_code: str
+    name: str
+    description: Optional[str] = None
+    level_rank: int
+    min_complexity_multiplier: float
+    is_reference: bool = True
+
+
+class JobSubtitleResponse(BaseModel):
+    id: str
+    job_title_id: str
+    subtitle_code: str
+    subtitle_name: str
+    description: Optional[str] = None
+    focus_areas: List[str] = Field(default_factory=list)
+    is_reference: bool = True
+
+
+class StandardizedJobTitleResponse(BaseModel):
+    id: str
+    title_code: str
+    title_name: str
+    category_tag: str
+    badge_stars: str
+    primary_duties: str
+    recommended_tools: List[str]
+    primary_deliverable: str
+    is_reference: bool = True
+    structural_role: StructuralRoleResponse
+    job_level: JobLevelResponse
+    subtitles: List[JobSubtitleResponse] = Field(default_factory=list)
+
+
+class ReconciliationMappingItemModel(BaseModel):
+    agent_id: str
+    agent_display_name: str
+    department_name: Optional[str] = None
+    persona_type: str
+    tenant_id: str
+    resolution_status: str
+    target_job_title_id: Optional[str] = None
+    target_job_title_code: Optional[str] = None
+    target_title_name: Optional[str] = None
+    structural_role_name: Optional[str] = None
+    level_code: Optional[str] = None
+    confidence: str
+    requires_manual_review: bool
+    notes: Optional[str] = None
+
+
+class JobTitleMigrationReportResponse(BaseModel):
+    id: Optional[str] = None
+    report_batch_id: str
+    tenant_id: Optional[str] = None
+    total_agents_audited: int
+    auto_mapped_count: int
+    ambiguous_count: int
+    reconciliation_status: str
+    mappings: List[ReconciliationMappingItemModel]
+    summary_notes: str
+    generated_at: str
+
+
+class AssignJobTitleRequest(BaseModel):
+    job_title_id: str = Field(..., description="UUID jabatan AI resmi yang dipilih")
 
 
 class OrgChartNode(BaseModel):
@@ -706,10 +790,18 @@ async def list_agents(
             rows = conn.execute(
                 sa.text("""
                     SELECT a.id, a.tenant_id, a.department_id, a.persona_type,
-                           a.display_name, a.status, a.created_at,
-                           d.name as department_name
+                           a.job_title_id, a.display_name, a.status, a.created_at,
+                           d.name as department_name,
+                           jt.title_name as job_title_name,
+                           jt.title_code as job_title_code,
+                           jt.category_tag,
+                           sr.name as structural_role_name,
+                           jl.level_code
                     FROM ai_agents a
                     LEFT JOIN departments d ON d.id = a.department_id
+                    LEFT JOIN ai_job_titles jt ON jt.id = a.job_title_id
+                    LEFT JOIN ai_structural_roles sr ON sr.id = jt.structural_role_id
+                    LEFT JOIN job_levels jl ON jl.id = jt.job_level_id
                     WHERE a.tenant_id = :tenant_id
                     ORDER BY a.created_at ASC;
                 """),
@@ -724,6 +816,12 @@ async def list_agents(
                     department_id=str(r["department_id"]) if r["department_id"] else None,
                     department_name=r["department_name"],
                     persona_type=r["persona_type"],
+                    job_title_id=str(r["job_title_id"]) if r["job_title_id"] else None,
+                    job_title_name=r["job_title_name"],
+                    job_title_code=r["job_title_code"],
+                    category_tag=r["category_tag"],
+                    structural_role_name=r["structural_role_name"],
+                    level_code=r["level_code"],
                     display_name=r["display_name"],
                     status=r["status"],
                     created_at=r["created_at"].isoformat() if r["created_at"] else datetime.now(timezone.utc).isoformat(),
@@ -743,7 +841,7 @@ async def create_agent(
     context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
     """
-    Mendaftarkan staf agen AI otonom baru ke dalam registri tenant.
+    Mendaftarkan staf agen AI otonom baru ke dalam registri tenant dengan Shadow Mapping job_title_id.
     - Otorisasi: workforce.agent.manage
     """
     subject = SubjectContext(
@@ -777,14 +875,27 @@ async def create_agent(
 
             dept_uuid = str(uuid.UUID(req.department_id)) if req.department_id else None
 
-            # Catatan Utang Teknis: Kolom persona_type saat ini menerima kode identifier bebas
-            # dan dijadwalkan akan digantikan dengan foreign key wajib job_title_id pada Fase 32a/32b.
+            resolved_job_title_id = req.job_title_id
+            if not resolved_job_title_id and req.persona_type:
+                rule_match = conn.execute(
+                    sa.text("""
+                        SELECT t.id FROM job_title_mapping_rules r
+                        JOIN ai_job_titles t ON t.title_code = r.target_job_title_code
+                        WHERE LOWER(r.source_persona_type) = LOWER(:persona)
+                        AND r.requires_manual_review = false
+                        LIMIT 1;
+                    """),
+                    {"persona": req.persona_type.strip()}
+                ).scalar()
+                if rule_match:
+                    resolved_job_title_id = str(rule_match)
+
             conn.execute(
                 sa.text("""
                     INSERT INTO ai_agents (
-                        id, tenant_id, department_id, persona_type, display_name, status, created_at
+                        id, tenant_id, department_id, persona_type, display_name, status, job_title_id, created_at
                     ) VALUES (
-                        :id, :tenant_id, :department_id, :persona_type, :display_name, :status, now()
+                        :id, :tenant_id, :department_id, :persona_type, :display_name, :status, :job_title_id, now()
                     );
                 """),
                 {
@@ -794,6 +905,7 @@ async def create_agent(
                     "persona_type": req.persona_type.strip(),
                     "display_name": req.display_name.strip(),
                     "status": req.status if req.status in ("active", "paused", "error") else "active",
+                    "job_title_id": resolved_job_title_id,
                 }
             )
 
@@ -804,16 +916,411 @@ async def create_agent(
                     {"id": dept_uuid}
                 ).scalar()
 
+            title_row = None
+            if resolved_job_title_id:
+                title_row = conn.execute(
+                    sa.text("""
+                        SELECT jt.title_name, jt.title_code, jt.category_tag, sr.name as structural_role_name, jl.level_code
+                        FROM ai_job_titles jt
+                        JOIN ai_structural_roles sr ON sr.id = jt.structural_role_id
+                        JOIN job_levels jl ON jl.id = jt.job_level_id
+                        WHERE jt.id = :id;
+                    """),
+                    {"id": resolved_job_title_id}
+                ).mappings().first()
+
             return AgentResponse(
                 id=new_id,
                 tenant_id=tenant_id,
                 department_id=req.department_id,
                 department_name=dept_name,
                 persona_type=req.persona_type.strip(),
+                job_title_id=resolved_job_title_id,
+                job_title_name=title_row["title_name"] if title_row else None,
+                job_title_code=title_row["title_code"] if title_row else None,
+                category_tag=title_row["category_tag"] if title_row else None,
+                structural_role_name=title_row["structural_role_name"] if title_row else None,
+                level_code=title_row["level_code"] if title_row else None,
                 display_name=req.display_name.strip(),
                 status=req.status or "active",
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
+
+
+@router.get(
+    "/{tenant_id}/job-titles",
+    response_model=List[StandardizedJobTitleResponse],
+    summary="15 Jabatan Staf AI Terstandarisasi Platform (is_reference=true)"
+)
+async def get_job_titles(
+    tenant_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Mengambil katalog 15 Jabatan Staf AI Resmi platform beserta structural role, level rank, dan sub-spesialisasi.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            rows = conn.execute(sa.text("""
+                SELECT 
+                    t.id, t.title_code, t.title_name, t.category_tag, t.badge_stars,
+                    t.primary_duties, t.recommended_tools, t.primary_deliverable, t.is_reference,
+                    sr.id as sr_id, sr.role_code, sr.name as sr_name, sr.description as sr_desc, sr.hierarchy_rank, sr.is_reference as sr_is_ref,
+                    jl.id as jl_id, jl.level_code, jl.name as jl_name, jl.description as jl_desc, jl.level_rank, jl.min_complexity_multiplier, jl.is_reference as jl_is_ref
+                FROM ai_job_titles t
+                JOIN ai_structural_roles sr ON sr.id = t.structural_role_id
+                JOIN job_levels jl ON jl.id = t.job_level_id
+                WHERE t.is_reference = true
+                ORDER BY jl.level_rank ASC, t.title_name ASC;
+            """)).mappings().all()
+
+            sub_rows = conn.execute(sa.text("""
+                SELECT id, job_title_id, subtitle_code, subtitle_name, description, focus_areas, is_reference
+                FROM job_subtitles
+                WHERE is_reference = true
+                ORDER BY subtitle_name ASC;
+            """)).mappings().all()
+
+            sub_map: Dict[str, List[JobSubtitleResponse]] = {}
+            for s in sub_rows:
+                tid = str(s["job_title_id"])
+                if tid not in sub_map:
+                    sub_map[tid] = []
+                sub_map[tid].append(JobSubtitleResponse(
+                    id=str(s["id"]),
+                    job_title_id=tid,
+                    subtitle_code=s["subtitle_code"],
+                    subtitle_name=s["subtitle_name"],
+                    description=s["description"],
+                    focus_areas=s["focus_areas"] or [],
+                    is_reference=s["is_reference"]
+                ))
+
+            result = []
+            for r in rows:
+                tid = str(r["id"])
+                result.append(StandardizedJobTitleResponse(
+                    id=tid,
+                    title_code=r["title_code"],
+                    title_name=r["title_name"],
+                    category_tag=r["category_tag"],
+                    badge_stars=r["badge_stars"],
+                    primary_duties=r["primary_duties"],
+                    recommended_tools=r["recommended_tools"] or [],
+                    primary_deliverable=r["primary_deliverable"],
+                    is_reference=r["is_reference"],
+                    structural_role=StructuralRoleResponse(
+                        id=str(r["sr_id"]),
+                        role_code=r["role_code"],
+                        name=r["sr_name"],
+                        description=r["sr_desc"],
+                        hierarchy_rank=r["hierarchy_rank"],
+                        is_reference=r["sr_is_ref"]
+                    ),
+                    job_level=JobLevelResponse(
+                        id=str(r["jl_id"]),
+                        level_code=r["level_code"],
+                        name=r["jl_name"],
+                        description=r["jl_desc"],
+                        level_rank=r["level_rank"],
+                        min_complexity_multiplier=float(r["min_complexity_multiplier"]),
+                        is_reference=r["jl_is_ref"]
+                    ),
+                    subtitles=sub_map.get(tid, [])
+                ))
+            return result
+
+
+@router.get(
+    "/{tenant_id}/job-titles/reconciliation-report",
+    response_model=JobTitleMigrationReportResponse,
+    summary="Laporan Rekonsiliasi Audit Shadow Mapping Jabatan AI"
+)
+async def get_reconciliation_report(
+    tenant_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Mengambil ringkasan laporan rekonsiliasi jabatan AI: jumlah agen otomatis terpetakan vs butuh keputusan manual.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+
+            report = conn.execute(sa.text("""
+                SELECT id, report_batch_id, tenant_id, total_agents_audited, auto_mapped_count,
+                       ambiguous_count, reconciliation_status, mappings, summary_notes, generated_at
+                FROM job_title_migration_reports
+                WHERE tenant_id = :tenant_id OR tenant_id IS NULL
+                ORDER BY generated_at DESC LIMIT 1;
+            """), {"tenant_id": tenant_id}).mappings().first()
+
+            if not report:
+                # Jika belum ada laporan tersimpan, jalankan rekonsiliasi dinamis
+                return await trigger_job_title_reconcile(tenant_id, context)
+
+            mappings_data = report["mappings"]
+            if isinstance(mappings_data, str):
+                import json
+                mappings_data = json.loads(mappings_data)
+
+            return JobTitleMigrationReportResponse(
+                id=str(report["id"]),
+                report_batch_id=report["report_batch_id"],
+                tenant_id=str(report["tenant_id"]) if report["tenant_id"] else None,
+                total_agents_audited=report["total_agents_audited"],
+                auto_mapped_count=report["auto_mapped_count"],
+                ambiguous_count=report["ambiguous_count"],
+                reconciliation_status=report["reconciliation_status"],
+                mappings=[ReconciliationMappingItemModel(**m) for m in mappings_data],
+                summary_notes=report["summary_notes"],
+                generated_at=report["generated_at"].isoformat()
+            )
+
+
+@router.post(
+    "/{tenant_id}/job-titles/reconcile",
+    response_model=JobTitleMigrationReportResponse,
+    summary="Jalankan Audit Rekonsiliasi Shadow Mapping Jabatan AI"
+)
+async def trigger_job_title_reconcile(
+    tenant_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Mengeksekusi proses Shadow Mapping pada tabel ai_agents, mencatat hasil rekonsiliasi, dan menerbitkan laporan.
+    """
+    subject = SubjectContext(
+        user_id=context.user_id,
+        tenant_id=context.tenant_id,
+        roles=context.roles,
+        capabilities=context.capabilities,
+        is_mfa_verified=context.is_mfa_verified,
+    )
+    resource = ResourceContext(resource_type="ai_agents", owner_tenant_id=tenant_id)
+    decision = authorize(subject, "workforce.agent.manage", resource)
+    if not decision.is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"DENY_RBAC: {decision.reason}"
+        )
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+
+            # 1. Aturan mapping
+            rules = conn.execute(sa.text("""
+                SELECT r.source_persona_type, r.target_job_title_code, r.mapping_confidence,
+                       r.requires_manual_review, r.notes,
+                       t.id as target_job_title_id, t.title_name as target_title_name,
+                       sr.name as structural_role_name, jl.level_code
+                FROM job_title_mapping_rules r
+                LEFT JOIN ai_job_titles t ON t.title_code = r.target_job_title_code
+                LEFT JOIN ai_structural_roles sr ON sr.id = t.structural_role_id
+                LEFT JOIN job_levels jl ON jl.id = t.job_level_id;
+            """)).mappings().all()
+
+            rule_map = {r["source_persona_type"].lower(): r for r in rules}
+
+            # 2. Agen AI tenant
+            agents = conn.execute(sa.text("""
+                SELECT a.id, a.tenant_id, a.persona_type, a.display_name, a.status, a.job_title_id,
+                       d.name as department_name,
+                       jt.title_name as current_job_title_name, jt.title_code as current_job_title_code
+                FROM ai_agents a
+                LEFT JOIN departments d ON d.id = a.department_id
+                LEFT JOIN ai_job_titles jt ON jt.id = a.job_title_id
+                WHERE a.tenant_id = :tenant_id
+                ORDER BY a.created_at ASC;
+            """), {"tenant_id": tenant_id}).mappings().all()
+
+            mappings_list = []
+            auto_count = 0
+            ambiguous_count = 0
+
+            for a in agents:
+                pkey = (a["persona_type"] or "").lower()
+                mrule = rule_map.get(pkey)
+
+                if mrule and not mrule["requires_manual_review"] and mrule["target_job_title_id"]:
+                    target_id = str(mrule["target_job_title_id"])
+                    if str(a["job_title_id"] or "") != target_id:
+                        conn.execute(
+                            sa.text("UPDATE ai_agents SET job_title_id = :jid WHERE id = :aid;"),
+                            {"jid": target_id, "aid": str(a["id"])}
+                        )
+                    auto_count += 1
+                    mappings_list.append({
+                        "agent_id": str(a["id"]),
+                        "agent_display_name": a["display_name"],
+                        "department_name": a["department_name"] or "Umum",
+                        "persona_type": a["persona_type"],
+                        "tenant_id": str(a["tenant_id"]),
+                        "resolution_status": "AUTO_MAPPED",
+                        "target_job_title_id": target_id,
+                        "target_job_title_code": mrule["target_job_title_code"],
+                        "target_title_name": mrule["target_title_name"],
+                        "structural_role_name": mrule["structural_role_name"],
+                        "level_code": mrule["level_code"],
+                        "confidence": mrule["mapping_confidence"],
+                        "requires_manual_review": False,
+                        "notes": mrule["notes"] or "Dipetakan otomatis melalui ontologi resmi platform."
+                    })
+                elif a["job_title_id"] and a["current_job_title_name"]:
+                    auto_count += 1
+                    mappings_list.append({
+                        "agent_id": str(a["id"]),
+                        "agent_display_name": a["display_name"],
+                        "department_name": a["department_name"] or "Umum",
+                        "persona_type": a["persona_type"],
+                        "tenant_id": str(a["tenant_id"]),
+                        "resolution_status": "AUTO_MAPPED",
+                        "target_job_title_id": str(a["job_title_id"]),
+                        "target_job_title_code": a["current_job_title_code"],
+                        "target_title_name": a["current_job_title_name"],
+                        "structural_role_name": "Penetapan Manual Admin",
+                        "level_code": "Ditetapkan",
+                        "confidence": "HIGH",
+                        "requires_manual_review": False,
+                        "notes": "Jabatan resmi telah ditetapkan secara manual oleh administrator organisasi."
+                    })
+                else:
+                    ambiguous_count += 1
+                    mappings_list.append({
+                        "agent_id": str(a["id"]),
+                        "agent_display_name": a["display_name"],
+                        "department_name": a["department_name"] or "Umum",
+                        "persona_type": a["persona_type"],
+                        "tenant_id": str(a["tenant_id"]),
+                        "resolution_status": "ACTION_REQUIRED",
+                        "target_job_title_id": None,
+                        "target_job_title_code": None,
+                        "target_title_name": None,
+                        "structural_role_name": None,
+                        "level_code": None,
+                        "confidence": mrule["mapping_confidence"] if mrule else "UNKNOWN",
+                        "requires_manual_review": True,
+                        "notes": mrule["notes"] if mrule else "Persona tidak terdaftar dalam ontologi resmi; butuh penugasan manual oleh admin."
+                    })
+
+            batch_id = f"RECON_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+            status_val = "ACTION_REQUIRED" if ambiguous_count > 0 else "COMPLETED"
+            summary_notes = f"Audit Rekonsiliasi: {auto_count} agen terpetakan otomatis via Shadow Mapping, {ambiguous_count} agen butuh peninjauan manual."
+
+            import json
+            row_ins = conn.execute(sa.text("""
+                INSERT INTO job_title_migration_reports (
+                    tenant_id, report_batch_id, total_agents_audited, auto_mapped_count,
+                    ambiguous_count, reconciliation_status, mappings, summary_notes
+                ) VALUES (
+                    :tenant_id, :batch_id, :total, :auto, :ambiguous, :status, :mappings::jsonb, :notes
+                ) RETURNING id, generated_at;
+            """), {
+                "tenant_id": tenant_id,
+                "batch_id": batch_id,
+                "total": len(agents),
+                "auto": auto_count,
+                "ambiguous": ambiguous_count,
+                "status": status_val,
+                "mappings": json.dumps(mappings_list),
+                "notes": summary_notes
+            }).mappings().first()
+
+            return JobTitleMigrationReportResponse(
+                id=str(row_ins["id"]),
+                report_batch_id=batch_id,
+                tenant_id=tenant_id,
+                total_agents_audited=len(agents),
+                auto_mapped_count=auto_count,
+                ambiguous_count=ambiguous_count,
+                reconciliation_status=status_val,
+                mappings=[ReconciliationMappingItemModel(**m) for m in mappings_list],
+                summary_notes=summary_notes,
+                generated_at=row_ins["generated_at"].isoformat()
+            )
+
+
+@router.patch(
+    "/{tenant_id}/agents/{agent_id}/job-title",
+    summary="Penetapan Manual Jabatan Resmi Agen AI"
+)
+async def assign_agent_job_title(
+    tenant_id: str,
+    agent_id: str,
+    req: AssignJobTitleRequest,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Menetapkan jabatan resmi dari katalog platform untuk menyelesaikan ambiguitas agen.
+    """
+    subject = SubjectContext(
+        user_id=context.user_id,
+        tenant_id=context.tenant_id,
+        roles=context.roles,
+        capabilities=context.capabilities,
+        is_mfa_verified=context.is_mfa_verified,
+    )
+    resource = ResourceContext(resource_type="ai_agents", owner_tenant_id=tenant_id)
+    decision = authorize(subject, "workforce.agent.manage", resource)
+    if not decision.is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"DENY_RBAC: {decision.reason}"
+        )
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+
+            title_row = conn.execute(
+                sa.text("SELECT id, title_name, title_code FROM ai_job_titles WHERE id = :id;"),
+                {"id": req.job_title_id}
+            ).mappings().first()
+            if not title_row:
+                raise HTTPException(status_code=404, detail="Jabatan AI tidak ditemukan dalam katalog resmi.")
+
+            updated = conn.execute(
+                sa.text("""
+                    UPDATE ai_agents
+                    SET job_title_id = :jid
+                    WHERE id = :aid AND tenant_id = :tid
+                    RETURNING id, display_name, persona_type, job_title_id;
+                """),
+                {"jid": req.job_title_id, "aid": agent_id, "tid": tenant_id}
+            ).mappings().first()
+
+            if not updated:
+                raise HTTPException(status_code=404, detail="Agen tidak ditemukan pada organisasi ini.")
+
+            return {
+                "success": True,
+                "message": "Jabatan resmi berhasil ditetapkan untuk agen.",
+                "agent_id": str(updated["id"]),
+                "display_name": updated["display_name"],
+                "assigned_job_title": {
+                    "id": str(title_row["id"]),
+                    "title_code": title_row["title_code"],
+                    "title_name": title_row["title_name"]
+                }
+            }
 
 
 @router.get(

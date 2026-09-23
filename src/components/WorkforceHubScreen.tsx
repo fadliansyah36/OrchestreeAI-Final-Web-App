@@ -31,6 +31,8 @@ import { TenantRegistrationResponse } from '../types';
 import { KanbanBoardScreen } from './KanbanBoardScreen';
 import { WebAuthnAttendanceScreen } from './WebAuthnAttendanceScreen';
 import { HomeOverviewScreen } from './HomeOverviewScreen';
+import { JobTitleReconciliationPanel } from './JobTitleReconciliationPanel';
+import { AgentCreationScreen } from './AgentCreationScreen';
 
 interface WorkforceHubScreenProps {
   tenant: TenantRegistrationResponse | null;
@@ -71,6 +73,13 @@ interface AgentItem {
   department_id: string | null;
   department_name?: string | null;
   persona_type: string;
+  job_title_id?: string | null;
+  job_title_name?: string | null;
+  job_title_code?: string | null;
+  category_tag?: string | null;
+  structural_role_name?: string | null;
+  level_code?: string | null;
+  subtitle_name?: string | null;
   display_name: string;
   status: string;
   created_at: string;
@@ -99,7 +108,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   tenant,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'org_chart' | 'kanban' | 'attendance'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'job_titles' | 'org_chart' | 'kanban' | 'attendance'>('hub');
   const [testRole, setTestRole] = useState<'TENANT_OWNER' | 'DEPT_MANAGER' | 'STAFF_HUMAN'>('TENANT_OWNER');
 
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
@@ -371,6 +380,13 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
       badgeCount: agentList.length,
     },
     {
+      key: 'job_titles',
+      label: 'Katalog Jabatan & Rekonsiliasi',
+      icon: 'sparkles',
+      route: 'job_titles',
+      badgeCount: 15,
+    },
+    {
       key: 'org_chart',
       label: 'Struktur Bagan Organisasi',
       icon: 'layers',
@@ -619,6 +635,18 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
           >
             <Bot className="w-3.5 h-3.5" />
             <span>AI Agent Registry ({agentList.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('job_titles')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'job_titles'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Katalog Jabatan Resmi (15)</span>
           </button>
           <button
             type="button"
@@ -976,87 +1004,39 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
                   Registri resmi pekerja kecerdasan buatan otonom dengan isolasi tenant RLS.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowAgentModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Daftarkan AI Agent</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('job_titles')}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border border-emerald-600/20 text-xs font-semibold transition-colors"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Katalog & Rekonsiliasi Jabatan</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAgentModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Daftarkan AI Agent</span>
+                </button>
+              </div>
             </div>
 
-            {/* Modal Tambah Agent */}
+            {/* Modal Tambah Agent (3 Langkah Terstandarisasi) */}
             {showAgentModal && (
-              <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg mb-6">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-4">
-                  Registrasi Staf AI Otonom
-                </h3>
-                <form onSubmit={handleCreateAgent} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Nama Tampilan Agen *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newAgentName}
-                        onChange={(e) => setNewAgentName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Persona Tipe Staf AI
-                      </label>
-                      <select
-                        value={newAgentPersona}
-                        onChange={(e) => setNewAgentPersona(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none"
-                      >
-                        <option value="RESEARCHER">Penyelidik & Riset Mendalam</option>
-                        <option value="DEVELOPER">Perekayasa Sistem & Kode</option>
-                        <option value="DATA_ANALYST">Analis Data & Kinerja Bisnis</option>
-                        <option value="SUPPORT_SPECIALIST">Spesialis Layanan & Komunikasi</option>
-                        <option value="COPYWRITER">Spesialis Konten & Redaksi</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Departemen Penempatan
-                      </label>
-                      <select
-                        value={newAgentDeptId}
-                        onChange={(e) => setNewAgentDeptId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-purple-500 outline-none"
-                      >
-                        <option value="">-- Tanpa Departemen --</option>
-                        {departments.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAgentModal(false)}
-                      className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-sm"
-                    >
-                      Simpan Agen AI
-                    </button>
-                  </div>
-                </form>
+              <div className="mb-6">
+                <AgentCreationScreen
+                  tenantId={tenantId}
+                  userRole={testRole}
+                  onSuccess={async (newAgent) => {
+                    setShowAgentModal(false);
+                    setSuccessMsg(`Staf AI '${newAgent.display_name}' berhasil didaftarkan dengan jabatan '${newAgent.job_title_name || 'Katalog Resmi'}'.`);
+                    await loadAllData();
+                  }}
+                  onCancel={() => setShowAgentModal(false)}
+                />
               </div>
             )}
 
@@ -1105,6 +1085,37 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
                             {agent.department_name || 'Lintas Departemen'}
                           </span>
                         </div>
+                        <div className="flex items-center justify-between">
+                          <span>Jabatan Resmi:</span>
+                          {agent.job_title_name ? (
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 shrink-0" />
+                              <span className="truncate max-w-[130px]">{agent.job_title_name}</span>
+                              <span className="text-[10px] px-1 rounded bg-emerald-100 dark:bg-emerald-950/60">{agent.level_code}</span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 text-[11px] font-medium flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              Shadow Mapping Pending
+                            </span>
+                          )}
+                        </div>
+                        {agent.subtitle_name && (
+                          <div className="flex items-center justify-between">
+                            <span>Spesialisasi:</span>
+                            <span className="text-purple-600 dark:text-purple-400 font-medium truncate max-w-[150px]">
+                              {agent.subtitle_name}
+                            </span>
+                          </div>
+                        )}
+                        {agent.structural_role_name && (
+                          <div className="flex items-center justify-between">
+                            <span>Peran Hierarki:</span>
+                            <span className="text-slate-600 dark:text-slate-400 truncate max-w-[150px]">
+                              {agent.structural_role_name}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1280,6 +1291,12 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
               </div>
             )}
           </div>
+        ) : activeTab === 'job_titles' ? (
+          <JobTitleReconciliationPanel
+            tenantId={tenantId}
+            userRole={testRole}
+            onRefreshParent={loadAllData}
+          />
         ) : activeTab === 'kanban' ? (
           <KanbanBoardScreen
             tenantId={tenantId}

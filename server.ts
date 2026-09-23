@@ -53,6 +53,7 @@ import { SalesGuardrailService } from './src/server/salesGuardrailService';
 import { SelectionService } from './src/server/selectionService';
 import { GenerativeStudioService } from './src/server/generativeStudioService';
 import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
+import { JobTitleReconciliationService } from './src/server/jobTitleReconciliationService';
 
 let pool: pg.Pool | null = null;
 try {
@@ -81,6 +82,7 @@ const companyBrainService = new CompanyBrainService(pool!);
 const messageExperimentService = new MessageExperimentService(pool!);
 const revenueIntelligenceService = new RevenueIntelligenceService(pool!);
 const salesGuardrailService = new SalesGuardrailService(pool!);
+const jobTitleReconciliationService = new JobTitleReconciliationService(pool!);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -1339,9 +1341,7 @@ app.post('/api/v1/tenants/:tenantId/staff', async (req, res) => {
   return res.status(201).json(newStaff);
 });
 
-// 11. AI Agent Registry Endpoints (GET & POST)
-// Catatan Utang Teknis: Kolom persona_type saat ini menerima kode identifier bebas
-// dan dijadwalkan akan digantikan dengan foreign key wajib job_title_id pada Fase 32a/32b.
+// 11. AI Agent Registry & Job Title Shadow Mapping Endpoints (PRD v2.2 Bagian 2.4 & Bagian 9.1)
 app.get('/api/v1/tenants/:tenantId/agents', async (req, res) => {
   const tenantId = req.params.tenantId || (req.headers['x-tenant-id'] as string);
   if (!tenantId) return res.status(400).json({ error: 'tenant_id diperlukan.' });
@@ -1354,11 +1354,23 @@ app.get('/api/v1/tenants/:tenantId/agents', async (req, res) => {
         await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenantId]);
 
         const result = await client.query(
-          `SELECT a.id, a.tenant_id, a.department_id, a.persona_type,
+          `SELECT a.id, a.tenant_id, a.department_id, a.persona_type, a.job_title_id,
+                  a.structural_role_id, a.job_subtitle_id,
                   a.display_name, a.status, a.created_at,
-                  d.name as department_name
+                  d.name as department_name,
+                  jt.title_name as job_title_name,
+                  jt.title_code as job_title_code,
+                  jt.category_tag,
+                  COALESCE(sr_custom.name, sr_default.name) as structural_role_name,
+                  jl.level_code,
+                  js.subtitle_name
            FROM ai_agents a
            LEFT JOIN departments d ON d.id = a.department_id
+           LEFT JOIN ai_job_titles jt ON jt.id = a.job_title_id
+           LEFT JOIN ai_structural_roles sr_default ON sr_default.id = jt.structural_role_id
+           LEFT JOIN ai_structural_roles sr_custom ON sr_custom.id = a.structural_role_id
+           LEFT JOIN job_levels jl ON jl.id = jt.job_level_id
+           LEFT JOIN job_subtitles js ON js.id = a.job_subtitle_id
            WHERE a.tenant_id = $1
            ORDER BY a.created_at ASC;`,
           [tenantId]
@@ -1371,6 +1383,15 @@ app.get('/api/v1/tenants/:tenantId/agents', async (req, res) => {
             department_id: r.department_id,
             department_name: r.department_name,
             persona_type: r.persona_type,
+            job_title_id: r.job_title_id,
+            job_title_name: r.job_title_name || null,
+            job_title_code: r.job_title_code || null,
+            category_tag: r.category_tag || null,
+            structural_role_id: r.structural_role_id || null,
+            structural_role_name: r.structural_role_name || null,
+            level_code: r.level_code || null,
+            job_subtitle_id: r.job_subtitle_id || null,
+            subtitle_name: r.subtitle_name || null,
             display_name: r.display_name,
             status: r.status,
             created_at: r.created_at,
@@ -1396,7 +1417,7 @@ app.post('/api/v1/tenants/:tenantId/agents', async (req, res) => {
     });
   }
 
-  const { persona_type, display_name, department_id, status } = req.body;
+  const { persona_type, display_name, department_id, status, job_title_id, structural_role_id, job_subtitle_id } = req.body;
   if (!display_name || display_name.trim().length < 2) {
     return res.status(400).json({ error: 'Nama tampilan agen minimal 2 karakter.' });
   }
@@ -1404,50 +1425,174 @@ app.post('/api/v1/tenants/:tenantId/agents', async (req, res) => {
   const newAgentId = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  // Catatan Utang Teknis: Kolom persona_type saat ini menerima kode identifier bebas
-  // dan akan digantikan oleh foreign key wajib job_title_id pada Fase 32a/32b.
   if (pool) {
+    let client;
     try {
-      const client = await pool.connect();
-      try {
-        await client.query('SET LOCAL ROLE orchestree_app;');
-        await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenantId]);
+      client = await pool.connect();
+      await client.query('SET LOCAL ROLE orchestree_app;');
+      await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenantId]);
 
-        await client.query(
-          `INSERT INTO ai_agents (id, tenant_id, department_id, persona_type, display_name, status, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-          [newAgentId, tenantId, department_id || null, persona_type.trim(), display_name.trim(), status || 'active', now]
-        );
+      // Direct insertion without bypass: database constraint NOT NULL enforces catalog selection
+      await client.query(
+        `INSERT INTO ai_agents (id, tenant_id, department_id, persona_type, display_name, status, job_title_id, structural_role_id, job_subtitle_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+        [
+          newAgentId,
+          tenantId,
+          department_id || null,
+          (persona_type && persona_type.trim()) || 'custom_agent',
+          display_name.trim(),
+          status || 'active',
+          job_title_id || null, // Will trigger 23502 NOT NULL violation if null/undefined
+          structural_role_id || null,
+          job_subtitle_id || null,
+          now
+        ]
+      );
 
-        return res.status(201).json({
-          id: newAgentId,
-          tenant_id: tenantId,
-          department_id: department_id || null,
-          persona_type: persona_type.trim(),
-          display_name: display_name.trim(),
-          status: status || 'active',
-          created_at: now,
+      // Ambil metadata lengkap jabatan untuk respon instan
+      const detailRes = await client.query(
+        `SELECT a.id, a.tenant_id, a.department_id, a.persona_type, a.job_title_id,
+                a.structural_role_id, a.job_subtitle_id,
+                a.display_name, a.status, a.created_at,
+                d.name as department_name,
+                jt.title_name as job_title_name,
+                jt.title_code as job_title_code,
+                jt.category_tag,
+                COALESCE(sr_custom.name, sr_default.name) as structural_role_name,
+                jl.level_code,
+                js.subtitle_name
+         FROM ai_agents a
+         LEFT JOIN departments d ON d.id = a.department_id
+         LEFT JOIN ai_job_titles jt ON jt.id = a.job_title_id
+         LEFT JOIN ai_structural_roles sr_default ON sr_default.id = jt.structural_role_id
+         LEFT JOIN ai_structural_roles sr_custom ON sr_custom.id = a.structural_role_id
+         LEFT JOIN job_levels jl ON jl.id = jt.job_level_id
+         LEFT JOIN job_subtitles js ON js.id = a.job_subtitle_id
+         WHERE a.id = $1 AND a.tenant_id = $2;`,
+        [newAgentId, tenantId]
+      );
+
+      const createdRow = detailRes.rows[0];
+      return res.status(201).json({
+        id: createdRow.id,
+        tenant_id: createdRow.tenant_id,
+        department_id: createdRow.department_id,
+        department_name: createdRow.department_name,
+        persona_type: createdRow.persona_type,
+        job_title_id: createdRow.job_title_id,
+        job_title_name: createdRow.job_title_name,
+        job_title_code: createdRow.job_title_code,
+        category_tag: createdRow.category_tag,
+        structural_role_id: createdRow.structural_role_id,
+        structural_role_name: createdRow.structural_role_name,
+        level_code: createdRow.level_code,
+        job_subtitle_id: createdRow.job_subtitle_id,
+        subtitle_name: createdRow.subtitle_name,
+        display_name: createdRow.display_name,
+        status: createdRow.status,
+        created_at: createdRow.created_at,
+      });
+    } catch (dbErr: any) {
+      // Penegakan Constraint Database: Tangkap kode error PostgreSQL 23502 (NOT NULL) dan 23503 (FK)
+      if (dbErr.code === '23502' && dbErr.column === 'job_title_id') {
+        return res.status(400).json({
+          error: 'Pelanggaran Constraint Database: Pembuatan AI Agent wajib memilih Jabatan Utama dari 15 katalog resmi (NOT NULL constraint).',
+          code: '23502',
+          constraint: 'not_null_violation',
+          column: 'job_title_id'
         });
-      } finally {
-        client.release();
       }
-    } catch {
-      // Verified via PostgreSQL
+      if (dbErr.code === '23503' && dbErr.constraint === 'ai_agents_job_title_id_fkey') {
+        return res.status(400).json({
+          error: 'Pelanggaran Constraint Database: Jabatan AI yang dipilih tidak valid atau tidak terdaftar dalam katalog resmi (FOREIGN KEY constraint).',
+          code: '23503',
+          constraint: 'foreign_key_violation',
+          column: 'job_title_id'
+        });
+      }
+      return res.status(500).json({ error: dbErr.message || 'Gagal mendaftarkan agen ke Supabase.' });
+    } finally {
+      if (client) client.release();
     }
   }
 
-  const newAgent = {
-    id: newAgentId,
-    tenant_id: tenantId,
-    department_id: department_id || null,
-    persona_type: persona_type.trim(),
-    display_name: display_name.trim(),
-    status: status || 'active',
-    created_at: now,
-  };
-  // agent saved in Supabase
+  return res.status(500).json({ error: 'Gagal mendaftarkan agen ke Supabase.' });
+});
 
-  return res.status(201).json(newAgent);
+// 11b. Standardized AI Job Titles (15 Katalog Terstandarisasi)
+app.get('/api/v1/tenants/:tenantId/job-titles', async (req, res) => {
+  try {
+    const titles = await jobTitleReconciliationService.getStandardizedJobTitles();
+    return res.json(titles);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal memuat katalog jabatan resmi.' });
+  }
+});
+
+app.get('/api/v1/workforce/job-titles', async (_req, res) => {
+  try {
+    const titles = await jobTitleReconciliationService.getStandardizedJobTitles();
+    return res.json(titles);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal memuat katalog jabatan resmi.' });
+  }
+});
+
+// 11c. Job Title Reconciliation Report (Auto-Mapped vs Action Required)
+app.get('/api/v1/tenants/:tenantId/job-titles/reconciliation-report', async (req, res) => {
+  const tenantId = req.params.tenantId;
+  try {
+    const report = await jobTitleReconciliationService.getLatestReport(tenantId);
+    return res.json(report);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal memuat laporan rekonsiliasi jabatan.' });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/job-titles/reconcile', async (req, res) => {
+  const tenantId = req.params.tenantId;
+  const role = getWorkforceActorRole(req);
+  if (role === 'STAFF_HUMAN') {
+    return res.status(403).json({
+      detail: 'DENY_RBAC: Peran Anda tidak memiliki wewenang menjalankan audit rekonsiliasi jabatan.',
+    });
+  }
+
+  try {
+    const report = await jobTitleReconciliationService.runReconciliation(tenantId);
+    return res.json(report);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal menjalankan rekonsiliasi jabatan.' });
+  }
+});
+
+// 11d. Manual Job Title Assignment for Ambiguous Agents
+app.patch('/api/v1/tenants/:tenantId/agents/:agentId/job-title', async (req, res) => {
+  const { tenantId, agentId } = req.params;
+  const { job_title_id } = req.body;
+  const role = getWorkforceActorRole(req);
+
+  if (role === 'STAFF_HUMAN') {
+    return res.status(403).json({
+      detail: 'DENY_RBAC: Peran Anda tidak memiliki wewenang menetapkan jabatan staf AI.',
+    });
+  }
+
+  if (!job_title_id) {
+    return res.status(400).json({ error: 'job_title_id wajib diisi.' });
+  }
+
+  try {
+    const result = await jobTitleReconciliationService.assignJobTitleManually(tenantId, agentId, job_title_id);
+    return res.json({
+      success: true,
+      message: 'Jabatan resmi berhasil ditetapkan untuk agen.',
+      data: result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal menetapkan jabatan resmi pada agen.' });
+  }
 });
 
 // 12. Org Chart Aggregation Endpoint
