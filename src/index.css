@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --orch-primary-green: #1FA35A;
+  --orch-primary-blue: #1E6FE0;
+  --orch-accent-purple: #6C4CD9;
+  --orch-navy-900: #0B1B2B;
+  --orch-surface-base: #F8FAFC;
+  --orch-surface-card: #FFFFFF;
+  --orch-surface-card-subtle: #F1F5F9;
+  --orch-border-base: #E2E8F0;
+  --orch-border-subtle: #CBD5E1;
+  --orch-text-primary: #0F172A;
+  --orch-text-secondary: #475569;
+  --orch-text-muted: #64748B;
+  --orch-gray-600: #5B6472;
+  --orch-success: #1FA35A;
+  --orch-warning: #F5A623;
+  --orch-danger: #E2483D;
+  --orch-info: #1E6FE0;
+  --orch-glow-accent: transparent;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"],
+.dark {
+  --orch-primary-green: #34D399;
+  --orch-primary-blue: #60A5FA;
+  --orch-accent-purple: #A78BFA;
+  --orch-navy-900: #0B1B2B;
+  --orch-surface-base: #0B1220;
+  --orch-surface-card: #0F172A;
+  --orch-surface-card-subtle: #1E293B;
+  --orch-border-base: #1E293B;
+  --orch-border-subtle: #334155;
+  --orch-text-primary: #F8FAFC;
+  --orch-text-secondary: #CBD5E1;
+  --orch-text-muted: #94A3B8;
+  --orch-gray-600: #9AA5B1;
+  --orch-success: #34D399;
+  --orch-warning: #F5A623;
+  --orch-danger: #F87171;
+  --orch-info: #60A5FA;
+  --orch-glow-accent: rgba(96, 165, 250, 0.20);
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--orch-surface-base);
+  color: var(--orch-text-primary);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Touch target minimum 48px for touch devices */
+@media (pointer: coarse) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+  }
+}

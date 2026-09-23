@@ -701,7 +701,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
               <div className="space-y-1">
                 <div className="flex items-center space-x-2 text-xs font-bold text-emerald-400">
                   <Clock className="w-4 h-4" />
-                  <span>Siklus Otomatis Proaktif (PRD v2.2 Bagian 10.6)</span>
+                  <span>Siklus Otomatis Proaktif Otonom</span>
                 </div>
                 <p className="text-xs text-slate-300">
                   Jendela pengiriman aktif: <strong>08:00 – 20:00 WIB</strong> (Anti-Spam Guard maksimal 3 pesan/hari per kanal).

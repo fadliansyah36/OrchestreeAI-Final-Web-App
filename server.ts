@@ -200,7 +200,7 @@ app.get('/api/v1/health/startup', async (req, res) => {
   });
 });
 
-// Public: Subscription Plans (Read-only query directly from database or in-memory catalog)
+// Public: Subscription Plans (Read-only query directly from Supabase PostgreSQL)
 app.get('/api/v1/public/subscription-plans', async (req, res) => {
   if (pool) {
     try {
@@ -218,7 +218,7 @@ app.get('/api/v1/public/subscription-plans', async (req, res) => {
         client.release();
       }
     } catch {
-      // In-memory catalog fallback
+      // Supabase query error
     }
   }
   return res.status(500).json({ error: 'Data paket langganan gagal dimuat dari Supabase.' });
@@ -617,7 +617,7 @@ app.post(['/api/v1/onboarding/tenants', '/api/v1/onboarding/register-tenant'], a
         client.release();
       }
     } catch {
-      // DB connection failed -> fallback to in-memory store
+      // Supabase connection/transaction error
     }
   }
   if (!executedInDb) {

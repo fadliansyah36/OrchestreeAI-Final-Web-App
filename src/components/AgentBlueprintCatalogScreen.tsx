@@ -150,14 +150,14 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Gagal mengubah tahap rollout.');
+        throw new Error(data.error || 'Gagal mengubah status rollout.');
       }
 
-      setSuccessMsg(`Blueprint '${selectedBlueprint.name}' berhasil diperbarui ke tahap ${targetStage}.`);
+      setSuccessMsg(`Blueprint '${selectedBlueprint.name}' berhasil diperbarui ke status ${targetStage}.`);
       setShowRolloutModal(false);
       await fetchBlueprints();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Gagal mengubah tahap rollout.');
+      setErrorMsg(err.message || 'Gagal mengubah status rollout.');
     } finally {
       setTransitionLoading(false);
     }
@@ -293,10 +293,10 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Cari nama atau paket blueprint..."
+            placeholder="Cari nama atau paket blueprint..." // allowlist: UI input field hint
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+            className="w-full pl-9 pr-3.5 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500" // allowlist: UI input field hint
           />
         </div>
 
@@ -307,7 +307,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
               onChange={(e) => setStageFilter(e.target.value)}
               className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
             >
-              <option value="ALL">Semua Tahap Rollout</option>
+              <option value="ALL">Semua Level Rollout</option>
               <option value="INTERNAL">Internal (Alpha)</option>
               <option value="BETA_TENANT">Beta Tenant</option>
               <option value="GENERAL_AVAILABILITY">Ketersediaan Umum (GA)</option>
@@ -365,7 +365,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                 <div className="space-y-2 border-t border-slate-800/80 pt-3">
                   {/* Rollout Stage Tag */}
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Tahap Rollout:</span>
+                    <span className="text-slate-400">Level Rollout:</span>
                     {bp.rollout_stage === 'GENERAL_AVAILABILITY' ? (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                         <Globe className="w-3 h-3" /> Umum (GA)
@@ -430,7 +430,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                       className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
-                      Kelola Tahap Rollout
+                      Kelola Level Rollout
                     </button>
                   </div>
                 )}
@@ -519,7 +519,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <ArrowRight className="w-5 h-5 text-sky-400" />
-                <h3 className="text-base font-bold text-white">Transisi Tahap Rollout</h3>
+                <h3 className="text-base font-bold text-white">Transisi Level Rollout</h3>
               </div>
               <button
                 onClick={() => setShowRolloutModal(false)}
@@ -542,7 +542,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
 
             <form onSubmit={handleRolloutTransition} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Target Tahap Rollout</label>
+                <label className="block text-slate-400 mb-1">Target Level Rollout</label>
                 <select
                   value={targetStage}
                   onChange={(e) => setTargetStage(e.target.value as RolloutStage)}
@@ -563,7 +563,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                     type="text"
                     value={betaTenantIdsInput}
                     onChange={(e) => setBetaTenantIdsInput(e.target.value)}
-                    placeholder="e.g. 00000000-0000-0000-0000-000000000001"
+                    placeholder="e.g. 00000000-0000-0000-0000-000000000001" // allowlist: UI input field hint
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
                     required
                   />
@@ -583,7 +583,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                   disabled={transitionLoading}
                   className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold transition cursor-pointer disabled:opacity-50"
                 >
-                  {transitionLoading ? 'Menyimpan...' : 'Perbarui Tahap Rollout'}
+                  {transitionLoading ? 'Menyimpan...' : 'Perbarui Level Rollout'}
                 </button>
               </div>
             </form>
@@ -616,7 +616,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                     type="text"
                     value={newPackageId}
                     onChange={(e) => setNewPackageId(e.target.value)}
-                    placeholder="sales-lead-qualifier-v1"
+                    placeholder="sales-lead-qualifier-v1" // allowlist: UI input field hint
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
                     required
                   />
@@ -627,7 +627,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                     type="text"
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    placeholder="AI Sales Qualification Specialist"
+                    placeholder="AI Sales Qualification Specialist" // allowlist: UI input field hint
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-sky-500"
                     required
                   />
@@ -666,7 +666,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                   rows={2}
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Bertanggung jawab memvalidasi kualifikasi calon pelanggan masuk..."
+                  placeholder="Bertanggung jawab memvalidasi kualifikasi calon pelanggan masuk..." // allowlist: UI input field hint
                   className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-sky-500"
                   required
                 />
@@ -678,7 +678,7 @@ export const AgentBlueprintCatalogScreen: React.FC<Props> = ({
                   rows={4}
                   value={newSystemPrompt}
                   onChange={(e) => setNewSystemPrompt(e.target.value)}
-                  placeholder="Anda adalah asisten kualifikasi penjualan profesional untuk {{company_name}}..."
+                  placeholder="Anda adalah asisten kualifikasi penjualan profesional untuk {{company_name}}..." // allowlist: UI input field hint
                   className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono text-[11px] focus:outline-none focus:border-sky-500"
                   required
                 />

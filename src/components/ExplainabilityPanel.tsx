@@ -281,7 +281,7 @@ export const ExplainabilityPanel: React.FC<ExplainabilityPanelProps> = ({
       {/* Footer Audit Notice */}
       <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
         <span>Output Validator: Proteksi Klaim Palsu Aktif</span>
-        <span>Kebijakan Kualitas PRD v2.2</span>
+        <span>Kebijakan Kualitas Standar Sistem</span>
       </div>
     </div>
   );

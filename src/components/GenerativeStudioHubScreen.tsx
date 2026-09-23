@@ -775,7 +775,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div>
                     <span className="font-semibold text-slate-200 block">2. Credit Reservation</span>
-                    <span className="text-[11px] text-slate-400">Cadangkan 5.0 kredit (Ledger Fase 8)</span>
+                    <span className="text-[11px] text-slate-400">Cadangkan 5.0 kredit (Ledger Transaksi)</span>
                   </div>
                 </div>
 

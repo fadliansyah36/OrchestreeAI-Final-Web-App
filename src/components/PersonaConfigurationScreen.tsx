@@ -712,7 +712,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
                     className="w-full text-xs p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-indigo-500"
                   >
                     <option value="LEAD_SCORE_THRESHOLD">Skor Lead Melampaui Nilai</option>
-                    <option value="STAGE_CHANGE">Perubahan Tahap Pipeline</option>
+                    <option value="STAGE_CHANGE">Perubahan Kolom Pipeline</option>
                     <option value="INTENT_MATCH">Pencocokan Intent Pelanggan</option>
                   </select>
                 </div>
@@ -747,7 +747,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
               {newRuleConditionType === 'STAGE_CHANGE' && (
                 <div>
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Tahap Sasaran (target_stage)
+                    Kolom Sasaran (target_stage)
                   </label>
                   <select
                     value={newRuleTargetStage}

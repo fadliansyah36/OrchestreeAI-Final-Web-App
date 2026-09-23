@@ -25,9 +25,14 @@ import logging
 from enum import Enum
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple, Set
-import sqlalchemy as sa
+from dataclasses import dataclass, field
 
-from app.core.database import get_database_engine
+try:
+    import sqlalchemy as sa
+    from app.core.database import get_database_engine
+except ImportError:
+    sa = None
+    get_database_engine = None
 
 logger = logging.getLogger("orchestree.skills.f01_agentcat")
 
@@ -52,6 +57,42 @@ class PolicyScanRequiredError(Exception):
 class InvalidBlueprintPackageError(Exception):
     """Dilemparkan bila struktur paket blueprint tidak memenuhi spesifikasi valid."""
     pass
+
+
+@dataclass
+class PolicyViolation:
+    rule_id: str
+    severity: str
+    message: str
+    location: str = "general"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "rule_id": self.rule_id,
+            "severity": self.severity,
+            "message": self.message,
+            "location": self.location,
+        }
+
+
+@dataclass
+class PolicyScanReport:
+    status: PolicyScanStatus
+    safety_score: float
+    rules_evaluated: int
+    violations_found: List[PolicyViolation] = field(default_factory=list)
+    summary: str = ""
+    scanned_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status.value,
+            "safety_score": self.safety_score,
+            "rules_evaluated": self.rules_evaluated,
+            "violations_found": [v.to_dict() for v in self.violations_found],
+            "summary": self.summary,
+            "scanned_at": self.scanned_at,
+        }
 
 
 class PolicyScanner:
@@ -187,6 +228,28 @@ class PolicyScanner:
         }
         return report
 
+    @classmethod
+    def scan_package(cls, package_data: Dict[str, Any]) -> PolicyScanReport:
+        """Menjalankan scan dan mengembalikan PolicyScanReport typed object."""
+        dict_report = cls.scan(package_data)
+        violations = [
+            PolicyViolation(
+                rule_id=v["rule_id"],
+                severity=v["severity"],
+                message=v["message"],
+                location=v.get("location", "general"),
+            )
+            for v in dict_report["violations_found"]
+        ]
+        return PolicyScanReport(
+            status=PolicyScanStatus(dict_report["status"]),
+            safety_score=dict_report["safety_score"],
+            rules_evaluated=dict_report["rules_evaluated"],
+            violations_found=violations,
+            summary=dict_report["summary"],
+            scanned_at=dict_report["scanned_at"],
+        )
+
 
 class SkillIngestPipeline:
     """Pipeline ingesti paket skill agen AI dengan validasi ketat dan auto-scan."""
@@ -300,6 +363,33 @@ class StagedRolloutController:
     """Pengendali pelepasan bertahap (Staged Rollout) untuk Blueprint Template Agen."""
 
     @classmethod
+    def validate_transition(
+        cls,
+        current_stage: RolloutStage,
+        target_stage: RolloutStage,
+        policy_status: PolicyScanStatus,
+        allowed_tenant_ids: Optional[List[str]] = None,
+    ) -> bool:
+        """
+        Memvalidasi kepatuhan kebijakan sebelum transisi rollout diizinkan.
+        Paket skill baru WAJIB lolos pemindai kebijakan ('PASSED') sebelum staged rollout
+        diizinkan berlanjut ke BETA_TENANT atau GENERAL_AVAILABILITY.
+        """
+        status_val = policy_status.value if hasattr(policy_status, "value") else str(policy_status)
+        stage_val = target_stage.value if hasattr(target_stage, "value") else str(target_stage)
+
+        if stage_val in (RolloutStage.BETA_TENANT.value, RolloutStage.GENERAL_AVAILABILITY.value):
+            if status_val != PolicyScanStatus.PASSED.value:
+                raise PolicyScanRequiredError(
+                    f"Paket skill baru WAJIB lolos pemindai kebijakan ('PASSED') sebelum staged rollout diizinkan berlanjut ke {stage_val}."
+                )
+
+        if stage_val == RolloutStage.BETA_TENANT.value and not allowed_tenant_ids:
+            raise ValueError("Tahap BETA_TENANT memerlukan minimal 1 tenant yang diizinkan (allowed_tenant_ids).")
+
+        return True
+
+    @classmethod
     async def transition_stage(
         cls,
         identifier: str,
@@ -329,16 +419,17 @@ class StagedRolloutController:
                 raise InvalidBlueprintPackageError(f"Blueprint dengan identitas '{identifier}' tidak ditemukan.")
 
             current_status = bp["policy_scan_status"]
+            current_stage = RolloutStage(bp["rollout_stage"])
             package_name = bp["name"]
             pkg_id = bp["package_id"]
 
-            # ATURAN PENGAWALAN KEBIJAKAN MUTLAK
-            if target_stage in (RolloutStage.BETA_TENANT, RolloutStage.GENERAL_AVAILABILITY):
-                if current_status != PolicyScanStatus.PASSED.value:
-                    raise PolicyScanRequiredError(
-                        f"Paket skill '{package_name}' ({pkg_id}) memiliki status pemindaian kebijakan '{current_status}'. "
-                        f"Paket skill baru WAJIB lolos pemindai kebijakan ('PASSED') sebelum staged rollout diizinkan berlanjut ke tahap '{target_stage.value}'."
-                    )
+            # Validasi kepatuhan kebijakan mutlak
+            cls.validate_transition(
+                current_stage=current_stage,
+                target_stage=target_stage,
+                policy_status=PolicyScanStatus(current_status),
+                allowed_tenant_ids=allowed_tenant_ids,
+            )
 
             # Validasi daftar tenant jika masuk ke tahap BETA_TENANT
             tenant_list = allowed_tenant_ids or []

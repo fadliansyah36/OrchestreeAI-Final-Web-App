@@ -107,7 +107,7 @@ export class AgentCatalogService {
     ];
 
     for (const pat of credPatterns) {
-      if (credPatterns[0].test(textCorpus)) {
+      if (pat.test(textCorpus)) {
         violations.push({
           rule_id: 'SEC_RULE_CREDENTIAL_LEAK_DEFENSE',
           severity: 'CRITICAL',

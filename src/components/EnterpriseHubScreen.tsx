@@ -109,7 +109,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const [enforcementResult, setEnforcementResult] = useState<any>(null);
   const [verifyingEnforcement, setVerifyingEnforcement] = useState<boolean>(false);
 
-  // Data 8 Dimensi Company Context Fabric & AI Research Agent (PRD v2.2 Bagian 8.6, 8.13.1)
+  // Data 8 Dimensi Company Context Fabric & AI Research Agent
   const [dimensions, setDimensions] = useState<any[]>([]);
   const [knowledgeNodes, setKnowledgeNodes] = useState<any[]>([]);
   const [researchPolicy, setResearchPolicy] = useState<{
@@ -618,7 +618,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
     if (!selectedConnector) return;
 
     if (!dpiaDpo.trim() || !dpiaPurpose.trim() || !dpiaSecMeasures.trim() || dpiaCategories.length === 0) {
-      showToast('error', 'Seluruh bagian formulir DPIA wajib diisi lengkap termasuk DPO, tujuan pemrosesan, kategori data, dan mitigasi keamanan.');
+      showToast('error', 'Seluruh kolom formulir DPIA wajib diisi lengkap termasuk DPO, tujuan pemrosesan, kategori data, dan mitigasi keamanan.');
       return;
     }
 
@@ -881,7 +881,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Organisasi: <span className="text-slate-200 font-medium">{tierInfo?.display_name || 'Organisasi Aktif'}</span> | PDP Tier Gate & Downgrade Resilience (PRD v2.2)
+                Organisasi: <span className="text-slate-200 font-medium">{tierInfo?.display_name || 'Organisasi Aktif'}</span> | PDP Tier Gate & Downgrade Resilience Terproteksi
               </p>
             </div>
           </div>
@@ -1972,7 +1972,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                       AI Research Agent & 6-Level Knowledge Priority Hierarchy
                     </h3>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      PRD v2.2 Bagian 8.6
+                      Standar Konteks Korporat Multi-Dimensi
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
@@ -2332,7 +2332,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
                     Audit Penegakan Konsisten di 3 Titik PDP (Definition of Done)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-                    Sesuai PRD v2.2 Bagian 3.5 & 14.2, kapabilitas Enterprise wajib ditolak secara konsisten dengan status 
+                    Sesuai kebijakan tier langganan organisasi, kapabilitas Enterprise wajib ditolak secara konsisten dengan status 
                     <strong className="text-slate-200"> 403 (capability_not_available)</strong> di seluruh titik akses:
                     REST API, Orchestration Workflow Node Execution, dan MCP Tool Invocation.
                   </p>
@@ -2676,7 +2676,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
               </button>
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto">
+            <div className="max-h-[60vh] overflow-y-auto overflow-x-auto">
               {syncLogs.length === 0 ? (
                 <div className="py-12 text-center text-slate-500 text-xs">
                   Belum ada log sinkronisasi tercatat untuk tenant ini.

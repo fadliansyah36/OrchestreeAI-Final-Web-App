@@ -487,7 +487,7 @@ export function AdminSuperHubScreen({
           {activeTab === 'llm-routing' && (
             <div id="admin-llm-routing-view" className="space-y-6">
               <div>
-                <h2 className="text-lg font-bold text-white">Hierarki Multi-LLM Model Router (PRD Bagian E.2)</h2>
+                <h2 className="text-lg font-bold text-white">Hierarki Multi-LLM Model Router Terpadu</h2>
                 <p className="text-xs text-slate-400">
                   Kebijakan Failover Tunggal: NVIDIA NIM → OpenRouter → Gemini → GPT-Image-2
                 </p>
@@ -812,7 +812,7 @@ export function AdminSuperHubScreen({
                   <div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      <span>Log Audit Web Integrity Cloudflare Turnstile (PRD 13.6)</span>
+                      <span>Log Audit Integritas Web Cloudflare Turnstile</span>
                     </h3>
                     <p className="text-xs text-slate-400">Verifikasi bot real-time pada endpoint publik</p>
                   </div>

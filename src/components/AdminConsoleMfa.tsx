@@ -142,7 +142,7 @@ export function AdminConsoleMfa() {
   // Admin Dashboard Tabs
   const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial' | 'integrations' | 'blueprints' | 'tokenopt'>('providers');
 
-  // Continuous Learning States (Fase 5 / PRD v2.2 Bagian 8.11)
+  // Continuous Learning States
   const [outcomes, setOutcomes] = useState<DecisionOutcome[]>([]);
   const [confidences, setConfidences] = useState<SkillConfidence[]>([]);
   const [lessons, setLessons] = useState<LessonLearned[]>([]);
@@ -222,7 +222,7 @@ export function AdminConsoleMfa() {
     }
   };
 
-  // Fetch Continuous Learning (PRD v2.2 Bagian 8.11)
+  // Fetch Continuous Learning
   const fetchLearningData = async (tid: string) => {
     setLoadingLearning(true);
     try {
@@ -536,7 +536,7 @@ export function AdminConsoleMfa() {
               }`}
             >
               <Brain className="w-4 h-4" />
-              <span>Multi-LLM & Provider Health</span>
+              <span>Kesehatan & Perutean Model AI</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
                 {providers.filter((p) => p.health_status === 'healthy').length}/4
               </span>
@@ -731,7 +731,7 @@ export function AdminConsoleMfa() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Governance Katalog Alat F.01-MCP (PRD v2.2 Bagian 11.2)
+                    Tata Kelola Katalog Alat F.01-MCP Terverifikasi
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Setiap pemanggilan perkakas diautentikasi oleh PDP authorize() dan dicatat di tabel tool_invocations.
@@ -797,7 +797,7 @@ export function AdminConsoleMfa() {
               <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 space-y-4">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Uji Pemicuan Alur Kerja Otonom (PRD v2.2 Bagian 8.1)
+                    Uji Pemicuan Alur Kerja Otonom Realtime
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     Menjalankan graf node (CLASSIFY → PLAN → TOOL_CALL → DELIVER) dengan durable checkpointing di PostgreSQL.
@@ -963,7 +963,7 @@ export function AdminConsoleMfa() {
             </div>
           )}
 
-          {/* TAB 5: Continuous Learning (Fase 5 / PRD v2.2 Bagian 8.11) */}
+          {/* TAB 5: Continuous Learning */}
           {activeTab === 'learning' && (
             <div className="space-y-6">
               {/* Header Info & Actions */}
@@ -972,7 +972,7 @@ export function AdminConsoleMfa() {
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-blue-500" />
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                      Mesin Pembelajaran Berkelanjutan (PRD v2.2 Bagian 8.11)
+                      Mesin Pembelajaran Berkelanjutan Berbasis Evaluasi
                     </h3>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                       Aktif di Setiap Node Run

@@ -479,6 +479,116 @@
           }
         }
       }
+    },
+    "/api/v1/tenants/{tenant_id}/tokenopt/summary": {
+      "get": {
+        "tags": ["tokenopt"],
+        "summary": "Get Token Savings Summary",
+        "description": "Mengambil metrik ringkasan penghematan token, persentase cache hit, dan perbandingan biaya.",
+        "operationId": "get_token_savings_summary",
+        "parameters": [
+          { "name": "tenant_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } } }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/tokenopt/logs": {
+      "get": {
+        "tags": ["tokenopt"],
+        "summary": "Get Token Savings Logs",
+        "description": "Mengambil riwayat telemetri penghematan token dan audit cache hit/miss.",
+        "operationId": "get_token_savings_logs",
+        "parameters": [
+          { "name": "tenant_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } } }
+        }
+      }
+    },
+    "/api/v1/admin/agent-catalog/ingest": {
+      "post": {
+        "tags": ["agent-catalog-admin"],
+        "summary": "Ingest Agent Blueprint Package",
+        "description": "Pipeline ingesti paket blueprint skill agen AI baru dengan validasi dan policy scanner.",
+        "operationId": "ingest_skill_package",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": {} } } },
+          "400": { "description": "Bad Request" }
+        }
+      }
+    },
+    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}/rollout": {
+      "post": {
+        "tags": ["agent-catalog-admin"],
+        "summary": "Transition Blueprint Rollout Stage",
+        "description": "Mentransisikan tahap rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY). Wajib lolos pemindai kebijakan ('PASSED').",
+        "operationId": "transition_rollout_stage",
+        "parameters": [
+          { "name": "blueprint_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {} } }
+        },
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } } },
+          "422": { "description": "Policy Scan Required" }
+        }
+      }
+    },
+    "/api/v1/admin/agent-catalog/blueprints": {
+      "get": {
+        "tags": ["agent-catalog-admin"],
+        "summary": "List All Agent Blueprints",
+        "description": "Mengambil katalog lengkap seluruh blueprint skill agen untuk Super Admin.",
+        "operationId": "list_all_blueprints",
+        "parameters": [
+          { "name": "stage", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "category", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "policy_status", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } } }
+        }
+      }
+    },
+    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}": {
+      "get": {
+        "tags": ["agent-catalog-admin"],
+        "summary": "Get Blueprint Detail",
+        "description": "Mengambil detail satu blueprint agen berdasarkan ID atau package_id.",
+        "operationId": "get_blueprint_detail",
+        "parameters": [
+          { "name": "blueprint_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/agent-catalog/available": {
+      "get": {
+        "tags": ["agent-catalog-tenant"],
+        "summary": "List Available Blueprints For Tenant",
+        "description": "Mengambil daftar blueprint yang dapat diakses oleh tenant (GA atau BETA yang diizinkan).",
+        "operationId": "list_available_for_tenant",
+        "parameters": [
+          { "name": "tenant_id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "category", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Successful Response", "content": { "application/json": { "schema": {} } } }
+        }
+      }
     }
   },
   "components": {

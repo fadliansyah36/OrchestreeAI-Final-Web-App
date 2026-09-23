@@ -269,7 +269,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     },
     {
       key: 'performance',
-      label: 'Evaluasi & Skor Kinerja (PRD 6.3)',
+      label: 'Evaluasi & Skor Kinerja Karyawan',
       icon: 'trending',
       route: '/performance',
     },

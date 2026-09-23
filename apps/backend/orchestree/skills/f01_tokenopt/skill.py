@@ -23,9 +23,13 @@ import logging
 from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple, Callable
 from decimal import Decimal
-import sqlalchemy as sa
 
-from app.core.database import get_database_engine
+try:
+    import sqlalchemy as sa
+    from app.core.database import get_database_engine
+except ImportError:
+    sa = None
+    get_database_engine = None
 
 logger = logging.getLogger("orchestree.skills.f01_tokenopt")
 
@@ -134,6 +138,21 @@ class ModelTieringEngine:
             "benchmark_tier": ModelTier.TIER_3_REASONING.value,
         }
         return tier, model_id, metrics
+
+    @classmethod
+    def classify_and_select_tier(
+        cls,
+        task_type: str,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        estimated_prompt_tokens: Optional[int] = None,
+    ) -> Tuple[ModelTier, str]:
+        """Menentukan tier dan model_id yang tepat berdasarkan kompleksitas kueri."""
+        tier, model_id, _ = cls.classify_task_tier(task_type, prompt, system_prompt)
+        if estimated_prompt_tokens and estimated_prompt_tokens > 800:
+            tier = ModelTier.TIER_3_REASONING
+            model_id = TIER_PRICING[tier]["default_model"]
+        return tier, model_id
 
 
 class SemanticCacheEngine:
@@ -290,6 +309,43 @@ class TokenSavingsLogger:
         p_cost = (Decimal(prompt_tokens) / Decimal(1000)) * pricing["prompt_per_1k"]
         c_cost = (Decimal(completion_tokens) / Decimal(1000)) * pricing["completion_per_1k"]
         return p_cost + c_cost
+
+    @classmethod
+    def compute_savings(
+        cls,
+        task_type: str,
+        model_id: str,
+        prompt_tokens: int,
+        completion_tokens: int,
+        is_cache_hit: bool,
+    ) -> Dict[str, Any]:
+        """Menghitung metrik finansial penghematan sebelum vs sesudah cache aktif."""
+        tier = ModelTier.TIER_2_BALANCED
+        for t, cfg in TIER_PRICING.items():
+            if cfg["default_model"] == model_id:
+                tier = t
+                break
+
+        cost_without_cache = float(cls.calculate_cost(tier, prompt_tokens, completion_tokens))
+
+        if is_cache_hit:
+            tokens_saved = completion_tokens
+            cost_with_cache = float(cls.calculate_cost(tier, prompt_tokens, 0))
+            cost_saved = cost_without_cache - cost_with_cache
+            latency_saved_ms = 850
+        else:
+            tokens_saved = 0
+            cost_with_cache = cost_without_cache
+            cost_saved = 0.0
+            latency_saved_ms = 0
+
+        return {
+            "tokens_saved": tokens_saved,
+            "cost_without_cache_usd": cost_without_cache,
+            "cost_with_cache_usd": cost_with_cache,
+            "cost_saved_usd": cost_saved,
+            "latency_saved_ms": latency_saved_ms,
+        }
 
     @classmethod
     async def log_savings(

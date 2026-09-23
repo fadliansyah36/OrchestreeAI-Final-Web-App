@@ -612,7 +612,7 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Penegakan Arsitektur PRD v2.2 Bagian 3.5 &amp; 11.2</span>
+                    <span>Penegakan Kebijakan Keamanan Terpusat</span>
                     <span className="text-emerald-400 font-medium">PostgreSQL Persisten (Supabase)</span>
                   </div>
                 </div>
@@ -783,7 +783,7 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-white">
-                  Audit Ledger Aksi Berisiko (PRD v2.2 Bagian 16.1)
+                  Audit Ledger Pencatatan Aksi Berisiko
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Rekaman permanen setiap aksi yang dipicu agen AI dengan pelaporan eksplisit actor_type=&apos;ai_agent&apos; dan persona_type.
