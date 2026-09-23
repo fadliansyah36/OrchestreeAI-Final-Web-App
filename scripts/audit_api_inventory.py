@@ -154,20 +154,43 @@ def main():
     all_known_paths = set(server_normalized.keys()) | set(backend_normalized.keys())
 
     # Check frontend calls against known paths
+    # Convert known paths into regex patterns
+    route_regexes = []
+    for kp in all_known_paths:
+        parts = kp.strip('/').split('/')
+        pattern_parts = []
+        for part in parts:
+            if part == ':param':
+                pattern_parts.append(r'[^/]+')
+            else:
+                pattern_parts.append(re.escape(part))
+        regex = re.compile('^/' + '/'.join(pattern_parts) + '$')
+        route_regexes.append((regex, kp))
+
     unmatched_calls = []
     matched_calls = []
     for call in frontend_calls:
         norm_call = normalize_path(call['raw_url'])
-        # Check if matched directly or prefix matched
         matched = False
         if norm_call in all_known_paths:
             matched = True
         else:
-            # Check pattern match
-            for kp in all_known_paths:
-                if norm_call == kp:
+            # Check if norm_call matches any regex
+            # Also allow norm_call with :param to match endpoints with action suffixes
+            for regex, kp in route_regexes:
+                if regex.match(norm_call):
                     matched = True
                     break
+            if not matched:
+                # Also check reverse in case norm_call has :param where route has literal (e.g. approve/reject)
+                norm_parts = norm_call.strip('/').split('/')
+                for kp in all_known_paths:
+                    kp_parts = kp.strip('/').split('/')
+                    if len(norm_parts) == len(kp_parts):
+                        if all(np == ':param' or kp == ':param' or np == kp for np, kp in zip(norm_parts, kp_parts)):
+                            matched = True
+                            break
+
         if matched:
             matched_calls.append(call)
         else:
@@ -193,6 +216,8 @@ def main():
             uncalled_server.append((norm_p, r))
 
     print(f"\n[*] Server.ts endpoints without direct frontend calls: {len(uncalled_server)}")
+    for norm_p, r in sorted(uncalled_server, key=lambda x: x[0]):
+        print(f"  {r['method']} {norm_p}")
 
 if __name__ == '__main__':
     main()

@@ -1730,8 +1730,8 @@ async def trigger_performance_scoring(
     body = {}
     try:
         body = await request.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Request body is empty or non-JSON for trigger_monthly_score: %s", str(e))
 
     period = body.get("period") or datetime.now(timezone.utc).strftime("%Y-%m")
 

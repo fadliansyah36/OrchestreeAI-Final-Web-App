@@ -62,3 +62,7 @@ export interface CategoryCard {
   badgeCount?: number;
   isLocked?: boolean;
 }
+
+// Auto-generated OpenAPI 3.1 contract schemas & types
+export * from './openapi';
+

@@ -359,60 +359,84 @@ Sistem otomatis F.01-SCRAPE telah menganalisis aktivitas pergerakan harga, rilis
 
 @router.get("/intelligence/world-monitor")
 async def get_world_monitor(tenant_id: str):
-    """Sinyal makro global dan tren industri eksternal."""
-    return {
-        "status": "active",
-        "market_sentiment": "Expansionary with selective consolidation",
-        "signals": [
+    """Sinyal makro global dan tren industri eksternal dari basis data nyata."""
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        await conn.execute(
+            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+            {"tenant_id": tenant_id}
+        )
+        rows = (await conn.execute(
+            sa.text("""
+                SELECT id, signal_type, title, payload, metadata, ingested_at
+                FROM company_context_signals
+                WHERE tenant_id = :tenant_id
+                ORDER BY ingested_at DESC
+                LIMIT 20;
+            """),
+            {"tenant_id": tenant_id}
+        )).mappings().all()
+
+        signals = [
             {
-                "id": "sig_01",
-                "category": "Regulatory",
-                "headline": "Regulasi Kepatuhan Privasi Data AI & Etika Otomasi Nasional",
-                "impact_level": "medium",
-                "relevance_score": 0.88,
-                "summary": "Pembaruan panduan kepatuhan transparansi audit data algoritma otonom untuk sektor korporasi.",
-                "recommendation": "Pastikan seluruh pencatatan audit log PDP dan ABAC berjalan aktif."
-            },
-            {
-                "id": "sig_02",
-                "category": "Supply Chain",
-                "headline": "Stabilitas Tarif Compute Cloud & Efisiensi Inferensi Model",
-                "impact_level": "low",
-                "relevance_score": 0.75,
-                "summary": "Penurunan biaya inferensi per token memungkinkan ekspansi volume ekstraksi intelijen berskala besar.",
-                "recommendation": "Optimalkan penjadwalan scraping frekuensi harian untuk efisiensi kredit."
+                "id": str(r["id"]),
+                "category": r["signal_type"] or "Market Intelligence",
+                "headline": r["title"],
+                "impact_level": (r["metadata"] or {}).get("impact_level", "medium"),
+                "relevance_score": float((r["metadata"] or {}).get("relevance_score", 0.85)),
+                "summary": (r["payload"] or {}).get("summary", r["title"]),
+                "recommendation": (r["metadata"] or {}).get("recommendation", "Pantau dinamika konteks bisnis dan kepatuhan sistem.")
             }
+            for r in rows
         ]
-    }
+
+        return {
+            "status": "active",
+            "market_sentiment": "Ekspansif dengan pengawasan aktif" if signals else "Belum ada sinyal kontekstual tercatat",
+            "signals": signals
+        }
 
 
 @router.get("/intelligence/vibe-prospecting")
 async def get_vibe_prospecting(tenant_id: str):
-    """Radar prospek komersial & deteksi sinyal niat beli dari percakapan publik."""
-    return {
-        "status": "active",
-        "prospects_count": 3,
-        "radar_items": [
+    """Radar prospek komersial & deteksi sinyal niat beli dari percakapan publik dari basis data nyata."""
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        await conn.execute(
+            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+            {"tenant_id": tenant_id}
+        )
+        rows = (await conn.execute(
+            sa.text("""
+                SELECT id, source_system, signal_type, title, payload, metadata, ingested_at
+                FROM company_context_signals
+                WHERE tenant_id = :tenant_id AND (source_type IN ('Synced', 'Native') OR signal_type ILIKE '%prospect%' OR signal_type ILIKE '%lead%')
+                ORDER BY ingested_at DESC
+                LIMIT 20;
+            """),
+            {"tenant_id": tenant_id}
+        )).mappings().all()
+
+        radar_items = [
             {
-                "id": "vibe_01",
-                "channel": "Public B2B Community",
-                "company_hint": "Distributor FMCG Regional",
-                "intent_level": "high",
-                "intent_score": 0.91,
-                "trigger_phrase": "Mencari solusi otomatisasi tenaga kerja AI untuk tim customer support dan sales omnichannel",
-                "suggested_outreach": "Tawarkan studi kasus implementasi AI Workforce OrchestreeAI dengan demonstrasi ROI terukur."
-            },
-            {
-                "id": "vibe_02",
-                "channel": "Industry Forum",
-                "company_hint": "Agensi Layanan Kreatif & Pemasaran",
-                "intent_level": "medium",
-                "intent_score": 0.78,
-                "trigger_phrase": "Kesulitan mengelola kapasitas tim saat load kampanye melonjak",
-                "suggested_outreach": "Demonstrasikan integrasi delegasi tugas otonom via Kanban dan AI Agent terpadu."
+                "id": str(r["id"]),
+                "channel": r["source_system"] or "Komunikasi Bisnis Terpadu",
+                "company_hint": (r["metadata"] or {}).get("company_hint", r["title"]),
+                "intent_level": (r["metadata"] or {}).get("intent_level", "medium"),
+                "intent_score": float((r["metadata"] or {}).get("intent_score", 0.80)),
+                "trigger_phrase": (r["payload"] or {}).get("trigger_phrase", r["title"]),
+                "suggested_outreach": (r["payload"] or {}).get("suggested_outreach", "Tawarkan solusi kolaborasi AI Workforce dengan integrasi resmi.")
             }
+            for r in rows
         ]
-    }
+
+        return {
+            "status": "active",
+            "prospects_count": len(radar_items),
+            "radar_items": radar_items
+        }
 
 
 # ==========================================

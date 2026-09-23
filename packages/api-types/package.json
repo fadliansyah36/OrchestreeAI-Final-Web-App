@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "generate": "openapi-typescript ../../apps/backend/openapi.base.json -o ./src/openapi.ts",
     "type-check": "tsc --noEmit"
   }
 }

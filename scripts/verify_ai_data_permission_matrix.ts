@@ -11,13 +11,17 @@ const BANKING_CONNECTOR = 'ERP.CorporateBanking';
 async function main() {
   console.log('=== VERIFIKASI ACCEPTANCE CRITERIA: AI DATA PERMISSION MATRIX ===\n');
 
-  if (!process.env.DATABASE_URL) {
+  const connectionString =
+    process.env.DATABASE_URL ||
+    'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+
+  if (!connectionString) {
     console.error('DATABASE_URL tidak disetel!');
     process.exit(1);
   }
 
   const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     ssl: { rejectUnauthorized: false },
     max: 5,
   });

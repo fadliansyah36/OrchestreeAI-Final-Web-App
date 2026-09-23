@@ -4760,58 +4760,78 @@ Sistem otomatis F.01-SCRAPE telah memantau aktivitas penawaran harga, rilis prod
 
 // GET /api/v1/tenants/:tenantId/intelligence/world-monitor
 app.get('/api/v1/tenants/:tenantId/intelligence/world-monitor', async (req, res) => {
-  return res.json({
-    status: 'active',
-    market_sentiment: 'Ekspansif dengan konsolidasi selektif',
-    signals: [
-      {
-        id: 'sig_01',
-        category: 'Regulasi',
-        headline: 'Pedoman Kepatuhan Privasi Data Algoritma Otonom Nasional',
-        impact_level: 'medium',
-        relevance_score: 0.88,
-        summary: 'Pembaruan panduan transparansi audit data algoritma otonom untuk sektor korporasi.',
-        recommendation: 'Pastikan pencatatan audit log PDP dan ABAC berjalan aktif.'
-      },
-      {
-        id: 'sig_02',
-        category: 'Rantai Pasok Compute',
-        headline: 'Stabilitas Tarif Cloud & Efisiensi Inferensi Model',
-        impact_level: 'low',
-        relevance_score: 0.75,
-        summary: 'Penurunan biaya inferensi per token memungkinkan ekspansi volume pemantauan intelijen berskala besar.',
-        recommendation: 'Optimalkan penjadwalan scraping frekuensi harian untuk efisiensi kredit.'
-      }
-    ]
-  });
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+  const client = await pool.connect();
+  try {
+    const tenantUuid = await commerceService.resolveTenantUuid(req.params.tenantId);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantUuid]);
+    const signalRows = await client.query(
+      `SELECT id, signal_type, title, payload, metadata, ingested_at
+       FROM company_context_signals
+       WHERE tenant_id = $1
+       ORDER BY ingested_at DESC
+       LIMIT 20;`,
+      [tenantUuid]
+    );
+
+    const signals = signalRows.rows.map(r => ({
+      id: r.id,
+      category: r.signal_type || 'Market Intelligence',
+      headline: r.title,
+      impact_level: r.metadata?.impact_level || 'medium',
+      relevance_score: typeof r.metadata?.relevance_score === 'number' ? r.metadata.relevance_score : 0.85,
+      summary: r.payload?.summary || r.title,
+      recommendation: r.metadata?.recommendation || 'Pantau dinamika konteks pasar dan kepatuhan sistem.'
+    }));
+
+    return res.json({
+      status: 'active',
+      market_sentiment: signals.length > 0 ? 'Ekspansif dengan pengawasan aktif' : 'Belum ada sinyal kontekstual tercatat',
+      signals,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal memuat sinyal pemantauan pasar.' });
+  } finally {
+    client.release();
+  }
 });
 
 // GET /api/v1/tenants/:tenantId/intelligence/vibe-prospecting
 app.get('/api/v1/tenants/:tenantId/intelligence/vibe-prospecting', async (req, res) => {
-  return res.json({
-    status: 'active',
-    prospects_count: 2,
-    radar_items: [
-      {
-        id: 'vibe_01',
-        channel: 'Public B2B Community',
-        company_hint: 'Distributor FMCG Regional',
-        intent_level: 'high',
-        intent_score: 0.91,
-        trigger_phrase: 'Mencari solusi otomatisasi tenaga kerja AI untuk tim customer support dan sales omnichannel',
-        suggested_outreach: 'Tawarkan demonstrasi integrasi AI Workforce OrchestreeAI dengan demonstrasi efisiensi nyata.'
-      },
-      {
-        id: 'vibe_02',
-        channel: 'Industry Forum',
-        company_hint: 'Agensi Layanan Kreatif & Pemasaran',
-        intent_level: 'medium',
-        intent_score: 0.78,
-        trigger_phrase: 'Kesulitan mengelola kapasitas tim saat load pesanan melonjak',
-        suggested_outreach: 'Demonstrasikan delegasi tugas otonom via Kanban dan AI Agent terpadu.'
-      }
-    ]
-  });
+  if (!pool) return res.status(500).json({ error: 'Database postgres tidak tersedia' });
+  const client = await pool.connect();
+  try {
+    const tenantUuid = await commerceService.resolveTenantUuid(req.params.tenantId);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantUuid]);
+    const radarRows = await client.query(
+      `SELECT id, source_system, signal_type, title, payload, metadata, ingested_at
+       FROM company_context_signals
+       WHERE tenant_id = $1 AND (source_type IN ('Synced', 'Native') OR signal_type ILIKE '%prospect%' OR signal_type ILIKE '%lead%')
+       ORDER BY ingested_at DESC
+       LIMIT 20;`,
+      [tenantUuid]
+    );
+
+    const radar_items = radarRows.rows.map(r => ({
+      id: r.id,
+      channel: r.source_system || 'Komunikasi Bisnis Terpadu',
+      company_hint: r.metadata?.company_hint || r.title,
+      intent_level: r.metadata?.intent_level || 'medium',
+      intent_score: typeof r.metadata?.intent_score === 'number' ? r.metadata.intent_score : 0.80,
+      trigger_phrase: r.payload?.trigger_phrase || r.title,
+      suggested_outreach: r.payload?.suggested_outreach || 'Tawarkan solusi kolaborasi AI Workforce dengan integrasi resmi.'
+    }));
+
+    return res.json({
+      status: 'active',
+      prospects_count: radar_items.length,
+      radar_items,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Gagal memuat radar prospek komersial.' });
+  } finally {
+    client.release();
+  }
 });
 
 // =========================================================================

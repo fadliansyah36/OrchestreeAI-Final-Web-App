@@ -512,3 +512,129 @@ class SalesGuardrailService:
             "status": new_status,
             "message": f"Tiket persetujuan guardrail berhasil disetujui ({new_status}).",
         }
+
+    @staticmethod
+    def update_rule(
+        tenant_id: str,
+        action_type: str,
+        updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Memperbarui aturan guardrail untuk tenant tertentu di Supabase Postgres."""
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            with conn.begin():
+                conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                conn.execute(
+                    sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                    {"tenant_id": tenant_id}
+                )
+
+                set_clauses = ["updated_at = now()"]
+                params: Dict[str, Any] = {
+                    "tenant_id": tenant_id,
+                    "action_type": action_type.upper(),
+                }
+
+                if "max_autonomous_discount_pct" in updates and updates["max_autonomous_discount_pct"] is not None:
+                    set_clauses.append("max_autonomous_discount_pct = :max_disc")
+                    params["max_disc"] = float(updates["max_autonomous_discount_pct"])
+
+                if "max_autonomous_amount" in updates and updates["max_autonomous_amount"] is not None:
+                    set_clauses.append("max_autonomous_amount = :max_amt")
+                    params["max_amt"] = float(updates["max_autonomous_amount"])
+
+                if "requires_human_approval" in updates and updates["requires_human_approval"] is not None:
+                    set_clauses.append("requires_human_approval = :req_approval")
+                    params["req_approval"] = bool(updates["requires_human_approval"])
+
+                if "is_active" in updates and updates["is_active"] is not None:
+                    set_clauses.append("is_active = :is_active")
+                    params["is_active"] = bool(updates["is_active"])
+
+                query = f"""
+                    UPDATE sales_guardrail_rules
+                    SET {', '.join(set_clauses)}
+                    WHERE tenant_id = :tenant_id AND action_type = :action_type
+                    RETURNING id, tenant_id, action_type, risk_tier, requires_human_approval,
+                              max_autonomous_discount_pct, max_autonomous_amount, is_active,
+                              description, updated_at;
+                """
+                row = conn.execute(sa.text(query), params).fetchone()
+                if not row:
+                    raise ValueError(f"Aturan guardrail '{action_type}' untuk tenant '{tenant_id}' tidak ditemukan.")
+
+                return {
+                    "id": str(row.id),
+                    "tenant_id": str(row.tenant_id),
+                    "action_type": row.action_type,
+                    "risk_tier": row.risk_tier,
+                    "requires_human_approval": row.requires_human_approval,
+                    "max_autonomous_discount_pct": float(row.max_autonomous_discount_pct),
+                    "max_autonomous_amount": float(row.max_autonomous_amount),
+                    "is_active": row.is_active,
+                    "description": row.description,
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                }
+
+    @staticmethod
+    def get_audit_logs(tenant_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Mengambil riwayat Audit Ledger aksi penjualan berisiko oleh AI dari Supabase Postgres."""
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+
+            query = """
+                SELECT id, tenant_id, actor_type, actor_id, persona_type,
+                       action, resource_type, resource_id, payload_after, request_id, created_at
+                FROM audit_logs
+                WHERE tenant_id = :tenant_id AND (action LIKE 'sales.guardrail%' OR actor_type = 'ai_agent')
+                ORDER BY created_at DESC
+                LIMIT :limit;
+            """
+            rows = conn.execute(sa.text(query), {"tenant_id": tenant_id, "limit": limit}).fetchall()
+            return [
+                {
+                    "id": str(r.id),
+                    "tenant_id": str(r.tenant_id),
+                    "actor_type": r.actor_type,
+                    "actor_id": str(r.actor_id) if r.actor_id else None,
+                    "persona_type": r.persona_type,
+                    "action": r.action,
+                    "resource_type": r.resource_type,
+                    "resource_id": str(r.resource_id) if r.resource_id else None,
+                    "payload_after": r.payload_after,
+                    "request_id": r.request_id,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ]
+
+    @staticmethod
+    def get_mcp_high_risk_tools() -> List[Dict[str, Any]]:
+        """Mengambil daftar perkakas risiko tinggi di MCP Tool Registry dari Supabase Postgres."""
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            query = """
+                SELECT id, tool_name, risk_tier, description, is_active, input_schema, output_schema
+                FROM mcp_tools
+                WHERE risk_tier = 'high' AND tool_name LIKE 'sales.%'
+                ORDER BY tool_name ASC;
+            """
+            rows = conn.execute(sa.text(query)).fetchall()
+            return [
+                {
+                    "id": str(r.id),
+                    "tool_name": r.tool_name,
+                    "risk_tier": r.risk_tier,
+                    "description": r.description,
+                    "is_active": r.is_active,
+                    "input_schema": r.input_schema if isinstance(r.input_schema, dict) else {},
+                    "output_schema": r.output_schema if isinstance(r.output_schema, dict) else {},
+                }
+                for r in rows
+            ]
+

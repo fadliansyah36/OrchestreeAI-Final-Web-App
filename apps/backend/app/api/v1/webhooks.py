@@ -447,6 +447,7 @@ async def handle_whatsapp_webhook(request: Request):
 # ============================================================================
 
 @router.post("/telegram-bot", dependencies=[Depends(webhook_endpoint("telegram"))])
+@router.post("/telegram", dependencies=[Depends(webhook_endpoint("telegram"))])
 async def handle_telegram_bot_webhook(request: Request):
     """
     Webhook resmi Telegram Bot platform:

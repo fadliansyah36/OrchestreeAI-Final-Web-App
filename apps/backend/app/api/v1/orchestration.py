@@ -7,6 +7,7 @@ Endpoints:
 """
 
 from typing import Optional, Dict, Any, List
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from pydantic import BaseModel, Field
 
@@ -14,6 +15,8 @@ from app.core.orchestration.engine import get_orchestration_engine, WorkflowDisp
 from app.core.model_router.router import get_model_router
 from app.skills.f01_mcp.decorators import get_tool_registry
 from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["Cognitive Core & Orchestration"])
 
@@ -128,13 +131,13 @@ async def get_admin_mcp_tools():
         if t.input_model:
             try:
                 input_schema = t.input_model.model_json_schema()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to generate input schema for tool %s: %s", t.name, str(e))
         if t.output_model:
             try:
                 output_schema = t.output_model.model_json_schema()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to generate output schema for tool %s: %s", t.name, str(e))
 
         results.append({
             "name": t.name,

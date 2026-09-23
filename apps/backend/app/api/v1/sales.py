@@ -17,7 +17,7 @@ from orchestree.domains.sales.guardrails import (
 )
 
 router = APIRouter(
-    prefix="/sales",
+    prefix="",
     tags=["Sales Guardrails & Human Approval"],
     dependencies=[Depends(require_capability("sales.guardrails.manage"))]
 )
@@ -41,7 +41,15 @@ class ReviewApprovalRequest(BaseModel):
     rejection_reason: Optional[str] = Field(default=None, description="Alasan penolakan jika ditolak")
 
 
-@router.get("/tenants/{tenant_id}/guardrails")
+class UpdateGuardrailRuleRequest(BaseModel):
+    max_autonomous_discount_pct: Optional[float] = None
+    max_autonomous_amount: Optional[float] = None
+    requires_human_approval: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/tenants/{tenant_id}/sales/guardrails")
+@router.get("/sales/tenants/{tenant_id}/guardrails")
 async def get_guardrail_rules(tenant_id: str):
     """Mengambil matriks guardrail penjualan untuk tenant dari Supabase Postgres."""
     try:
@@ -51,7 +59,30 @@ async def get_guardrail_rules(tenant_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/tenants/{tenant_id}/guardrails/evaluate")
+@router.put("/tenants/{tenant_id}/sales/guardrails/{rule_code}")
+@router.put("/sales/tenants/{tenant_id}/guardrails/{rule_code}")
+async def update_guardrail_rule(
+    tenant_id: str,
+    rule_code: str,
+    payload: UpdateGuardrailRuleRequest
+):
+    """Memperbarui aturan guardrail untuk aksi tertentu (misal DISCOUNT)."""
+    try:
+        updates = payload.dict(exclude_unset=True)
+        rule = SalesGuardrailService.update_rule(
+            tenant_id=tenant_id,
+            action_type=rule_code,
+            updates=updates
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": rule}
+    except ValueError as val_err:
+        raise HTTPException(status_code=404, detail=str(val_err))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/sales/guardrails/evaluate")
+@router.post("/sales/tenants/{tenant_id}/guardrails/evaluate")
 async def evaluate_and_execute_action(tenant_id: str, request: EvaluateActionRequest):
     """
     Evaluasi guardrail: Memeriksa toleransi otonom AI.
@@ -75,7 +106,8 @@ async def evaluate_and_execute_action(tenant_id: str, request: EvaluateActionReq
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/tenants/{tenant_id}/guardrails/approvals")
+@router.get("/tenants/{tenant_id}/sales/guardrails/approvals")
+@router.get("/sales/tenants/{tenant_id}/guardrails/approvals")
 async def list_guardrail_approvals(
     tenant_id: str,
     status_filter: Optional[str] = Query(None, alias="status", description="Filter status: PENDING_APPROVAL, APPROVED, REJECTED")
@@ -88,7 +120,8 @@ async def list_guardrail_approvals(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/tenants/{tenant_id}/guardrails/approvals/{approval_id}/review")
+@router.post("/tenants/{tenant_id}/sales/guardrails/approvals/{approval_id}/review")
+@router.post("/sales/tenants/{tenant_id}/guardrails/approvals/{approval_id}/review")
 async def review_guardrail_approval(
     tenant_id: str,
     approval_id: str,
@@ -111,3 +144,30 @@ async def review_guardrail_approval(
         raise HTTPException(status_code=400, detail=str(val_err))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/sales/guardrails/audit-logs")
+@router.get("/sales/tenants/{tenant_id}/guardrails/audit-logs")
+async def get_guardrail_audit_logs(
+    tenant_id: str,
+    limit: int = Query(50, ge=1, le=200)
+):
+    """Mengambil riwayat Audit Ledger aksi penjualan berisiko oleh AI Agent."""
+    try:
+        logs = SalesGuardrailService.get_audit_logs(tenant_id, limit=limit)
+        return {"status": "success", "tenant_id": tenant_id, "data": logs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/sales/guardrails/mcp-tools")
+@router.get("/tenants/{tenant_id}/sales/mcp-tools")
+@router.get("/sales/tenants/{tenant_id}/guardrails/mcp-tools")
+async def get_guardrail_mcp_tools(tenant_id: str):
+    """Mengambil daftar perkakas risiko tinggi di MCP Tool Registry."""
+    try:
+        tools = SalesGuardrailService.get_mcp_high_risk_tools()
+        return {"status": "success", "tenant_id": tenant_id, "data": tools}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

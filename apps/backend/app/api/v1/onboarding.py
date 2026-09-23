@@ -6,6 +6,7 @@ Endpoint API Onboarding & Registrasi Mandiri (PRD v2.2 Bagian 13.4 & Fase 1).
 
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 from typing import Any, Dict, List, Optional
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,6 +21,8 @@ from app.authz.pdp import (
 from app.core.database import get_database_engine, tenant_tx
 from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
 from app.services.company_code import generate_company_code, hash_company_code
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/onboarding", tags=["Onboarding"])
 
@@ -187,8 +190,8 @@ async def register_tenant(req: RegisterTenantRequest):
                     })
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to record tenant registration audit log: %s", str(e))
 
     return RegisterTenantResponse(
         tenant_id=new_tenant_id,
@@ -328,8 +331,8 @@ async def join_company(req: JoinCompanyRequest):
                     "payload": json.dumps(profile_payload)
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to record hr queue audit log: %s", str(e))
 
     return JoinCompanyResponse(
         status="pending",
