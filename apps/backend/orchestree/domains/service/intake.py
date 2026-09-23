@@ -273,6 +273,56 @@ def approve_service_request(
     }
 
 
+def list_service_requests(
+    tenant_id: str,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    db_session: Optional[Any] = None,
+) -> List[Dict[str, Any]]:
+    """Mengambil daftar tiket layanan pelanggan nyata dari tabel service_requests."""
+    if not db_session:
+        return []
+    try:
+        clauses = ["tenant_id = :tid"]
+        params: Dict[str, Any] = {"tid": tenant_id}
+        if status and status != "ALL":
+            clauses.append("status = :status")
+            params["status"] = status
+        if category and category != "ALL":
+            clauses.append("category = :category")
+            params["category"] = category
+        where_sql = " AND ".join(clauses)
+
+        res = db_session.execute(
+            text(f"""
+            SELECT id, tenant_id, customer_id, conversation_id, order_id,
+                   ticket_number, category, priority, status, subject, description,
+                   amount, refund_reason, return_tracking_number, resolution_notes,
+                   approved_by_user_id, approved_at, intake_channel, created_at, updated_at
+            FROM service_requests
+            WHERE {where_sql}
+            ORDER BY created_at DESC
+            LIMIT 100;
+            """),
+            params
+        )
+        rows = res.fetchall()
+        results = []
+        for r in rows:
+            mapping = dict(r._mapping)
+            # Serialize UUIDs and datetimes
+            for k, v in mapping.items():
+                if hasattr(v, "isoformat"):
+                    mapping[k] = v.isoformat()
+                elif isinstance(v, uuid.UUID):
+                    mapping[k] = str(v)
+            results.append(mapping)
+        return results
+    except Exception as e:
+        logger.error(f"Gagal mengambil daftar service_requests: {e}")
+        return []
+
+
 def reject_service_request(
     tenant_id: str,
     ticket_id: str,

@@ -3,7 +3,10 @@ OrchestreeAI Backend Application (PRD v2.2)
 Python 3.12 + FastAPI + Pydantic v2
 """
 
-from fastapi import FastAPI
+from datetime import datetime, timezone
+import logging
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.health import router as health_router
@@ -55,15 +58,70 @@ async def startup_event():
         import logging
         logging.getLogger("uvicorn.error").warning(f"Could not register tools on startup: {e}")
 
-# CORS configuration
-origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()]
+# CORS configuration (Strict allow-list, never fallback to wildcard '*' with credentials)
+explicit_origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip() and origin.strip() != "*"]
+if not explicit_origins:
+    explicit_origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "https://orchestree.biz.id",
+        "https://admin.orchestree.biz.id",
+        "https://client.orchestree.biz.id",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
+    allow_origins=explicit_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Centralized Security Headers Middleware (OWASP Secure Headers)
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none';"
+    return response
+
+# Centralized RFC 7807 Problem Details Handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        headers={"Content-Type": "application/problem+json"},
+        content={
+            "type": f"https://orchestree.ai/errors/{exc.status_code}",
+            "title": exc.detail if isinstance(exc.detail, str) else "HTTP Error",
+            "status": exc.status_code,
+            "detail": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+            "instance": str(request.url.path),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logging.getLogger("uvicorn.error").error(f"Internal error on {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        headers={"Content-Type": "application/problem+json"},
+        content={
+            "type": "https://orchestree.ai/errors/500",
+            "title": "Internal Server Error",
+            "status": 500,
+            "detail": "Terjadi kesalahan internal pada server. Detail kesalahan telah dicatat pada log sistem audit.",
+            "instance": str(request.url.path),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
 
 # Mount API routers
 app.include_router(health_router)

@@ -8,6 +8,7 @@
 import crypto from 'crypto';
 import type pg from 'pg';
 import { ModelRouterService } from './cognitiveCore';
+import { validateSafeExternalUrl } from './securityGuard';
 
 export interface CompetitorTarget {
   id: string;
@@ -66,6 +67,13 @@ export class IntelligenceService {
    */
   async checkRobotsTxt(targetUrl: string): Promise<{ allowed: boolean; status: 'allowed' | 'disallowed' | 'unreachable'; reason?: string }> {
     try {
+      // 0. Penegakan Keamanan SSRF: Tolak localhost, IP internal, dan cloud metadata
+      const ssrfCheck = await validateSafeExternalUrl(targetUrl);
+      if (!ssrfCheck.valid) {
+        console.warn(`[RobotsTxtValidator] SSRF Guard memblokir '${targetUrl}': ${ssrfCheck.reason}`);
+        return { allowed: false, status: 'disallowed', reason: `SSRF Block: ${ssrfCheck.reason}` };
+      }
+
       const parsed = new URL(targetUrl);
       const robotsUrl = `${parsed.origin}/robots.txt`;
       const path = parsed.pathname || '/';
@@ -237,7 +245,27 @@ export class IntelligenceService {
         };
       }
 
-      // 3. Pengambilan Konten Publik
+      // 3. Pengambilan Konten Publik dengan Penegakan Keamanan SSRF
+      const ssrfCheck = await validateSafeExternalUrl(target.target_url);
+      if (!ssrfCheck.valid) {
+        console.warn(`[IntelligenceService] SSRF Guard memblokir scraping target '${target.target_url}': ${ssrfCheck.reason}`);
+        await client.query(`
+          UPDATE competitor_targets
+          SET last_status = 'blocked_by_ssrf',
+              last_scraped_at = now(),
+              updated_at = now()
+          WHERE id = $1
+        `, [targetId]);
+        await client.query('COMMIT');
+        return {
+          status: 'failed',
+          robots_txt_status: robotsCheck.status,
+          changes_count: 0,
+          insights_count: 0,
+          message: `SSRF Guard memblokir target: ${ssrfCheck.reason}`,
+        };
+      }
+
       let rawText = '';
       let statusCode = 200;
       try {

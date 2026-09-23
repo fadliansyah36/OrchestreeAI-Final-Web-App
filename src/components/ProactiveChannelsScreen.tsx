@@ -61,12 +61,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
   // Ask AI Modal State
   const [isAskAiOpen, setIsAskAiOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; provider?: string; cost?: number }[]>([
-    {
-      role: 'assistant',
-      content: 'Halo! Saya asisten kognitif cerdas OrchestreeAI. Ada yang dapat saya bantu mengenai operasional atau analisis tim Anda hari ini?',
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; provider?: string; cost?: number }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -814,7 +809,16 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
             {/* Chat Messages Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map((msg, idx) => (
+              {chatMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 my-auto">
+                  <Sparkles className="w-8 h-8 text-emerald-400/60 mb-2" />
+                  <p className="text-xs font-semibold text-slate-300">Asisten Kognitif Proaktif</p>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
+                    Tanyakan status pengiriman pesan, analitik webhook, atau jalankan simulasi jadwal notifikasi otonom.
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
                 <div
                   key={idx}
                   className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
@@ -840,7 +844,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
                     </div>
                   )}
                 </div>
-              ))}
+              )))}
             </div>
 
             {/* Chat Input Bar */}

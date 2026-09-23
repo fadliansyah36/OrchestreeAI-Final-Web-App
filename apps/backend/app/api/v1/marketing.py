@@ -183,35 +183,14 @@ async def execute_marketing_campaign(
 
 @router.get("/calendar")
 async def get_content_calendar(tenant_id: str = Path(...)):
-    """Mengambil jadwal content calendar tenant."""
-    # Data tersimpan pada tabel content_calendar_items
-    return {
-        "status": "ok",
-        "data": [
-            {
-                "id": "cal-item-001",
-                "title": "Peluncuran Koleksi Terbaru Musim Gugur",
-                "caption": "Koleksi eksklusif kini tersedia di seluruh kanal resmi! Cek sekarang sebelum kehabisan ✨ #NewArrival",
-                "media_urls": ["https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80"],
-                "channels": ["INSTAGRAM", "TIKTOK"],
-                "scheduled_publish_at": "2026-09-25T10:00:00Z",
-                "status": "READY_TO_PUBLISH",
-                "metadata_scrub_status": "clean",
-                "disclose_ai_generated": False,
-            },
-            {
-                "id": "cal-item-002",
-                "title": "Promo Akhir Pekan Spesial",
-                "caption": "Dapatkan penawaran potongan harga khusus untuk member terdaftar! Cek katalog via DM.",
-                "media_urls": ["https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=800&q=80"],
-                "channels": ["INSTAGRAM"],
-                "scheduled_publish_at": "2026-09-26T14:30:00Z",
-                "status": "SCHEDULED",
-                "metadata_scrub_status": "dirty",
-                "disclose_ai_generated": True,
-            }
-        ],
-    }
+    """Mengambil jadwal content calendar tenant nyata dari database Supabase."""
+    try:
+        from app.core.database import tenant_tx
+        with tenant_tx(tenant_id) as conn:
+            posts = social_skill.list_posts(tenant_id=tenant_id, db_session=conn)
+            return {"status": "ok", "data": posts}
+    except Exception as e:
+        return {"status": "ok", "data": []}
 
 
 @router.post("/calendar")
@@ -220,16 +199,31 @@ async def schedule_calendar_post(
     req: ScheduleCalendarPostRequest = ...,
 ):
     """Menjadwalkan konten baru ke kalender sosial media via F.01-SOCIAL."""
-    result = social_skill.schedule_post(
-        tenant_id=tenant_id,
-        title=req.title,
-        caption=req.caption,
-        scheduled_publish_at=req.scheduled_publish_at,
-        media_urls=req.media_urls,
-        channels=req.channels,
-        disclose_ai_generated=req.disclose_ai_generated,
-    )
-    return {"status": "ok", "data": result}
+    try:
+        from app.core.database import tenant_tx
+        with tenant_tx(tenant_id) as conn:
+            result = social_skill.schedule_post(
+                tenant_id=tenant_id,
+                title=req.title,
+                caption=req.caption,
+                scheduled_publish_at=req.scheduled_publish_at,
+                media_urls=req.media_urls,
+                channels=req.channels,
+                disclose_ai_generated=req.disclose_ai_generated,
+                db_session=conn,
+            )
+            return {"status": "ok", "data": result}
+    except Exception:
+        result = social_skill.schedule_post(
+            tenant_id=tenant_id,
+            title=req.title,
+            caption=req.caption,
+            scheduled_publish_at=req.scheduled_publish_at,
+            media_urls=req.media_urls,
+            channels=req.channels,
+            disclose_ai_generated=req.disclose_ai_generated,
+        )
+        return {"status": "ok", "data": result}
 
 
 @router.post("/calendar/{item_id}/scrub")

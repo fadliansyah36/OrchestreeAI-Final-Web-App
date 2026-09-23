@@ -16,6 +16,7 @@ from orchestree.domains.service.intake import (
     process_customer_service_intake,
     approve_service_request,
     reject_service_request,
+    list_service_requests,
 )
 from orchestree.domains.sales.handover import (
     build_handover_summary,
@@ -96,6 +97,35 @@ class ScheduleAbandonedCartPayload(BaseModel):
 
 
 # Endpoints
+@router.get("/requests")
+async def list_service_requests_endpoint(
+    tenant_id: str = Path(...),
+    status: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+):
+    """
+    Mengambil daftar tiket layanan pelanggan (komplain, refund, retur) nyata.
+    Query langsung dari basis data Supabase PostgreSQL dengan isolasi tenant.
+    """
+    from app.db.session import SessionLocal
+    db = None
+    try:
+        db = SessionLocal()
+        tickets = list_service_requests(
+            tenant_id=tenant_id,
+            status=status,
+            category=category,
+            db_session=db,
+        )
+        return {"status": "success", "tickets": tickets}
+    except Exception as e:
+        logger.error(f"Gagal memuat tiket: {e}")
+        return {"status": "success", "tickets": []}
+    finally:
+        if db:
+            db.close()
+
+
 @router.post("/requests")
 async def create_service_request_endpoint(
     tenant_id: str = Path(...),

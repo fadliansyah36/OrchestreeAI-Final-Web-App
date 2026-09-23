@@ -223,3 +223,41 @@ def tool_social_toggle_ai_disclosure(
         "disclose_ai_generated": disclose_ai_generated,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def tool_social_list_posts(
+    tenant_id: str,
+    db_session: Optional[Any] = None,
+) -> List[Dict[str, Any]]:
+    """Mengambil daftar jadwal konten dari tabel content_calendar_items."""
+    if not db_session:
+        return []
+    try:
+        rows = db_session.execute(
+            text("""
+            SELECT id, title, caption, media_urls, channels,
+                   scheduled_publish_at, status, metadata_scrub_status,
+                   disclose_ai_generated, created_at
+            FROM content_calendar_items
+            WHERE tenant_id = :tid
+            ORDER BY scheduled_publish_at ASC
+            """),
+            {"tid": tenant_id}
+        ).fetchall()
+        posts = []
+        for r in rows:
+            posts.append({
+                "id": str(r[0]),
+                "title": r[1] or "",
+                "caption": r[2] or "",
+                "media_urls": r[3] if isinstance(r[3], list) else ([] if r[3] is None else [r[3]]),
+                "channels": r[4] if isinstance(r[4], list) else ([] if r[4] is None else [r[4]]),
+                "scheduled_publish_at": r[5].isoformat() if hasattr(r[5], "isoformat") else str(r[5]),
+                "status": r[6] or "SCHEDULED",
+                "metadata_scrub_status": r[7] or "clean",
+                "disclose_ai_generated": bool(r[8]),
+                "created_at": r[9].isoformat() if hasattr(r[9], "isoformat") else str(r[9]),
+            })
+        return posts
+    except Exception as e:
+        return []

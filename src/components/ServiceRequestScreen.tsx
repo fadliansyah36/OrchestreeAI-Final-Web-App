@@ -28,6 +28,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { HandoverSummaryPanel, HandoverSummaryData } from './HandoverSummaryPanel';
+import { HonestErrorBanner } from './HonestErrorBanner';
 
 export interface ServiceRequestItem {
   id: string;
@@ -75,66 +76,9 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
 
   // Service Requests List
-  const [requests, setRequests] = useState<ServiceRequestItem[]>([
-    {
-      id: 'sr-001',
-      ticket_number: 'SR-20260925-REF001',
-      category: 'REFUND',
-      priority: 'HIGH',
-      status: 'HUMAN_APPROVAL',
-      subject: 'Permohonan Pengembalian Dana Produk Cacat',
-      description: 'Barang diterima dalam kondisi kemasan rusak dan botol pecah. Pelanggan meminta refund dana Rp 450.000 via transfer bank.',
-      amount: 450000,
-      customer_name: 'Budi Santoso',
-      customer_phone: '+6281234567891',
-      intake_channel: 'WHATSAPP',
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'sr-002',
-      ticket_number: 'SR-20260925-RET002',
-      category: 'RETURN',
-      priority: 'HIGH',
-      status: 'IN_INVESTIGATION',
-      subject: 'Retur Penukaran Ukuran Sepatu',
-      description: 'Sepatu ukuran 42 kekecilan, pelanggan ingin menukar dengan nomor 43 sesuai syarat garansi 7 hari.',
-      amount: 0,
-      customer_name: 'Dewi Lestari',
-      customer_phone: '+6281398765432',
-      intake_channel: 'INSTAGRAM',
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: 'sr-003',
-      ticket_number: 'SR-20260925-CMP003',
-      category: 'COMPLAINT',
-      priority: 'MEDIUM',
-      status: 'OPEN',
-      subject: 'Keterlambatan Ekspedisi Pengiriman',
-      description: 'Resi kurir belum terupdate selama 3 hari kerja, paket tujuan Surabaya belum tiba.',
-      amount: 0,
-      customer_name: 'Ahmad Fauzi',
-      customer_phone: '+6285612347890',
-      intake_channel: 'TIKTOK',
-      created_at: new Date(Date.now() - 14400000).toISOString(),
-    },
-    {
-      id: 'sr-004',
-      ticket_number: 'SR-20260925-REF004',
-      category: 'REFUND',
-      priority: 'CRITICAL',
-      status: 'APPROVED',
-      subject: 'Refund Pembatalan Pre-Order',
-      description: 'Permintaan refund pembatalan pesanan pre-order batch 1 telah disetujui staf.',
-      amount: 1200000,
-      customer_name: 'Rina Kusuma',
-      customer_phone: '+6281765432109',
-      intake_channel: 'WHATSAPP',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      resolution_notes: 'Dana telah ditransfer ke rekening BCA pelanggan dengan persetujuan Finance.',
-      approved_by_user_id: 'user-supervisor-01',
-    },
-  ]);
+  const [requests, setRequests] = useState<ServiceRequestItem[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState<boolean>(true);
+  const [requestError, setRequestError] = useState<string | null>(null);
 
   // Modal: Approval / Rejection
   const [selectedTicket, setSelectedTicket] = useState<ServiceRequestItem | null>(null);
@@ -166,32 +110,49 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
   const [isHumanizing, setIsHumanizing] = useState(false);
 
   // Abandoned Cart Recovery State
-  const [abandonedCarts, setAbandonedCarts] = useState<AbandonedCartItem[]>([
-    {
-      id: 'cart-rec-01',
-      cart_id: 'crt-901',
-      customer_name: 'Hendra Gunawan',
-      customer_phone: '+6281244556677',
-      cart_value: 385000,
-      channel: 'WHATSAPP',
-      status: 'SCHEDULED',
-      scheduled_at: new Date(Date.now() + 1800000).toISOString(),
-      discount_code: 'PULIH10',
-    },
-    {
-      id: 'cart-rec-02',
-      cart_id: 'crt-902',
-      customer_name: 'Siti Rahma',
-      customer_phone: '+6281355667788',
-      cart_value: 650000,
-      channel: 'WHATSAPP',
-      status: 'DISPATCHED',
-      scheduled_at: new Date(Date.now() - 3600000).toISOString(),
-      discount_code: 'HEMAT15',
-      message_sent: 'Halo Kak Siti, keranjang belanja senilai Rp 650.000 masih tersimpan ya kak. Gunakan kupon HEMAT15 hari ini untuk diskon khusus saat checkout: https://orchestree.id/c/902. Siap kami bantu ya kak!',
-    },
-  ]);
+  const [abandonedCarts, setAbandonedCarts] = useState<AbandonedCartItem[]>([]);
   const [isProcessingCarts, setIsProcessingCarts] = useState(false);
+
+  // Fetch real tickets from database
+  const fetchTickets = async () => {
+    setLoadingRequests(true);
+    setRequestError(null);
+    try {
+      const q = new URLSearchParams();
+      if (selectedStatus && selectedStatus !== 'ALL') q.set('status', selectedStatus);
+      if (selectedCategory && selectedCategory !== 'ALL') q.set('category', selectedCategory);
+      const res = await fetch(`/api/v1/tenants/${tenantId}/service/requests?${q.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setRequests(json.tickets || []);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setRequestError(errJson.error || 'Gagal memuat tiket permohonan layanan.');
+      }
+    } catch (err: any) {
+      setRequestError(err.message || 'Gagal tersambung ke layanan tiket.');
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  // Fetch abandoned carts
+  const fetchAbandonedCarts = async () => {
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/service/abandoned-carts`);
+      if (res.ok) {
+        const json = await res.json();
+        setAbandonedCarts(json.data || []);
+      }
+    } catch (err) {
+      // Handled quietly
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+    fetchAbandonedCarts();
+  }, [tenantId, selectedStatus, selectedCategory]);
 
   // Active Handover Demo Panel
   const [activeHandoverDemo, setActiveHandoverDemo] = useState<HandoverSummaryData | null>(null);
@@ -242,49 +203,17 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
           },
           ...prev,
         ]);
+        setShowIntakeModal(false);
+        setIntakeSubject('');
+        setIntakeDescription('');
+        setIntakeAmount(0);
       } else {
-        // Fallback local persistence respecting strict business rule:
-        // Refund & amount > 0 stops at HUMAN_APPROVAL!
-        const isRefund = intakeCategory === 'REFUND' || intakeAmount > 0;
-        const fallbackTicket: ServiceRequestItem = {
-          id: `sr-${Date.now()}`,
-          ticket_number: `SR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`,
-          category: intakeCategory as any,
-          priority: intakeAmount >= 500000 ? 'CRITICAL' : 'HIGH',
-          status: isRefund ? 'HUMAN_APPROVAL' : 'OPEN',
-          subject: intakeSubject,
-          description: intakeDescription,
-          amount: Number(intakeAmount) || 0,
-          customer_name: intakeCustomerName || 'Pelanggan Baru',
-          customer_phone: intakeCustomerPhone,
-          intake_channel: intakeChannel,
-          created_at: new Date().toISOString(),
-        };
-        setRequests((prev) => [fallbackTicket, ...prev]);
+        const errJson = await res.json().catch(() => ({}));
+        setRequestError(errJson.error || 'Gagal menyimpan tiket permohonan ke basis data.');
       }
-    } catch (err) {
-      const isRefund = intakeCategory === 'REFUND' || intakeAmount > 0;
-      const fallbackTicket: ServiceRequestItem = {
-        id: `sr-${Date.now()}`,
-        ticket_number: `SR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`,
-        category: intakeCategory as any,
-        priority: intakeAmount >= 500000 ? 'CRITICAL' : 'HIGH',
-        status: isRefund ? 'HUMAN_APPROVAL' : 'OPEN',
-        subject: intakeSubject,
-        description: intakeDescription,
-        amount: Number(intakeAmount) || 0,
-        customer_name: intakeCustomerName || 'Pelanggan Baru',
-        customer_phone: intakeCustomerPhone,
-        intake_channel: intakeChannel,
-        created_at: new Date().toISOString(),
-      };
-      setRequests((prev) => [fallbackTicket, ...prev]);
+    } catch (err: any) {
+      setRequestError(err.message || 'Gagal tersambung ke server untuk mencatat tiket.');
     }
-
-    setShowIntakeModal(false);
-    setIntakeSubject('');
-    setIntakeDescription('');
-    setIntakeAmount(0);
   };
 
   const handleExecuteAction = async () => {
@@ -600,9 +529,22 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
               </div>
             </div>
 
+            {/* Error Banner */}
+            {requestError && (
+              <HonestErrorBanner
+                error={requestError}
+                onRetry={fetchTickets}
+              />
+            )}
+
             {/* List of Requests */}
             <div className="space-y-3">
-              {filteredRequests.length === 0 ? (
+              {loadingRequests ? (
+                <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mb-3" />
+                  <p className="text-xs text-slate-400">Memuat tiket permohonan layanan dari basis data...</p>
+                </div>
+              ) : filteredRequests.length === 0 ? (
                 <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl">
                   <LifeBuoy className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                   <h3 className="text-sm font-semibold text-slate-300">Tidak ada tiket yang cocok</h3>

@@ -60,31 +60,6 @@ interface MarketplaceStore {
   pendingOrders: number;
 }
 
-const INITIAL_CALENDAR_POSTS: CalendarPostItem[] = [
-  {
-    id: 'post-01',
-    title: 'Peluncuran Koleksi Musim Gugur',
-    caption: 'Koleksi eksklusif kini hadir di semua official store! Dapatkan diskon 15% khusus member {tier}. Kunjungi link di bio.',
-    scheduledTime: '2026-09-25 10:00 WIB',
-    channels: ['INSTAGRAM', 'TIKTOK'],
-    mediaUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=600&q=80',
-    metadataScrubStatus: 'clean',
-    discloseAiGenerated: false,
-    status: 'READY_TO_PUBLISH',
-  },
-  {
-    id: 'post-02',
-    title: 'Flash Sale Akhir Pekan',
-    caption: 'Penawaran terbatas 48 jam! Semua produk bestseller siap dikirim hari ini. Buruan checkout sebelum kehabisan.',
-    scheduledTime: '2026-09-27 19:00 WIB',
-    channels: ['INSTAGRAM'],
-    mediaUrl: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=600&q=80',
-    metadataScrubStatus: 'dirty',
-    discloseAiGenerated: true,
-    status: 'SCHEDULED',
-  },
-];
-
 export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
   tenantId,
 }) => {
@@ -103,44 +78,13 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
   const [executionResult, setExecutionResult] = useState<string | null>(null);
 
   // States untuk Social Calendar
-  const [calendarPosts, setCalendarPosts] = useState<CalendarPostItem[]>(INITIAL_CALENDAR_POSTS);
+  const [calendarPosts, setCalendarPosts] = useState<CalendarPostItem[]>([]);
+  const [loadingCalendar, setLoadingCalendar] = useState<boolean>(false);
   const [publishAlert, setPublishAlert] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
   // States untuk Marketplace
-  const [marketplaces, setMarketplaces] = useState<MarketplaceStore[]>([
-    {
-      channel: 'SHOPEE',
-      shopName: 'Toko Resmi Shopee Mall',
-      shopId: 'shp-tenant-881',
-      syncStatus: 'SYNCED',
-      lastSynced: '2 menit lalu',
-      pendingOrders: 3,
-    },
-    {
-      channel: 'TOKOPEDIA',
-      shopName: 'Official Store Tokopedia',
-      shopId: 'tkp-tenant-412',
-      syncStatus: 'SYNCED',
-      lastSynced: '15 menit lalu',
-      pendingOrders: 2,
-    },
-    {
-      channel: 'TIKTOK_SHOP',
-      shopName: 'TikTok Shop Indonesia',
-      shopId: 'tts-tenant-990',
-      syncStatus: 'SYNCED',
-      lastSynced: '5 menit lalu',
-      pendingOrders: 4,
-    },
-    {
-      channel: 'BLIBLI',
-      shopName: 'Blibli Official Merchant',
-      shopId: 'bli-tenant-102',
-      syncStatus: 'SYNCED',
-      lastSynced: '1 jam lalu',
-      pendingOrders: 1,
-    },
-  ]);
+  const [marketplaces, setMarketplaces] = useState<MarketplaceStore[]>([]);
+  const [loadingMarketplaces, setLoadingMarketplaces] = useState<boolean>(false);
   const [isSyncingMarketplace, setIsSyncingMarketplace] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
@@ -180,7 +124,65 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
         console.warn('Gagal memuat audiens CRM:', err);
       }
     };
+
+    const fetchCalendar = async () => {
+      setLoadingCalendar(true);
+      try {
+        const res = await fetch(`/api/v1/tenants/${tenantId}/marketing/calendar`);
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted && Array.isArray(json.data)) {
+            setCalendarPosts(
+              json.data.map((p: any) => ({
+                id: p.id,
+                title: p.title,
+                caption: p.caption,
+                scheduledTime: p.scheduled_publish_at ? new Date(p.scheduled_publish_at).toLocaleString('id-ID') : '',
+                channels: p.channels || ['INSTAGRAM'],
+                mediaUrl: (p.media_urls && p.media_urls[0]) || '',
+                metadataScrubStatus: p.metadata_scrub_status || 'clean',
+                discloseAiGenerated: !!p.disclose_ai_generated,
+                status: p.status || 'SCHEDULED',
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        // quiet
+      } finally {
+        if (isMounted) setLoadingCalendar(false);
+      }
+    };
+
+    const fetchMarketplaces = async () => {
+      setLoadingMarketplaces(true);
+      try {
+        const res = await fetch(`/api/v1/tenants/${tenantId}/marketing/marketplaces`);
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted && Array.isArray(json.data)) {
+            setMarketplaces(
+              json.data.map((m: any) => ({
+                channel: m.channel,
+                shopName: m.shop_name || m.shopName,
+                shopId: m.shop_id || m.shopId,
+                syncStatus: m.sync_status || 'SYNCED',
+                lastSynced: m.last_synced_at || 'Tersinkron',
+                pendingOrders: m.pending_orders || 0,
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        // quiet
+      } finally {
+        if (isMounted) setLoadingMarketplaces(false);
+      }
+    };
+
     fetchAudiences();
+    fetchCalendar();
+    fetchMarketplaces();
     return () => {
       isMounted = false;
     };
@@ -679,7 +681,21 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {calendarPosts.map((post) => {
+              {loadingCalendar ? (
+                <div className="col-span-1 md:col-span-2 p-12 text-center bg-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mb-3" />
+                  <p className="text-xs text-slate-400">Memuat jadwal konten dari server...</p>
+                </div>
+              ) : calendarPosts.length === 0 ? (
+                <div className="col-span-1 md:col-span-2 p-12 text-center bg-slate-950 rounded-2xl border border-slate-800">
+                  <Calendar className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-slate-300">Belum ada postingan media sosial terjadwal</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Jadwalkan postingan omnichannel baru dengan pembersihan metadata otomatis.
+                  </p>
+                </div>
+              ) : (
+                calendarPosts.map((post) => {
                 const isClean = post.metadataScrubStatus === 'clean';
                 const isScrubbing = post.metadataScrubStatus === 'scrubbing';
                 const isPublished = post.status === 'PUBLISHED';
@@ -821,7 +837,7 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              }))}
             </div>
           </div>
         </div>
@@ -863,36 +879,51 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
 
             {/* Grid Kartu Marketplace */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {marketplaces.map((m) => (
-                <div
-                  key={m.channel}
-                  id={`marketplace-card-${m.channel.toLowerCase()}`}
-                  className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-white">{m.channel}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
-                      {m.syncStatus}
-                    </span>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-slate-200 font-semibold">{m.shopName}</div>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {m.shopId}</div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">Pesanan Baru:</span>
-                    <span className="font-bold text-white font-mono bg-blue-500/10 px-2 py-0.5 rounded text-blue-300">
-                      {m.pendingOrders} Pesanan
-                    </span>
-                  </div>
-
-                  <div className="text-[10px] text-slate-500 font-mono">
-                    Sinkron: {m.lastSynced}
-                  </div>
+              {loadingMarketplaces ? (
+                <div className="col-span-1 md:col-span-2 lg:col-span-4 p-12 text-center bg-slate-950 rounded-2xl border border-slate-800 flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 text-blue-400 animate-spin mb-3" />
+                  <p className="text-xs text-slate-400">Memuat integrasi toko marketplace...</p>
                 </div>
-              ))}
+              ) : marketplaces.length === 0 ? (
+                <div className="col-span-1 md:col-span-2 lg:col-span-4 p-12 text-center bg-slate-950 rounded-2xl border border-slate-800">
+                  <ShoppingBag className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                  <h3 className="text-sm font-semibold text-slate-300">Belum ada toko marketplace yang terhubung</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Hubungkan akun resmi Shopee, Tokopedia, TikTok Shop, atau Blibli Anda.
+                  </p>
+                </div>
+              ) : (
+                marketplaces.map((m) => (
+                  <div
+                    key={m.channel}
+                    id={`marketplace-card-${m.channel.toLowerCase()}`}
+                    className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-white">{m.channel}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
+                        {m.syncStatus}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-slate-200 font-semibold">{m.shopName}</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {m.shopId}</div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-900 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Pesanan Baru:</span>
+                      <span className="font-bold text-white font-mono bg-blue-500/10 px-2 py-0.5 rounded text-blue-300">
+                        {m.pendingOrders} Pesanan
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      Sinkron: {m.lastSynced}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Simulasi Pengiriman Balik AWB / Pelacakan */}

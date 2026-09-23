@@ -23,6 +23,7 @@ except ImportError:
     httpx = None
 
 from app.core.model_router.router import ModelRouterRequest
+from app.core.security import validate_safe_external_url
 
 logger = logging.getLogger("orchestree.skills.f01_scrape.adapters")
 
@@ -44,6 +45,12 @@ class RobotsTxtValidator:
         Return: (is_allowed, status_reason, crawl_delay)
         """
         try:
+            # 0. Penegakan Keamanan SSRF: Tolak localhost, IP internal, dan cloud metadata
+            safe, reason, _ = validate_safe_external_url(target_url)
+            if not safe:
+                logger.warning(f"SSRF defense triggered on robots check for {target_url}: {reason}")
+                return False, f"ssrf_rejected: {reason}", None
+
             parsed = urlparse(target_url)
             if not parsed.scheme or not parsed.netloc:
                 return False, "invalid_url", None

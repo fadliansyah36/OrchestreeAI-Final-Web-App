@@ -91,8 +91,8 @@ export class CommerceService {
   ): Promise<T> {
     const client = await this.pool.connect();
     try {
-      await client.query(`SET LOCAL app.tenant_id = '${tenantId}';`);
-      await client.query(`SET LOCAL app.current_tenant_id = '${tenantId}';`);
+      await client.query("SELECT set_config('app.tenant_id', $1, true);", [tenantId]);
+      await client.query("SELECT set_config('app.current_tenant_id', $1, true);", [tenantId]);
       return await fn(client);
     } finally {
       client.release();

@@ -12,6 +12,7 @@ from .tools import (
     tool_social_scrub_image,
     tool_social_publish_post,
     tool_social_toggle_ai_disclosure,
+    tool_social_list_posts,
 )
 from .metadata_scrubber import scrub_image_metadata
 
@@ -110,5 +111,16 @@ class F01SocialSkill:
             tenant_id=tenant_id,
             item_id=item_id,
             disclose_ai_generated=disclose,
+            db_session=db_session,
+        )
+
+    def list_posts(
+        self,
+        tenant_id: str,
+        db_session: Optional[Any] = None,
+    ) -> List[Dict[str, Any]]:
+        """Mengambil daftar jadwal postingan konten sosial media dari database."""
+        return tool_social_list_posts(
+            tenant_id=tenant_id,
             db_session=db_session,
         )
