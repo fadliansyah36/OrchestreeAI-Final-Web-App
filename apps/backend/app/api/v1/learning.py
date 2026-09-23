@@ -10,14 +10,18 @@ Endpoints:
 
 import json
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Header, Query
+from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
 from app.core.database import get_engine
-from app.authz.pdp import authorize, SubjectContext, ResourceContext
+from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 
-router = APIRouter(prefix="/api/v1/learning", tags=["Continuous Learning"])
+router = APIRouter(
+    prefix="/api/v1/learning",
+    tags=["Continuous Learning"],
+    dependencies=[Depends(require_capability("learning.reflections.manage"))]
+)
 
 
 class FeedbackIn(BaseModel):

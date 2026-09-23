@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.core.orchestration.engine import get_orchestration_engine, WorkflowDispatchRequest, WorkflowDispatchResult
 from app.core.model_router.router import get_model_router
 from app.skills.f01_mcp.decorators import get_tool_registry
-from app.authz.pdp import authorize, SubjectContext, ResourceContext
+from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 
 router = APIRouter(prefix="/api/v1", tags=["Cognitive Core & Orchestration"])
 
@@ -95,7 +95,7 @@ async def dispatch_workflow(
     return result
 
 
-@router.get("/admin/llm-providers")
+@router.get("/admin/llm-providers", dependencies=[Depends(require_capability("platform.admin.manage"))])
 async def get_admin_llm_providers(
     x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
     x_mfa_verified: Optional[str] = Header("true", alias="X-MFA-Verified"),
@@ -113,7 +113,7 @@ async def get_admin_llm_providers(
     }
 
 
-@router.get("/admin/mcp-tools")
+@router.get("/admin/mcp-tools", dependencies=[Depends(require_capability("platform.admin.manage"))])
 async def get_admin_mcp_tools():
     """
     Katalog dan tata kelola perkakas F.01-MCP terdaftar.

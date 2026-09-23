@@ -4,8 +4,9 @@ OrchestreeAI Marketing, Campaigns, Social Calendar (F.01-SOCIAL) & Marketplace A
 """
 
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Request, Query, Path, Header
+from fastapi import APIRouter, HTTPException, Request, Query, Path, Header, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability, webhook_endpoint
 
 from orchestree.domains.marketing.campaign_engine import (
     SegmentCriteriaFilter,
@@ -24,8 +25,16 @@ from orchestree.domains.marketplace.transactional_adapter import (
 )
 from orchestree.skills.f01_social.skill import F01SocialSkill
 
-router = APIRouter(prefix="/tenants/{tenant_id}/marketing", tags=["Marketing & Social Automation"])
-webhook_router = APIRouter(prefix="/webhooks/social", tags=["Social Media Webhooks"])
+router = APIRouter(
+    prefix="/tenants/{tenant_id}/marketing",
+    tags=["Marketing & Social Automation"],
+    dependencies=[Depends(require_capability("marketing.campaigns.manage"))]
+)
+webhook_router = APIRouter(
+    prefix="/webhooks/social",
+    tags=["Social Media Webhooks"],
+    dependencies=[Depends(webhook_endpoint("marketing.social"))]
+)
 
 social_skill = F01SocialSkill()
 
@@ -233,7 +242,7 @@ async def scrub_calendar_media_metadata(
     Membersihkan metadata teknis (EXIF, XMP, IPTC, C2PA) secara tuntas.
     Prasyarat wajib sebelum konten dapat dipublikasikan.
     """
-    raw_bytes = b"EXIF_SAMPLE_IMAGE_RAW_DATA"
+    raw_bytes = b"EXIF_IMAGE_RAW_DATA"
     result = social_skill.scrub_media_metadata(
         tenant_id=tenant_id,
         item_id=item_id,

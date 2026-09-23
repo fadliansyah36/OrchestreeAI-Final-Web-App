@@ -12,8 +12,13 @@ from app.domains.integrations.health import (
     validate_transparency_notice_consent,
 )
 from app.domains.integrations.crypto import encrypt_credential
+from app.authz.pdp import require_capability
 
-router = APIRouter(prefix="/api/v1", tags=["integrations"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["integrations"],
+    dependencies=[Depends(require_capability("integrations.connections.manage"))]
+)
 
 
 class ConnectAppRequest(BaseModel):

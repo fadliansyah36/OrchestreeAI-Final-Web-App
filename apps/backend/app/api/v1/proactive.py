@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 
-from app.authz.pdp import authorize, SubjectContext, ResourceContext
+from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 from app.domains.proactive.service import (
     request_whatsapp_otp,
     verify_whatsapp_otp,
@@ -37,7 +37,11 @@ from app.domains.proactive.scheduler import execute_proactive_dispatch_cycle
 
 logger = logging.getLogger("orchestree.api.proactive")
 
-router = APIRouter(prefix="/api/v1/proactive", tags=["Proactive Channels & Notifications"])
+router = APIRouter(
+    prefix="/api/v1/proactive",
+    tags=["Proactive Channels & Notifications"],
+    dependencies=[Depends(require_capability("proactive.messages.manage"))]
+)
 
 
 class WhatsAppOTPRequest(BaseModel):

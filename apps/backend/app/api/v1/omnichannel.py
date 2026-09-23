@@ -46,8 +46,13 @@ from orchestree.domains.sales.identity import (
     approve_merge,
     rollback_merge
 )
+from app.authz.pdp import require_capability, webhook_endpoint
 
-router = APIRouter(prefix="/tenants/{tenant_id}", tags=["Omnichannel & Customers"])
+router = APIRouter(
+    prefix="/tenants/{tenant_id}",
+    tags=["Omnichannel & Customers"],
+    dependencies=[Depends(require_capability("omnichannel.customers.manage"))]
+)
 
 
 # Schemas
@@ -557,7 +562,11 @@ async def rollback_customer_merge(
 
 
 # 5. PUBLIC INBOUND WEBHOOK (KATEGORI A & B)
-webhook_router = APIRouter(prefix="/webhooks/omnichannel", tags=["Omnichannel Webhooks"])
+webhook_router = APIRouter(
+    prefix="/webhooks/omnichannel",
+    tags=["Omnichannel Webhooks"],
+    dependencies=[Depends(webhook_endpoint("omnichannel.inbound"))]
+)
 
 
 @webhook_router.post("/inbound", summary="Inbound Webhook Kanal Terpadu")

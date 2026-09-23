@@ -110,6 +110,21 @@ async def create_tenant_memory_document(
         is_mfa_verified=is_mfa,
     )
 
+    pdp_decision = authorize(
+        action="memory.documents.create",
+        subject=subject,
+        resource=ResourceContext(
+            tenant_id=tenant_id,
+            resource_type="memory_document",
+            classification=payload.data_classification
+        )
+    )
+    if not pdp_decision.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Penambahan dokumen memori ditolak PDP: {pdp_decision.reason}",
+        )
+
     doc_in = MemoryDocumentCreate(
         title=payload.title,
         content=payload.content,

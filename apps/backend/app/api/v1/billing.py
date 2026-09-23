@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.database import get_engine
-from app.authz.pdp import authorize, SubjectContext, ResourceContext
+from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 from app.domains.billing.credits import (
     get_wallet,
     get_transactions,
@@ -319,7 +319,7 @@ async def initiate_topup(
     )
 
 
-@router.post("/sandbox-settle")
+@router.post("/sandbox-settle", dependencies=[Depends(require_capability("billing.invoices.manage"))])
 async def sandbox_settle_payment(
     payload: SimulatePaymentRequest,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),

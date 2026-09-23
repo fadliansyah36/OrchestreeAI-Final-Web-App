@@ -18,7 +18,9 @@ async function runDoDVerification() {
   console.log('=== Memulai Verifikasi Definition of Done: Korelator Sinyal Lintas Sistem ===\n');
 
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString:
+      process.env.DATABASE_URL ||
+      'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres',
     ssl: { rejectUnauthorized: false }
   });
 

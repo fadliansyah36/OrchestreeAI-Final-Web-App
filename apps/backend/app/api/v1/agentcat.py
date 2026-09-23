@@ -3,8 +3,9 @@ API Router untuk F.01-AGENTCAT: Super Admin Managed AI Agent Blueprint Catalog &
 """
 
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability
 
 from app.skills.f01_agentcat import (
     RolloutStage,
@@ -14,11 +15,21 @@ from app.skills.f01_agentcat import (
     get_agentcat_catalog,
 )
 
-admin_router = APIRouter(prefix="/api/v1/admin/agent-catalog", tags=["agent-catalog-admin"])
-tenant_router = APIRouter(prefix="/api/v1/tenants/{tenant_id}/agent-catalog", tags=["agent-catalog-tenant"])
+admin_router = APIRouter(
+    prefix="/api/v1/admin/agent-catalog",
+    tags=["agent-catalog-admin"],
+    dependencies=[Depends(require_capability("agentcat.admin.manage"))]
+)
+tenant_router = APIRouter(
+    prefix="/api/v1/tenants/{tenant_id}/agent-catalog",
+    tags=["agent-catalog-tenant"],
+    dependencies=[Depends(require_capability("agentcat.tenant.view"))]
+)
 
 
 class BlueprintIngestRequest(BaseModel):
+    class Config:
+        extra = "forbid"
     package_id: str
     name: str
     version: str = "1.0.0"
@@ -32,6 +43,8 @@ class BlueprintIngestRequest(BaseModel):
 
 
 class RolloutTransitionRequest(BaseModel):
+    class Config:
+        extra = "forbid"
     target_stage: str
     allowed_tenant_ids: Optional[List[str]] = Field(default_factory=list)
     operator: Optional[str] = "Super Admin"

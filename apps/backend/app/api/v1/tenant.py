@@ -70,6 +70,26 @@ async def get_tenant_context(
     Mengembalikan konteks tenant yang telah divalidasi anti-spoofing
     beserta peran dan kapabilitas terdaftar.
     """
+    authz = authorize(
+        action="tenant.settings.view",
+        subject=SubjectContext(
+            user_id=context.user_id,
+            tenant_id=context.tenant_id,
+            roles=context.roles,
+            capabilities=context.capabilities,
+            is_mfa_verified=context.is_mfa_verified,
+        ),
+        resource=ResourceContext(
+            tenant_id=context.tenant_id,
+            resource_type="tenant"
+        )
+    )
+    if not authz.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=authz.reason
+        )
+
     return {
         "user_id": context.user_id,
         "tenant_id": context.tenant_id,
@@ -416,6 +436,25 @@ async def list_current_tenant_members(
     context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
     """Mengambil daftar anggota tenant beserta perannya."""
+    authz = authorize(
+        action="tenant.members.view",
+        subject=SubjectContext(
+            user_id=context.user_id,
+            tenant_id=context.tenant_id,
+            roles=context.roles,
+            capabilities=context.capabilities,
+            is_mfa_verified=context.is_mfa_verified,
+        ),
+        resource=ResourceContext(
+            tenant_id=context.tenant_id,
+            resource_type="tenant"
+        )
+    )
+    if not authz.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=authz.reason
+        )
     return await list_tenant_members(tenant_id=context.tenant_id, context=context)
 
 

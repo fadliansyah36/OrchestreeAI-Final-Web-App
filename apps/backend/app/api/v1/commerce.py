@@ -5,8 +5,9 @@ Ekspedisi Kurir & Pelacakan Resi, Grounding Enforcement & Sales Stage.
 """
 
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Request, Query, Path, Header
+from fastapi import APIRouter, HTTPException, Request, Query, Path, Header, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability, webhook_endpoint
 
 try:
     import sqlalchemy as sa
@@ -24,8 +25,16 @@ from app.domains.commerce.sales_stage_machine import SalesStageMachine, SalesSta
 from app.domains.commerce.grounding_validator import CommerceGroundingValidator
 from app.domains.commerce.courier_service import CourierAggregatorService
 
-router = APIRouter(prefix="/commerce", tags=["Commerce & Sales Engine"])
-webhook_router = APIRouter(prefix="/webhooks/payment", tags=["Commerce Payment Webhooks"])
+router = APIRouter(
+    prefix="/commerce",
+    tags=["Commerce & Sales Engine"],
+    dependencies=[Depends(require_capability("commerce.catalog.view"))]
+)
+webhook_router = APIRouter(
+    prefix="/webhooks/payment",
+    tags=["Commerce Payment Webhooks"],
+    dependencies=[Depends(webhook_endpoint("commerce.payment"))]
+)
 
 
 # Pydantic Schemas

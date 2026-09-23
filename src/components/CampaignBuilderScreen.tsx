@@ -27,7 +27,7 @@ interface CampaignBuilderScreenProps {
   onNavigateDetail?: (tab: string) => void;
 }
 
-interface CustomerSample {
+interface AudienceCustomer {
   id: string;
   name: string;
   phone: string;
@@ -59,53 +59,6 @@ interface MarketplaceStore {
   lastSynced: string;
   pendingOrders: number;
 }
-
-const SAMPLE_CUSTOMERS: CustomerSample[] = [
-  {
-    id: 'c-01',
-    name: 'Budi Santoso',
-    phone: '+6281234567890',
-    tier: 'PLATINUM',
-    totalSpent: 4850000,
-    totalOrders: 14,
-    city: 'Jakarta Selatan',
-    channel: 'WHATSAPP',
-    lastOrderDate: '3 hari lalu',
-  },
-  {
-    id: 'c-02',
-    name: 'Siti Rahmawati',
-    phone: '+6281398765432',
-    tier: 'GOLD',
-    totalSpent: 2650000,
-    totalOrders: 8,
-    city: 'Bandung',
-    channel: 'WHATSAPP',
-    lastOrderDate: '1 minggu lalu',
-  },
-  {
-    id: 'c-03',
-    name: 'Dimas Prasetyo',
-    phone: '+6285611223344',
-    tier: 'SILVER',
-    totalSpent: 1200000,
-    totalOrders: 4,
-    city: 'Surabaya',
-    channel: 'TELEGRAM',
-    lastOrderDate: '2 minggu lalu',
-  },
-  {
-    id: 'c-04',
-    name: 'Amanda Putri',
-    phone: '+6287755667788',
-    tier: 'PLATINUM',
-    totalSpent: 6200000,
-    totalOrders: 19,
-    city: 'Yogyakarta',
-    channel: 'INSTAGRAM',
-    lastOrderDate: 'Kemarin',
-  },
-];
 
 const INITIAL_CALENDAR_POSTS: CalendarPostItem[] = [
   {
@@ -191,14 +144,56 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
   const [isSyncingMarketplace, setIsSyncingMarketplace] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
-  // Filter sampel audiens secara reaktif
+  const [customers, setCustomers] = useState<AudienceCustomer[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAudiences = async () => {
+      try {
+        const res = await fetch(`/api/v1/tenants/${tenantId}/crm/pipeline`);
+        if (res.ok) {
+          const data = await res.json();
+          const allLeads: any[] = [];
+          if (Array.isArray(data)) {
+            data.forEach((stage: any) => {
+              if (Array.isArray(stage.leads)) {
+                allLeads.push(...stage.leads);
+              }
+            });
+          }
+          if (isMounted) {
+            const mapped: AudienceCustomer[] = allLeads.map((l: any) => ({
+              id: l.id,
+              name: l.contact_name || l.title || 'Pelanggan',
+              phone: l.contact_phone || '-',
+              tier: (l.lead_score >= 80 ? 'PLATINUM' : l.lead_score >= 60 ? 'GOLD' : l.lead_score >= 40 ? 'SILVER' : 'REGULAR') as any,
+              totalSpent: Number(l.deal_value || 0),
+              totalOrders: 1,
+              city: l.city || 'Indonesia',
+              channel: l.channel_type || 'WHATSAPP',
+              lastOrderDate: l.last_activity_at ? new Date(l.last_activity_at).toLocaleDateString('id-ID') : 'Baru saja',
+            }));
+            setCustomers(mapped);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal memuat audiens CRM:', err);
+      }
+    };
+    fetchAudiences();
+    return () => {
+      isMounted = false;
+    };
+  }, [tenantId]);
+
+  // Filter audiens secara reaktif
   const filteredAudiences = useMemo(() => {
-    return SAMPLE_CUSTOMERS.filter((c) => {
+    return customers.filter((c) => {
       const matchTier = targetTiers.length === 0 || targetTiers.includes(c.tier);
       const matchSpent = c.totalSpent >= minSpent;
       return matchTier && matchSpent;
     });
-  }, [targetTiers, minSpent]);
+  }, [customers, targetTiers, minSpent]);
 
   // Estimasi biaya kirim
   const estimatedCost = useMemo(() => {
@@ -214,14 +209,17 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
     return filteredAudiences.length * avgRate;
   }, [filteredAudiences, selectedChannels]);
 
-  // Preview teks ter-render dinamis untuk sampel audiens pertama
+  // Preview teks ter-render dinamis untuk penerima pertama
   const renderedPreview = useMemo(() => {
-    const sample = filteredAudiences[0] || SAMPLE_CUSTOMERS[0];
+    const targetAudience = filteredAudiences[0];
+    if (!targetAudience) {
+      return 'Kriteria belum cocok dengan data pelanggan. Sesuaikan filter untuk memuat pratinjau pesan.';
+    }
     return messageTemplate
-      .replace(/{customer_name}/g, sample.name)
-      .replace(/{tier}/g, sample.tier)
-      .replace(/{city}/g, sample.city)
-      .replace(/{discount_code}/g, `VIP-${sample.tier}`);
+      .replace(/{customer_name}/g, targetAudience.name)
+      .replace(/{tier}/g, targetAudience.tier)
+      .replace(/{city}/g, targetAudience.city)
+      .replace(/{discount_code}/g, `VIP-${targetAudience.tier}`);
   }, [messageTemplate, filteredAudiences]);
 
   const handleToggleTier = (tier: string) => {
@@ -553,12 +551,18 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                   <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                  Pratinjau Pesan Ter-render Nyata (Sampel 1)
+                  Pratinjau Pesan Ter-render Nyata
                 </span>
                 <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-200 leading-relaxed font-sans relative">
-                  <div className="p-2.5 bg-emerald-950/40 rounded-lg border border-emerald-800/40 mb-2 text-emerald-300 text-[11px]">
-                    Kandidat: {filteredAudiences[0]?.name || 'Budi Santoso'} ({filteredAudiences[0]?.tier || 'PLATINUM'} - {filteredAudiences[0]?.city || 'Jakarta'})
-                  </div>
+                  {filteredAudiences.length > 0 ? (
+                    <div className="p-2.5 bg-emerald-950/40 rounded-lg border border-emerald-800/40 mb-2 text-emerald-300 text-[11px]">
+                      Penerima: {filteredAudiences[0]?.name} ({filteredAudiences[0]?.tier} - {filteredAudiences[0]?.city})
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-800 mb-2 text-slate-400 text-[11px]">
+                      Belum ada penerima terfilter
+                    </div>
+                  )}
                   <p>{renderedPreview}</p>
                   <p className="text-[10px] text-slate-500 mt-3 pt-2 border-t border-slate-800">
                     -- Ketik STOP untuk berhenti menerima promosi --
@@ -566,10 +570,10 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
                 </div>
               </div>
 
-              {/* Sampel Kontak Terpilih */}
+              {/* Kontak Terpilih */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-slate-300">
-                  Daftar Sampel Penerima
+                  Daftar Penerima Terpilih
                 </span>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {filteredAudiences.map((aud) => (

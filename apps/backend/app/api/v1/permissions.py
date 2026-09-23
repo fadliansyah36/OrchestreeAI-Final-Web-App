@@ -19,8 +19,13 @@ from app.authz.abac import (
     ABACSubject,
     check_ai_data_permission,
 )
+from app.authz.pdp import require_capability
 
-router = APIRouter(prefix="/api/v1/tenants/{tenant_id}/permissions", tags=["permissions"])
+router = APIRouter(
+    prefix="/api/v1/tenants/{tenant_id}/permissions",
+    tags=["permissions"],
+    dependencies=[Depends(require_capability("abac.policies.manage"))]
+)
 
 
 class MatrixCellUpdateInput(BaseModel):

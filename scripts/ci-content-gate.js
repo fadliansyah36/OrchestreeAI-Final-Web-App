@@ -20,8 +20,10 @@ const FORBIDDEN_PATTERNS = [
   { pattern: /\bmock\b/i, name: 'mock' },
   { pattern: /\bfake\b/i, name: 'fake' },
   { pattern: /\bdummy\b/i, name: 'dummy' },
+  { pattern: /\bsample\b/i, name: 'sample' },
   { pattern: /sample_data/i, name: 'sample_data' },
   { pattern: /\bsimulate\b/i, name: 'simulate' },
+  { pattern: /\bscenario\b/i, name: 'scenario' },
   { pattern: /scenario_data/i, name: 'scenario_data' },
   { pattern: /\bplaceholder\b/i, name: 'placeholder' },
   { pattern: /TODO_replace_with_real/i, name: 'TODO_replace_with_real' },
@@ -53,7 +55,10 @@ const IGNORED_FILES = new Set([
   '.env.schema',
   '.gitignore',
   'package-lock.json',
-  'pnpm-lock.yaml'
+  'pnpm-lock.yaml',
+  'AGENTS.md',
+  'CLAUDE.md',
+  'GEMINI.md'
 ]);
 
 const ALLOWLIST_COMMENT = /allowlist\s*:\s*.+/i;

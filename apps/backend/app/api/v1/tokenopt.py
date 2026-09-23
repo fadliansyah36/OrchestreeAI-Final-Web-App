@@ -7,8 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.skills.f01_tokenopt import get_tokenopt_skill
+from app.authz.pdp import require_capability
 
-router = APIRouter(prefix="/api/v1/tenants/{tenant_id}/tokenopt", tags=["tokenopt"])
+router = APIRouter(
+    prefix="/api/v1/tenants/{tenant_id}/tokenopt",
+    tags=["tokenopt"],
+    dependencies=[Depends(require_capability("tokenopt.metrics.view"))]
+)
 
 
 class TokenSavingsSummaryResponse(BaseModel):

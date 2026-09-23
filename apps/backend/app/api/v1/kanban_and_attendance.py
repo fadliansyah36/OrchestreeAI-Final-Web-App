@@ -12,11 +12,15 @@ import json
 import secrets
 from typing import Any, Dict, List, Optional
 import uuid
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Header, HTTPException, Request, Response, status, Depends
 from pydantic import BaseModel, Field
 from app.domains.workforce.task_sync import emit_task_realtime_event
+from app.authz.pdp import require_capability
 
-router = APIRouter(tags=["Kanban Board, Tasks & WebAuthn Attendance"])
+router = APIRouter(
+    tags=["Kanban Board, Tasks & WebAuthn Attendance"],
+    dependencies=[Depends(require_capability("tasks.assigned.view"))]
+)
 
 # Store in-memory aktif untuk fallback dan sinkronisasi instan
 _boards_db: Dict[str, Dict[str, Any]] = {}

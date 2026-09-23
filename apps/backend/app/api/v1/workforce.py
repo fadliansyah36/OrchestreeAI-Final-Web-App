@@ -20,6 +20,7 @@ from app.authz.pdp import (
     ResourceContext,
     SubjectContext,
     authorize,
+    require_capability,
 )
 from app.core.database import tenant_tx, get_database_engine
 from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
@@ -950,7 +951,8 @@ async def create_agent(
 @router.get(
     "/{tenant_id}/job-titles",
     response_model=List[StandardizedJobTitleResponse],
-    summary="15 Jabatan Staf AI Terstandarisasi Platform (is_reference=true)"
+    summary="15 Jabatan Staf AI Terstandarisasi Platform (is_reference=true)",
+    dependencies=[Depends(require_capability("workforce.organization.view"))]
 )
 async def get_job_titles(
     tenant_id: str,
@@ -1036,7 +1038,8 @@ async def get_job_titles(
 @router.get(
     "/{tenant_id}/job-titles/reconciliation-report",
     response_model=JobTitleMigrationReportResponse,
-    summary="Laporan Rekonsiliasi Audit Shadow Mapping Jabatan AI"
+    summary="Laporan Rekonsiliasi Audit Shadow Mapping Jabatan AI",
+    dependencies=[Depends(require_capability("workforce.organization.view"))]
 )
 async def get_reconciliation_report(
     tenant_id: str,
@@ -1469,7 +1472,7 @@ async def get_org_chart(
 
 # --- Workforce Performance & Monthly Scoring Endpoints (PRD v2.2 Bagian 6.3 & 22.3) ---
 
-@router.get("/{tenant_id}/performance/overview")
+@router.get("/{tenant_id}/performance/overview", dependencies=[Depends(require_capability("workforce.performance.view"))])
 async def get_performance_overview(
     tenant_id: str,
     period: Optional[str] = None,
@@ -1640,7 +1643,7 @@ async def get_performance_overview(
         }
 
 
-@router.get("/{tenant_id}/performance/monthly")
+@router.get("/{tenant_id}/performance/monthly", dependencies=[Depends(require_capability("workforce.performance.view"))])
 async def get_monthly_performance_detail(
     tenant_id: str,
     period: Optional[str] = None,
@@ -1678,7 +1681,7 @@ async def get_monthly_performance_detail(
         }
 
 
-@router.get("/{tenant_id}/performance/daily")
+@router.get("/{tenant_id}/performance/daily", dependencies=[Depends(require_capability("workforce.performance.view"))])
 async def get_daily_performance_metrics(
     tenant_id: str,
     metric_date: Optional[str] = None,
@@ -1714,7 +1717,7 @@ async def get_daily_performance_metrics(
         }
 
 
-@router.post("/{tenant_id}/performance/scoring/trigger")
+@router.post("/{tenant_id}/performance/scoring/trigger", dependencies=[Depends(require_capability("workforce.performance.manage"))])
 async def trigger_performance_scoring(
     tenant_id: str,
     request: Request,
@@ -1745,7 +1748,7 @@ async def trigger_performance_scoring(
         }
 
 
-@router.get("/{tenant_id}/performance/alerts")
+@router.get("/{tenant_id}/performance/alerts", dependencies=[Depends(require_capability("workforce.performance.view"))])
 async def list_performance_alerts(
     tenant_id: str,
     current_user: AuthenticatedTenantContext = Depends(get_current_tenant_context),
@@ -1766,7 +1769,7 @@ async def list_performance_alerts(
         }
 
 
-@router.patch("/{tenant_id}/performance/alerts/{alert_id}/acknowledge")
+@router.patch("/{tenant_id}/performance/alerts/{alert_id}/acknowledge", dependencies=[Depends(require_capability("workforce.performance.manage"))])
 async def acknowledge_performance_alert(
     tenant_id: str,
     alert_id: str,

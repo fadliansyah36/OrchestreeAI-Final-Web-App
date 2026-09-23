@@ -384,7 +384,7 @@ class ContinuousLearningEngine:
             )
 
             # 5. Sintesis & Validasi Lesson Learned
-            # Hitung sample size agregat untuk skill_key ini
+            # Hitung ukuran kumpulan data agregat untuk skill_key ini
             sample_count = conn.execute(
                 sa.text("""
                     SELECT count(*), 

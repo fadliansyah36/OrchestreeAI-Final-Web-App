@@ -15,6 +15,7 @@ from app.authz.pdp import (
     ResourceContext,
     SubjectContext,
     authorize,
+    public_endpoint,
 )
 from app.core.database import get_database_engine, tenant_tx
 from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
@@ -78,13 +79,15 @@ class ReviewHRApprovalRequest(BaseModel):
     "/tenants",
     response_model=RegisterTenantResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Registrasi Tenant Baru (Self-Service Tenant Creation)"
+    summary="Registrasi Tenant Baru (Self-Service Tenant Creation)",
+    dependencies=[Depends(public_endpoint("onboarding.register"))]
 )
 @router.post(
     "/register-tenant",
     response_model=RegisterTenantResponse,
     status_code=status.HTTP_201_CREATED,
-    include_in_schema=False
+    include_in_schema=False,
+    dependencies=[Depends(public_endpoint("onboarding.register"))]
 )
 async def register_tenant(req: RegisterTenantRequest):
     """
@@ -202,13 +205,15 @@ async def register_tenant(req: RegisterTenantRequest):
     "/join",
     response_model=JoinCompanyResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Validasi & Submit Registrasi Staf (via Company Code)"
+    summary="Validasi & Submit Registrasi Staf (via Company Code)",
+    dependencies=[Depends(public_endpoint("onboarding.join"))]
 )
 @router.post(
     "/join-company",
     response_model=JoinCompanyResponse,
     status_code=status.HTTP_201_CREATED,
-    include_in_schema=False
+    include_in_schema=False,
+    dependencies=[Depends(public_endpoint("onboarding.join"))]
 )
 async def join_company(req: JoinCompanyRequest):
     """

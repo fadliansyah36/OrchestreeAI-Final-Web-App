@@ -10,8 +10,9 @@ Menyediakan REST endpoint untuk:
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability
 
 from orchestree.domains.selection.scoring import (
     UniversalSelectionService,
@@ -20,7 +21,11 @@ from orchestree.domains.selection.scoring import (
     HumanReviewStatus,
 )
 
-router = APIRouter(prefix="/selection", tags=["Universal Selection Hub & Scoring"])
+router = APIRouter(
+    prefix="/selection",
+    tags=["Universal Selection Hub & Scoring"],
+    dependencies=[Depends(require_capability("selection.hub.manage"))]
+)
 
 
 class CreateSelectionJobRequest(BaseModel):

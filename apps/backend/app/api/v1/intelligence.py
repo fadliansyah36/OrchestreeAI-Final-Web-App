@@ -7,20 +7,27 @@ import json
 import uuid
 import logging
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 import sqlalchemy as sa
 
 from app.core.database import get_engine
+from app.core.security import validate_safe_external_url
+from app.authz.pdp import require_capability
 from app.skills.f01_scrape.tools import tool_crawl_target, CrawlTargetInput
 from app.skills.f01_mcp.decorators import ToolExecutionContext
 
 logger = logging.getLogger("orchestree.api.intelligence")
-router = APIRouter(prefix="/api/v1/tenants/{tenant_id}", tags=["Market & Competitor Intelligence"])
+router = APIRouter(
+    prefix="/api/v1/tenants/{tenant_id}",
+    tags=["Market & Competitor Intelligence"],
+    dependencies=[Depends(require_capability("intelligence.competitor.view"))]
+)
 
 
 # Pydantic Schemas
 class CompetitorTargetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(..., description="Nama target kompetitor atau merek")
     domain: str = Field(..., description="Domain utama, e.g. company.com")
     target_type: str = Field("web", description="web, marketplace, social, news")
@@ -31,6 +38,7 @@ class CompetitorTargetCreate(BaseModel):
 
 
 class CompetitorTargetUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: Optional[str] = None
     target_url: Optional[str] = None
     frequency: Optional[str] = None
@@ -39,6 +47,7 @@ class CompetitorTargetUpdate(BaseModel):
 
 
 class ReportGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     report_type: str = Field("weekly_digest", description="weekly_digest, monthly_landscape, battle_card")
     title: str = Field(..., description="Judul laporan intelijen")
     period_start: str
@@ -52,7 +61,7 @@ async def list_competitor_targets(
 ):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         query = "SELECT * FROM competitor_targets WHERE tenant_id = :tenant_id"
         params: Dict[str, Any] = {"tenant_id": tenant_id}
         if is_active is not None:
@@ -70,10 +79,18 @@ async def create_competitor_target(
     tenant_id: str,
     payload: CompetitorTargetCreate,
 ):
+    # SSRF Protection: validasi URL sebelum disimpan dan di-crawl
+    is_safe, ssrf_reason, _ = validate_safe_external_url(payload.target_url)
+    if not is_safe:
+        raise HTTPException(
+            status_code=400,
+            detail=f"SSRF Protection: URL sasaran dilarang ({ssrf_reason})"
+        )
+
     engine = get_engine()
     target_id = str(uuid.uuid4())
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         await conn.execute(
             sa.text("""
                 INSERT INTO competitor_targets (
@@ -130,7 +147,7 @@ async def list_snapshots(
 ):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         query = """
             SELECT s.*, t.name as target_name, t.domain
             FROM competitor_snapshots s
@@ -157,7 +174,7 @@ async def list_changes(
 ):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         query = """
             SELECT c.*, t.name as target_name, t.domain
             FROM competitor_change_events c
@@ -187,7 +204,7 @@ async def list_insights(
 ):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         query = """
             SELECT i.*, t.name as target_name, t.domain
             FROM competitor_insights i
@@ -215,7 +232,7 @@ async def dispatch_insight_proactive(
 ):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         res = await conn.execute(
             sa.text("SELECT * FROM competitor_insights WHERE id = :id AND tenant_id = :tenant_id"),
             {"id": insight_id, "tenant_id": tenant_id}
@@ -276,7 +293,7 @@ async def dispatch_insight_proactive(
 async def list_reports(tenant_id: str):
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         res = await conn.execute(
             sa.text("SELECT * FROM competitor_reports WHERE tenant_id = :tenant_id ORDER BY created_at DESC"),
             {"tenant_id": tenant_id}
@@ -292,7 +309,7 @@ async def generate_report(
     engine = get_engine()
     report_id = str(uuid.uuid4())
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         # Kumpulkan insights dan perubahan dalam periode
         changes = (await conn.execute(
             sa.text("SELECT count(*) as cnt FROM competitor_change_events WHERE tenant_id = :tenant_id"),
@@ -442,7 +459,7 @@ async def list_data_quality_issues(
     """Mengambil riwayat isu kualitas data dan konflik sumber untuk tenant."""
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         query = "SELECT * FROM data_quality_issues WHERE tenant_id = :tenant_id"
         params: Dict[str, Any] = {"tenant_id": tenant_id}
         if status:
@@ -473,7 +490,7 @@ async def create_data_quality_issue(
     auto_prevented = True if payload.issue_type == "CONFLICTING_SOURCES" else True
 
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         await conn.execute(
             sa.text("""
                 INSERT INTO data_quality_issues (
@@ -525,7 +542,7 @@ async def resolve_data_quality_issue(
     """
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         result = await conn.execute(
             sa.text("""
                 UPDATE data_quality_issues
@@ -594,7 +611,7 @@ async def validate_data_availability(
     if validation_result.was_false_claim_rejected:
         engine = get_engine()
         async with engine.begin() as conn:
-            await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+            await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
             await conn.execute(
                 sa.text("""
                     INSERT INTO data_quality_issues (
@@ -630,7 +647,7 @@ async def get_data_quality_summary(tenant_id: str):
     """Mengambil statistik agregat ketersediaan dan isu kualitas data."""
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
         
         # Hitung jumlah isu belum terselesaikan
         res_unresolved = await conn.execute(

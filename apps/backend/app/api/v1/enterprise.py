@@ -73,7 +73,13 @@ from orchestree.domains.enterprise.project_health import (
 
 
 
-router = APIRouter(prefix="/api/v1/tenants/{tenant_id}/enterprise", tags=["enterprise"])
+from app.authz.pdp import require_capability
+
+router = APIRouter(
+    prefix="/api/v1/tenants/{tenant_id}/enterprise",
+    tags=["enterprise"],
+    dependencies=[Depends(require_capability("enterprise.capabilities.access", required_min_tier=3))]
+)
 
 
 class DpiaRecordInput(BaseModel):

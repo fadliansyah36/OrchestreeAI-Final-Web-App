@@ -4,8 +4,9 @@ OrchestreeAI Customer Service, Handover Protocol & Indonesian Humanizer API
 """
 
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Path, Body
+from fastapi import APIRouter, HTTPException, Query, Path, Body, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability
 
 from orchestree.domains.service.intake import (
     CustomerServiceIntakeNode,
@@ -32,7 +33,11 @@ from orchestree.domains.commerce.abandoned_cart import (
     mark_cart_recovered,
 )
 
-router = APIRouter(prefix="/tenants/{tenant_id}/service", tags=["Customer Service & Handover"])
+router = APIRouter(
+    prefix="/tenants/{tenant_id}/service",
+    tags=["Customer Service & Handover"],
+    dependencies=[Depends(require_capability("service.requests.manage"))]
+)
 
 
 # Pydantic Request Models

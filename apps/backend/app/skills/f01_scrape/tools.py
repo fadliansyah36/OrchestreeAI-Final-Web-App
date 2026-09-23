@@ -18,6 +18,7 @@ import sqlalchemy as sa
 import httpx
 
 from app.core.database import get_engine
+from app.core.security import validate_safe_external_url, wrap_untrusted_external_content
 from app.skills.f01_mcp.decorators import mcp_tool, ToolExecutionContext
 from app.skills.f01_scrape.adapters import (
     RobotsTxtValidator,
@@ -70,8 +71,8 @@ async def tool_crawl_target(context: ToolExecutionContext, input_data: Dict[str,
     engine = get_engine()
 
     async with engine.begin() as conn:
-        # Set tenant session RLS
-        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{context.tenant_id}';"))
+        # Set tenant session RLS terparameterisasi (Anti-SQL Injection)
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": context.tenant_id})
 
         # Ambil sasaran target
         res = await conn.execute(
@@ -90,6 +91,30 @@ async def tool_crawl_target(context: ToolExecutionContext, input_data: Dict[str,
         domain = row["domain"]
         target_url = row["target_url"]
         adapter = row["crawler_adapter"]
+
+        # 0. Validasi SSRF (Server-Side Request Forgery Guard)
+        is_safe, ssrf_reason, _ = validate_safe_external_url(target_url)
+        if not is_safe:
+            logger.warning(f"Crawling dibatalkan oleh SSRF Guard untuk {target_url}: {ssrf_reason}")
+            await conn.execute(
+                sa.text("""
+                    UPDATE competitor_targets
+                    SET last_status = 'blocked_by_ssrf',
+                        last_scraped_at = now(),
+                        updated_at = now()
+                    WHERE id = :id
+                """),
+                {"id": target_id}
+            )
+            return {
+                "target_id": target_id,
+                "status": "blocked_by_ssrf",
+                "robots_txt_status": "disallowed",
+                "snapshot_id": None,
+                "changes_detected_count": 0,
+                "insights_generated_count": 0,
+                "message": f"SSRF Guard: URL dilarang ({ssrf_reason}).",
+            }
 
         # 1. Validasi Robots.txt
         is_allowed, status_reason, _ = await _robots_validator.check_access(target_url)

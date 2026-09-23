@@ -10,13 +10,14 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "ci:content-gate": "node scripts/ci-content-gate.js",
+    "ci:security-ast": "python3 scripts/security_ast_scanner.py",
     "ci:openapi": "PYTHONPATH=apps/backend python3 apps/backend/scripts/check_openapi_diff.py",
     "ci:import-linter": "PYTHONPATH=apps/backend lint-imports --config apps/backend/.importlinter",
     "ci:backend-test": "PYTHONPATH=apps/backend pytest apps/backend/tests",
     "supabase:link": "python3 infra/supabase/link.py",
     "supabase:db-push": "supabase db push",
     "db:migrate": "cd apps/backend && alembic upgrade head",
-    "lint": "tsc --noEmit && node scripts/ci-content-gate.js"
+    "lint": "tsc --noEmit && node scripts/ci-content-gate.js && python3 scripts/security_ast_scanner.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

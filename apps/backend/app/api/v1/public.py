@@ -5,11 +5,12 @@ Public API Endpoints (Read-Only & Registration)
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import uuid
-from fastapi import APIRouter, status, HTTPException, Request
+from fastapi import APIRouter, status, HTTPException, Request, Depends
 from pydantic import BaseModel, Field, EmailStr
 import sqlalchemy as sa
 from app.core.database import get_database_engine
 from app.core.security.web_integrity import verify_web_integrity
+from app.authz.pdp import public_endpoint
 from app.domains.prospect.trial_allocation import (
     TrialSlotAllocationService,
     SlotCapacityExhaustedError,
@@ -28,6 +29,8 @@ class SubscriptionPlanResponse(BaseModel):
 
 
 class ProspectRegistrationRequest(BaseModel):
+    class Config:
+        extra = "forbid"
     full_name: str = Field(..., min_length=2, max_length=150)
     work_email: EmailStr
     phone_number: Optional[str] = None
@@ -48,6 +51,8 @@ class ProspectRegistrationResponse(BaseModel):
 
 
 class PublicRegisterRequest(BaseModel):
+    class Config:
+        extra = "forbid"
     company_name: str = Field(..., min_length=2, max_length=150)
     admin_name: str = Field(..., min_length=2, max_length=150)
     admin_email: EmailStr
@@ -55,6 +60,8 @@ class PublicRegisterRequest(BaseModel):
 
 
 class PublicJoinRequest(BaseModel):
+    class Config:
+        extra = "forbid"
     company_code: str = Field(..., min_length=3, max_length=50)
     full_name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
@@ -64,7 +71,8 @@ class PublicJoinRequest(BaseModel):
 @router.get(
     "/subscription-plans",
     response_model=List[SubscriptionPlanResponse],
-    summary="Daftar Paket Langganan Publik"
+    summary="Daftar Paket Langganan Publik",
+    dependencies=[Depends(public_endpoint("public.subscription_plans"))]
 )
 async def list_public_subscription_plans():
     """
@@ -98,7 +106,8 @@ async def list_public_subscription_plans():
     "/prospects",
     response_model=ProspectRegistrationResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Pendaftaran Prospek & Permintaan Demo"
+    summary="Pendaftaran Prospek & Permintaan Demo",
+    dependencies=[Depends(public_endpoint("public.prospect.register"))]
 )
 async def register_prospect(req: ProspectRegistrationRequest, request: Request):
     """
@@ -196,7 +205,8 @@ async def register_prospect(req: ProspectRegistrationRequest, request: Request):
 @router.post(
     "/register",
     status_code=status.HTTP_200_OK,
-    summary="Validasi Web Integrity untuk Onboarding Organisasi Baru"
+    summary="Validasi Web Integrity untuk Onboarding Organisasi Baru",
+    dependencies=[Depends(public_endpoint("public.turnstile.validate"))]
 )
 async def validate_register_turnstile(req: PublicRegisterRequest, request: Request):
     """
@@ -229,7 +239,8 @@ async def validate_register_turnstile(req: PublicRegisterRequest, request: Reque
 @router.post(
     "/join",
     status_code=status.HTTP_200_OK,
-    summary="Validasi Web Integrity untuk Bergabung ke Organisasi"
+    summary="Validasi Web Integrity untuk Bergabung ke Organisasi",
+    dependencies=[Depends(public_endpoint("public.turnstile.validate"))]
 )
 async def validate_join_turnstile(req: PublicJoinRequest, request: Request):
     """

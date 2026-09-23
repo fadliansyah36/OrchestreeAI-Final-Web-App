@@ -4,14 +4,15 @@ Health & Startup Gate Endpoints (PRD v2.2 Bagian 15.3 & Bagian 18.2.10)
 
 import time
 from datetime import datetime, timezone
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.core.startup_gate import startup_gate, StartupGateReport
+from app.authz.pdp import public_endpoint
 
 router = APIRouter(tags=["Health & Status"])
 START_TIME = time.time()
 
 
-@router.get("/health/live")
+@router.get("/health/live", dependencies=[Depends(public_endpoint("health.live"))])
 async def health_live():
     """Verifikasi proses aktif (liveness probe)."""
     return {
@@ -21,7 +22,7 @@ async def health_live():
     }
 
 
-@router.get("/health/ready")
+@router.get("/health/ready", dependencies=[Depends(public_endpoint("health.ready"))])
 async def health_ready():
     """Kesiapan layanan menerima beban trafik (readiness probe)."""
     report = startup_gate.evaluate_all()
@@ -38,7 +39,8 @@ async def health_ready():
     }
 
 
-@router.get("/health/startup", response_model=StartupGateReport)
+@router.get("/health/startup", response_model=StartupGateReport, dependencies=[Depends(public_endpoint("health.startup"))])
 async def health_startup():
     """Hasil pemeriksaan komprehensif 18 langkah Fail-Closed Startup Gate."""
     return startup_gate.evaluate_all()
+

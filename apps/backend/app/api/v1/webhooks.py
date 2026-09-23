@@ -14,13 +14,14 @@ import hashlib
 import logging
 from decimal import Decimal
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Header, Request, Query
+from fastapi import APIRouter, HTTPException, Header, Request, Query, Depends
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.database import get_engine
+from app.authz.pdp import webhook_endpoint
 from app.domains.billing.credits import topup_credit
 from app.domains.proactive.service import (
     handle_opt_out,
@@ -35,7 +36,7 @@ logger = logging.getLogger("orchestree.api.webhooks")
 router = APIRouter(prefix="/api/v1/webhooks", tags=["Webhooks"])
 
 
-@router.post("/payment/midtrans")
+@router.post("/payment/midtrans", dependencies=[Depends(webhook_endpoint("midtrans"))])
 async def handle_midtrans_webhook(request: Request):
     """
     Webhook handler resmi untuk notifikasi transaksi Midtrans Snap/Core API.
@@ -193,7 +194,7 @@ async def handle_midtrans_webhook(request: Request):
     return {"status": "ok", "order_id": order_id, "transaction_status": transaction_status}
 
 
-@router.post("/payment/xendit")
+@router.post("/payment/xendit", dependencies=[Depends(webhook_endpoint("xendit"))])
 async def handle_xendit_webhook(
     request: Request,
     x_callback_token: Optional[str] = Header(None, alias="x-callback-token"),
@@ -325,7 +326,7 @@ async def handle_xendit_webhook(
 # META WHATSAPP WEBHOOK HANDLERS (PRD v2.2 Bagian 10.3 & 10.6)
 # ============================================================================
 
-@router.get("/whatsapp")
+@router.get("/whatsapp", dependencies=[Depends(webhook_endpoint("whatsapp_challenge"))])
 async def verify_meta_whatsapp_webhook(
     hub_mode: Optional[str] = Query(None, alias="hub.mode"),
     hub_challenge: Optional[str] = Query(None, alias="hub.challenge"),
@@ -343,7 +344,7 @@ async def verify_meta_whatsapp_webhook(
     raise HTTPException(status_code=403, detail="Forbidden: Verify token mismatch")
 
 
-@router.post("/whatsapp")
+@router.post("/whatsapp", dependencies=[Depends(webhook_endpoint("whatsapp"))])
 async def handle_whatsapp_webhook(request: Request):
     """
     Menerima incoming message webhook dari Meta WhatsApp Cloud API:
@@ -445,7 +446,7 @@ async def handle_whatsapp_webhook(request: Request):
 # TELEGRAM BOT WEBHOOK HANDLER (PRD v2.2 Bagian 10.3 & 10.6)
 # ============================================================================
 
-@router.post("/telegram-bot")
+@router.post("/telegram-bot", dependencies=[Depends(webhook_endpoint("telegram"))])
 async def handle_telegram_bot_webhook(request: Request):
     """
     Webhook resmi Telegram Bot platform:

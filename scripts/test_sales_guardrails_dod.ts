@@ -27,7 +27,9 @@ import { SalesGuardrailService } from '../src/server/salesGuardrailService';
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString =
+  process.env.DATABASE_URL ||
+  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
 if (!connectionString) {
   console.error('DATABASE_URL tidak disetel!');
   process.exit(1);

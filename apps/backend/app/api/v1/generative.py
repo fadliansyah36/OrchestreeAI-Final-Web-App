@@ -6,8 +6,13 @@ from pydantic import BaseModel, Field
 
 from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
 from app.domains.billing.credits import InsufficientCreditError
+from app.authz.pdp import require_capability
 
-router = APIRouter(prefix="/tenants/{tenant_id}/generative", tags=["Generative Studio Hub"])
+router = APIRouter(
+    prefix="/tenants/{tenant_id}/generative",
+    tags=["Generative Studio Hub"],
+    dependencies=[Depends(require_capability("generative.studio.manage"))]
+)
 
 
 class PromptTemplateCreate(BaseModel):

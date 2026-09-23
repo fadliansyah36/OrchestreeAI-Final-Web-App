@@ -1974,7 +1974,7 @@ export class ContinuousLearningService {
 
   /**
    * Merekam outcome node run, memperbarui confidence dengan decay & delta,
-   * mencatat growth log, dan mensintesis lesson learned bila sample threshold >= 3.
+   * mencatat growth log, dan mensintesis lesson learned bila ambang batas data pembelajaran >= 3.
    */
   public async recordNodeOutcome(params: ContinuousLearningNodeParams) {
     if (!this.pool) return null;

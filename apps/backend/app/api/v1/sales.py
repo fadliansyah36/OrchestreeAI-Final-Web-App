@@ -7,15 +7,20 @@ Menyediakan REST endpoint untuk:
 """
 
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import BaseModel, Field
+from app.authz.pdp import require_capability
 
 from orchestree.domains.sales.guardrails import (
     SalesGuardrailService,
     SalesGuardrailAction,
 )
 
-router = APIRouter(prefix="/sales", tags=["Sales Guardrails & Human Approval"])
+router = APIRouter(
+    prefix="/sales",
+    tags=["Sales Guardrails & Human Approval"],
+    dependencies=[Depends(require_capability("sales.guardrails.manage"))]
+)
 
 
 class EvaluateActionRequest(BaseModel):

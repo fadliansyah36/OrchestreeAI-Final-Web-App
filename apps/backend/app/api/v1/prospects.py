@@ -16,8 +16,13 @@ from app.domains.prospect.trial_allocation import (
     ProspectNotFoundError,
     TrialAllocationError
 )
+from app.authz.pdp import require_capability
 
-router = APIRouter(prefix="/admin", tags=["Admin Prospects & Trial"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["Admin Prospects & Trial"],
+    dependencies=[Depends(require_capability("admin.prospects.manage"))]
+)
 
 
 class ScheduleMeetingRequest(BaseModel):
