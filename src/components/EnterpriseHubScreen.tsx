@@ -26,11 +26,12 @@ import {
   Check
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
+import { EnterpriseReportingQueryView } from './EnterpriseReportingQueryView';
 
 interface EnterpriseHubScreenProps {
   tenant: TenantRegistrationResponse | null;
   onBack: () => void;
-  defaultTab?: 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement';
+  defaultTab?: 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query';
 }
 
 export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
@@ -39,7 +40,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   defaultTab = 'chief_of_staff',
 }) => {
   const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
-  const [activeTab, setActiveTab] = useState<'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query'>(defaultTab);
 
   // Status langganan real-time
   const [tierInfo, setTierInfo] = useState<{
@@ -988,6 +989,16 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
             }`}
           >
             <ShieldCheck className="w-4 h-4" /> Audit Penegakan 3 Titik PDP
+          </button>
+          <button
+            onClick={() => setActiveTab('reporting_query')}
+            className={`text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'reporting_query'
+                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <FileText className="w-4 h-4" /> Pelaporan Otomatis & Tanya Jawab Manajemen
           </button>
         </div>
 
@@ -2413,6 +2424,15 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
               </div>
             )}
           </div>
+        )}
+
+        {/* TAB 5: AUTOMATIC REPORTING & MANAGEMENT CONVERSATIONAL QUERY */}
+        {activeTab === 'reporting_query' && (
+          <EnterpriseReportingQueryView
+            tenantId={tenantId}
+            isEnterprise={tierInfo?.is_enterprise ?? false}
+            onUpgradePrompt={() => handleChangeTier('ENTERPRISE')}
+          />
         )}
       </div>
 

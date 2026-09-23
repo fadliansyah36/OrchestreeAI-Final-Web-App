@@ -11,25 +11,60 @@ import logging
 from typing import Any, Dict, Optional
 import urllib.request
 import urllib.error
-from pydantic import BaseModel, Field
-from app.core.config import settings
+try:
+    from pydantic import BaseModel, Field
+
+    class TaskSyncEvent(BaseModel):
+        event_type: str = Field(..., description="Tipe aksi, misalnya 'column_changed' atau 'progress_updated'")
+        task_id: str
+        board_id: str
+        tenant_id: str
+        from_column_id: Optional[str] = None
+        to_column_id: Optional[str] = None
+        new_position: int = 0
+        new_version: int
+        actor_id: str
+        actor_type: str = "user"
+        timestamp: str
+        payload: Dict[str, Any] = Field(default_factory=dict)
+
+except ImportError:
+    from dataclasses import dataclass, field
+
+    @dataclass
+    class TaskSyncEvent:
+        event_type: str
+        task_id: str
+        board_id: str
+        tenant_id: str
+        new_version: int
+        actor_id: str
+        timestamp: str
+        from_column_id: Optional[str] = None
+        to_column_id: Optional[str] = None
+        new_position: int = 0
+        actor_type: str = "user"
+        payload: Dict[str, Any] = field(default_factory=dict)
+
+        def model_dump(self) -> Dict[str, Any]:
+            return {
+                "event_type": self.event_type,
+                "task_id": self.task_id,
+                "board_id": self.board_id,
+                "tenant_id": self.tenant_id,
+                "from_column_id": self.from_column_id,
+                "to_column_id": self.to_column_id,
+                "new_position": self.new_position,
+                "new_version": self.new_version,
+                "actor_id": self.actor_id,
+                "actor_type": self.actor_type,
+                "timestamp": self.timestamp,
+                "payload": self.payload,
+            }
+
+
 
 logger = logging.getLogger(__name__)
-
-
-class TaskSyncEvent(BaseModel):
-    event_type: str = Field(..., description="Tipe aksi, misalnya 'column_changed' atau 'progress_updated'")
-    task_id: str
-    board_id: str
-    tenant_id: str
-    from_column_id: Optional[str] = None
-    to_column_id: Optional[str] = None
-    new_position: int = 0
-    new_version: int
-    actor_id: str
-    actor_type: str = "user"
-    timestamp: str
-    payload: Dict[str, Any] = Field(default_factory=dict)
 
 
 async def emit_task_realtime_event(

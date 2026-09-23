@@ -6027,6 +6027,97 @@ app.post('/api/v1/tenants/:tenantId/enterprise/research-agent/query', async (req
   }
 });
 
+// ============================================================================
+// AUTOMATIC REPORTING & MANAGEMENT CONVERSATIONAL QUERY (PRD v2.2 Bagian 3.4, 3.5, 8.6, 12)
+// ============================================================================
+
+// POST /api/v1/tenants/:tenantId/enterprise/reports/generate (or /reporting/automated/generate)
+app.post(['/api/v1/tenants/:tenantId/enterprise/reports/generate', '/api/v1/tenants/:tenantId/enterprise/reporting/automated/generate'], async (req, res) => {
+  try {
+    const { report_type, reportType, days_back, daysBack, custom_title, customTitle } = req.body || {};
+    const result = await enterpriseService.generateAutomatedReport(req.params.tenantId, {
+      reportType: (report_type || reportType || 'DAILY').toUpperCase(),
+      daysBack: days_back || daysBack,
+      customTitle: custom_title || customTitle,
+    });
+    return res.status(201).json(result);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/enterprise/reports (or /reporting/automated)
+app.get(['/api/v1/tenants/:tenantId/enterprise/reports', '/api/v1/tenants/:tenantId/enterprise/reporting/automated'], async (req, res) => {
+  try {
+    const reportType = (req.query.report_type || req.query.reportType) as string | undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+    const data = await enterpriseService.listAutomatedReports(req.params.tenantId, reportType, limit);
+    return res.json(data);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/enterprise/reports/data-points (or /reporting/data-points)
+app.get(['/api/v1/tenants/:tenantId/enterprise/reports/data-points', '/api/v1/tenants/:tenantId/enterprise/reporting/data-points'], async (req, res) => {
+  try {
+    const metricKey = (req.query.metric_key || req.query.metricKey) as string | undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : 50;
+    const data = await enterpriseService.listReportDataPoints(req.params.tenantId, metricKey, limit);
+    return res.json(data);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/enterprise/reports/:reportId (or /reporting/automated/:reportId)
+app.get(['/api/v1/tenants/:tenantId/enterprise/reports/:reportId', '/api/v1/tenants/:tenantId/enterprise/reporting/automated/:reportId'], async (req, res) => {
+  try {
+    const data = await enterpriseService.getAutomatedReportDetail(req.params.tenantId, req.params.reportId);
+    return res.json(data);
+  } catch (err: any) {
+    const status = err.message?.includes('tidak ditemukan') ? 404 : (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/enterprise/conversational-query (or /reporting/conversational/query)
+app.post(['/api/v1/tenants/:tenantId/enterprise/conversational-query', '/api/v1/tenants/:tenantId/enterprise/reporting/conversational/query'], async (req, res) => {
+  try {
+    const { session_id, sessionId, query_text, queryText, query, user_id, userId, user_role, userRole, user_department_id, userDepartmentId } = req.body || {};
+    const text = query_text || queryText || query;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'query_text wajib diisi.' });
+    }
+
+    const result = await enterpriseService.executeManagementConversationalQuery(req.params.tenantId, {
+      sessionId: session_id || sessionId,
+      queryText: text.trim(),
+      userId: user_id || userId,
+      userRole: user_role || userRole || 'STAFF',
+      userDepartmentId: user_department_id || userDepartmentId,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/enterprise/conversational-sessions/:sessionId (or /reporting/conversational/sessions/:sessionId)
+app.get(['/api/v1/tenants/:tenantId/enterprise/conversational-sessions/:sessionId', '/api/v1/tenants/:tenantId/enterprise/reporting/conversational/sessions/:sessionId'], async (req, res) => {
+  try {
+    const turns = await enterpriseService.getConversationalSessionTurns(req.params.tenantId, req.params.sessionId);
+    return res.json(turns);
+  } catch (err: any) {
+    const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
+    return res.status(status).json({ error: err.message });
+  }
+});
+
 
 // 9. Vite Middleware Setup
 async function startServer() {
