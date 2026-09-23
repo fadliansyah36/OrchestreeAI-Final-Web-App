@@ -148,6 +148,14 @@ def log_decision_to_audit(
         logger.warning(f"Gagal mencatat audit log authorize: {e}")
 
 
+ENTERPRISE_CAPABILITY_PREFIXES = (
+    "chief_of_staff.",
+    "integration.fabric.",
+    "context.fabric.",
+    "specialist.agents.",
+    "command_center.",
+)
+
 def _evaluate_tier_gate(
     subject: SubjectContext,
     action: str,
@@ -155,12 +163,17 @@ def _evaluate_tier_gate(
     context: Dict[str, Any],
 ) -> Optional[AuthorizationDecision]:
     """
-    Evaluasi Tahap 2: Subscription Tier Gate (PRD v2.2 Bagian 3.5 & 14.2).
+    Evaluasi Tahap 2: Subscription Tier Gate (PRD v2.2 Bagian 3.4, 3.5 & 14.2).
     Memeriksa apakah aksi/kapabilitas memerlukan tingkatan tier tertentu.
+    Enforce 403 capability_not_available untuk aksi Enterprise-only pada tenant non-Enterprise.
     """
     required_tier = context.get("required_min_tier")
     if required_tier is None and "min_tier_level" in resource.attributes:
         required_tier = resource.attributes["min_tier_level"]
+
+    if required_tier is None:
+        if any(action.startswith(prefix) for prefix in ENTERPRISE_CAPABILITY_PREFIXES):
+            required_tier = 3
 
     if required_tier is not None and required_tier > 0:
         tenant_tier = context.get("tenant_tier_level", 1)  # Default tier 1 jika aktif
@@ -169,10 +182,10 @@ def _evaluate_tier_gate(
                 is_authorized=False,
                 decision="DENY_TIER_RESTRICTION",
                 reason=(
-                    f"Fitur atau aksi '{action}' memerlukan paket langganan minimal tier {required_tier}, "
+                    f"capability_not_available: Fitur atau aksi '{action}' memerlukan paket langganan minimal tier {required_tier}, "
                     f"sedangkan tenant saat ini berada pada tier {tenant_tier}."
                 ),
-                audit_metadata={"rule": "subscription_tier_gate", "required_tier": required_tier},
+                audit_metadata={"rule": "subscription_tier_gate", "required_tier": required_tier, "code": "capability_not_available"},
             )
     return None
 

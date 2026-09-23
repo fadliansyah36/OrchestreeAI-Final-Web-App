@@ -24,6 +24,7 @@ import { HomeOverviewScreen } from './HomeOverviewScreen';
 import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 import { CampaignBuilderScreen } from './CampaignBuilderScreen';
 import { ServiceRequestScreen } from './ServiceRequestScreen';
+import { EnterpriseHubScreen } from './EnterpriseHubScreen';
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -37,6 +38,19 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   onOpenOnboarding,
 }) => {
   const [activeRoute, setActiveRoute] = useState<string>('/hub');
+  const [tenantTier, setTenantTier] = useState<{ tier_level: number; plan_code: string; is_enterprise: boolean } | null>(null);
+
+  React.useEffect(() => {
+    const tid = tenant?.tenant_id || 'tenant-alpha-001';
+    fetch(`/api/v1/tenants/${tid}/subscription/tier`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data.tier_level === 'number') {
+          setTenantTier(data);
+        }
+      })
+      .catch(() => {});
+  }, [tenant?.tenant_id]);
 
   if (activeRoute.startsWith('/performance') || activeRoute.startsWith('/overview')) {
     return (
@@ -161,7 +175,64 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/enterprise')) {
+    let defaultTab: 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' = 'chief_of_staff';
+    if (activeRoute.includes('integration-fabric')) defaultTab = 'integration_fabric';
+    if (activeRoute.includes('context-fabric')) defaultTab = 'context_fabric';
+    if (activeRoute.includes('enforcement')) defaultTab = 'enforcement';
+
+    return (
+      <EnterpriseHubScreen
+        tenant={tenant}
+        onBack={() => {
+          setActiveRoute('/hub');
+          const tid = tenant?.tenant_id || 'tenant-alpha-001';
+          fetch(`/api/v1/tenants/${tid}/subscription/tier`)
+            .then(r => r.json())
+            .then(data => {
+              if (data && typeof data.tier_level === 'number') {
+                setTenantTier(data);
+              }
+            })
+            .catch(() => {});
+        }}
+        defaultTab={defaultTab}
+      />
+    );
+  }
+
+  const isEnterprise = tenantTier?.is_enterprise ?? false;
+
   const categoryCards: CategoryCard[] = [
+    {
+      key: 'chief_of_staff',
+      label: 'AI Chief of Staff & Morning Briefing (Arya)',
+      icon: 'sparkles',
+      route: '/enterprise/chief-of-staff',
+      badgeCount: isEnterprise ? 1 : undefined,
+      isLocked: !isEnterprise,
+      tierRequired: 'ENTERPRISE',
+      onUpgradeClick: () => setActiveRoute('/enterprise/chief-of-staff'),
+    },
+    {
+      key: 'integration_fabric',
+      label: 'Integration Fabric & CDC Real-Time (SAP/ERP)',
+      icon: 'layers',
+      route: '/enterprise/integration-fabric',
+      badgeCount: isEnterprise ? 2 : undefined,
+      isLocked: !isEnterprise,
+      tierRequired: 'ENTERPRISE',
+      onUpgradeClick: () => setActiveRoute('/enterprise/integration-fabric'),
+    },
+    {
+      key: 'context_fabric',
+      label: 'Company Context Fabric & AI Specialist (CFO)',
+      icon: 'brain',
+      route: '/enterprise/context-fabric',
+      isLocked: !isEnterprise,
+      tierRequired: 'ENTERPRISE',
+      onUpgradeClick: () => setActiveRoute('/enterprise/context-fabric'),
+    },
     {
       key: 'service',
       label: 'Layanan Pelanggan & Pengawasan Refund',

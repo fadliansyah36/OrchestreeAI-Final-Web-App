@@ -45,6 +45,18 @@ export interface PDPDecision {
   audit_decision?: string;
 }
 
+export const ENTERPRISE_CAPABILITY_PREFIXES = [
+  'chief_of_staff.',
+  'integration.fabric.',
+  'context.fabric.',
+  'specialist.agents.',
+  'command_center.',
+];
+
+export function isEnterpriseCapability(action: string): boolean {
+  return ENTERPRISE_CAPABILITY_PREFIXES.some(prefix => action.startsWith(prefix));
+}
+
 /**
  * Unified Policy Decision Point (PDP) authorize() — PRD v2.2 Bagian 3.5
  * Evaluasi sinkronus dasar.
@@ -69,6 +81,24 @@ export function authorizePDP(
       return { is_authorized: false, decision: 'DENY', reason: 'Super Admin wajib menyertakan verifikasi MFA aktif.', audit_decision: 'DENY_MFA_REQUIRED' };
     }
     return { is_authorized: true, decision: 'PERMIT', reason: 'Super Admin terverifikasi MFA diizinkan.', audit_decision: 'ALLOW' };
+  }
+
+  // --- TAHAP 2: Subscription Tier Gate (PRD v2.2 Bagian 3.5 & 14.2) ---
+  // Evaluasi tier gate berlaku untuk SEMUA peran tenant (termasuk TENANT_OWNER & AI_AGENT)
+  let requiredTier = context?.required_min_tier ?? resource.attributes?.min_tier_level;
+  if (requiredTier === undefined && isEnterpriseCapability(action)) {
+    requiredTier = 3;
+  }
+  if (requiredTier !== undefined && requiredTier > 0) {
+    const tenantTier = context?.tenant_tier_level ?? 1;
+    if (tenantTier < requiredTier) {
+      return {
+        is_authorized: false,
+        decision: 'DENY',
+        reason: `capability_not_available: Fitur atau aksi '${action}' memerlukan paket langganan minimal tier ${requiredTier} (Enterprise), sedangkan tenant saat ini berada pada tier ${tenantTier}.`,
+        audit_decision: 'DENY_TIER_RESTRICTION',
+      };
+    }
   }
 
   // 3. Tenant Owner / Admin
@@ -206,11 +236,33 @@ export async function authorizePDPAsync(
   // =========================================================================
   // TAHAP 2: Subscription Tier Gate
   // =========================================================================
-  const requiredTier = ctx.required_min_tier ?? resource.attributes?.min_tier_level;
+  let requiredTier = ctx.required_min_tier ?? resource.attributes?.min_tier_level;
+  if (requiredTier === undefined && isEnterpriseCapability(action)) {
+    requiredTier = 3;
+  }
+
+  let tenantTier = ctx.tenant_tier_level;
+  if (tenantTier === undefined && pool && subject.tenant_id) {
+    try {
+      const tierRes = await pool.query(
+        `SELECT sp.tier_level 
+         FROM tenants t 
+         LEFT JOIN subscription_plans sp ON t.subscription_plan_id = sp.id 
+         WHERE t.id = $1`,
+        [subject.tenant_id]
+      );
+      if (tierRes.rows.length > 0 && tierRes.rows[0].tier_level != null) {
+        tenantTier = Number(tierRes.rows[0].tier_level);
+      }
+    } catch {
+      // Fallback default
+    }
+  }
+  if (tenantTier === undefined) tenantTier = 1;
+
   if (requiredTier !== undefined && requiredTier > 0) {
-    const tenantTier = ctx.tenant_tier_level ?? 1;
     if (tenantTier < requiredTier) {
-      const reason = `Fitur '${action}' memerlukan langganan minimal tier ${requiredTier}, paket tenant saat ini tier ${tenantTier}.`;
+      const reason = `capability_not_available: Fitur '${action}' memerlukan langganan minimal tier ${requiredTier} (Enterprise), paket tenant saat ini tier ${tenantTier}.`;
       await logAuditEntry(pool, {
         tenant_id: subject.tenant_id,
         actor_type: subject.actor_type || 'human_user',
@@ -218,7 +270,7 @@ export async function authorizePDPAsync(
         action: `authz:${action}`,
         resource_type: resource.resource_type,
         resource_id: resource.resource_id,
-        payload_after: { stage: 'TIER', decision: 'DENY_TIER_RESTRICTION', is_authorized: false, reason },
+        payload_after: { stage: 'TIER', decision: 'DENY_TIER_RESTRICTION', is_authorized: false, reason, code: 'capability_not_available' },
         request_id: ctx.request_id,
       });
       return { is_authorized: false, decision: 'DENY', reason, audit_decision: 'DENY_TIER_RESTRICTION' };
@@ -882,6 +934,101 @@ export class MCPToolRegistryService {
         },
         is_active: true,
       },
+      // --- PERKAKAS ENTERPRISE-ONLY (Tier 3) ---
+      {
+        id: 'tool-integration-fabric-sync',
+        tool_name: 'integration_fabric.sync',
+        risk_tier: 'high',
+        category: 'integration',
+        capability_key: 'integration.fabric.sync.stream',
+        min_tier_level: 3,
+        description: 'Streaming sinkronisasi data enterprise real-time lintas sistem',
+        input_schema: {
+          type: 'object',
+          properties: { connector_code: { type: 'string' }, stream_action: { type: 'string' } },
+          required: ['connector_code'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { status: { type: 'string' }, synced_records: { type: 'number' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-chief-of-staff-briefing',
+        tool_name: 'chief_of_staff.briefing',
+        risk_tier: 'medium',
+        category: 'executive',
+        capability_key: 'chief_of_staff.briefing.generate',
+        min_tier_level: 3,
+        description: 'Sintesis otomatis Executive Morning Briefing lintas performa departemen',
+        input_schema: {
+          type: 'object',
+          properties: { briefing_date: { type: 'string' } },
+        },
+        output_schema: {
+          type: 'object',
+          properties: { briefing_id: { type: 'string' }, executive_summary: { type: 'string' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-context-fabric-query',
+        tool_name: 'context_fabric.query',
+        risk_tier: 'medium',
+        category: 'knowledge',
+        capability_key: 'context.fabric.query',
+        min_tier_level: 3,
+        description: 'Kueri federasi multi-dokumen tingkat lanjut dengan reranking lintas departemen',
+        input_schema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { matches: { type: 'array' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-specialist-cfo-projection',
+        tool_name: 'specialist.cfo_projection',
+        risk_tier: 'high',
+        category: 'financial',
+        capability_key: 'specialist.agents.cfo.access',
+        min_tier_level: 3,
+        description: 'Akses pekerja AI spesialis CFO eksekutif dan pemodelan proyeksi finansial',
+        input_schema: {
+          type: 'object',
+          properties: { projection_months: { type: 'number' } },
+          required: ['projection_months'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { runway_months: { type: 'number' }, projected_burn_rate: { type: 'number' } },
+        },
+        is_active: true,
+      },
+      {
+        id: 'tool-command-center-export-vault',
+        tool_name: 'command_center.export_vault',
+        risk_tier: 'critical',
+        category: 'compliance',
+        capability_key: 'command_center.audit_vault.export',
+        min_tier_level: 3,
+        description: 'Ekspor audit log terenkripsi dan pembuktian kepatuhan regulasi korporat',
+        input_schema: {
+          type: 'object',
+          properties: { export_format: { type: 'string', enum: ['json', 'csv', 'pdf'] } },
+          required: ['export_format'],
+        },
+        output_schema: {
+          type: 'object',
+          properties: { download_url: { type: 'string' }, hash_sha256: { type: 'string' } },
+        },
+        is_active: true,
+      },
     ];
   }
 
@@ -895,22 +1042,54 @@ export class MCPToolRegistryService {
     const tool = tools.find(t => t.tool_name === toolName);
     if (!tool) throw new Error(`Perkakas MCP '${toolName}' tidak ditemukan.`);
 
+    // Real-time lookup tenant tier dari DB jika tersedia
+    let tenantTier = (subject as any).tenant_tier_level;
+    if (tenantTier === undefined && this.pool && subject.tenant_id) {
+      try {
+        const tRes = await this.pool.query(
+          `SELECT sp.tier_level 
+           FROM tenants t 
+           LEFT JOIN subscription_plans sp ON t.subscription_plan_id = sp.id 
+           WHERE t.id = $1`,
+          [subject.tenant_id]
+        );
+        if (tRes.rows.length > 0 && tRes.rows[0].tier_level != null) {
+          tenantTier = Number(tRes.rows[0].tier_level);
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    if (tenantTier === undefined) tenantTier = 1;
+
+    const toolMinTier = (tool as any).min_tier_level;
+    const toolCapKey = (tool as any).capability_key || 'mcp.tool.invoke';
+
     // --- TITIK EVALUASI PDP KE-3: Pemanggilan MCP Tool ---
     const decision = authorizePDP(
       subject,
-      'mcp.tool.invoke',
+      toolCapKey,
       {
         resource_type: 'mcp_tool',
         resource_id: tool.tool_name,
         owner_tenant_id: subject.tenant_id,
-        attributes: { risk_tier: tool.risk_tier, tool_name: tool.tool_name },
+        attributes: {
+          risk_tier: tool.risk_tier,
+          tool_name: tool.tool_name,
+          min_tier_level: toolMinTier,
+          capability_key: toolCapKey,
+        },
       },
-      { input: inputData }
+      {
+        input: inputData,
+        required_min_tier: toolMinTier,
+        tenant_tier_level: tenantTier,
+      }
     );
 
     const start = Date.now();
     if (!decision.is_authorized) {
-      await this.recordInvocation(subject.tenant_id, workflowExecutionId, toolName, inputData, {}, 'denied', 0, subject.user_id);
+      await this.recordInvocation(subject.tenant_id, workflowExecutionId, toolName, inputData, {}, 'blocked', 0, subject.user_id);
       throw new Error(`PDP Access Denied untuk tool '${toolName}': ${decision.reason}`);
     }
 
@@ -1093,6 +1272,23 @@ export class MCPToolRegistryService {
       const client = await this.pool.connect();
       try {
         if (tenant_id) await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenant_id]);
+
+        let validInvokedBy: string | null = null;
+        if (invoked_by) {
+          try {
+            const memRes = await client.query(
+              `SELECT id FROM tenant_memberships WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+              [invoked_by, tenant_id]
+            );
+            if (memRes.rows.length > 0) {
+              validInvokedBy = memRes.rows[0].id;
+            }
+          } catch {
+            // Jika bukan uuid valid atau error
+          }
+        }
+
+        const safeStatus = status === 'denied' ? 'blocked' : status;
         await client.query(
           `INSERT INTO tool_invocations (
             tenant_id, workflow_execution_id, tool_name, input_payload, output_payload, status, duration_ms, invoked_by
@@ -1103,9 +1299,9 @@ export class MCPToolRegistryService {
             tool_name,
             JSON.stringify(input),
             JSON.stringify(output),
-            status,
+            safeStatus,
             duration_ms,
-            invoked_by || null,
+            validInvokedBy,
           ]
         );
       } finally {
@@ -1192,13 +1388,32 @@ export class OrchestrationEngineService {
     // Checkpoint Awal (0)
     await this.checkpointExecution(executionId, tenant_id, workflow_definition_id, intent_text, 'running', 'node_classify', currentContext, {});
 
-    // Graf Node Standar: CLASSIFY -> PLAN -> TOOL_CALL -> DELIVER
-    const nodes = [
+    // Real-time lookup tenant tier dari DB
+    let tenantTier = (params.context_data as any)?.tenant_tier_level;
+    if (tenantTier === undefined && this.pool && tenant_id) {
+      try {
+        const tRes = await this.pool.query(
+          `SELECT sp.tier_level 
+           FROM tenants t 
+           LEFT JOIN subscription_plans sp ON t.subscription_plan_id = sp.id 
+           WHERE t.id = $1`,
+          [tenant_id]
+        );
+        if (tRes.rows.length > 0 && tRes.rows[0].tier_level != null) {
+          tenantTier = Number(tRes.rows[0].tier_level);
+        }
+      } catch {}
+    }
+    if (tenantTier === undefined) tenantTier = 1;
+
+    // Graf Node: Mendukung node kustom atau standar
+    const defaultNodes = [
       { id: 'node_classify', type: 'CLASSIFY', label: 'Klasifikasi Intent' },
       { id: 'node_plan', type: 'PLAN', label: 'Perencanaan Eksekusi' },
       { id: 'node_tool_call', type: 'TOOL_CALL', label: 'Pemanggilan Alat MCP' },
       { id: 'node_deliver', type: 'DELIVER', label: 'Penyampaian Hasil' },
     ];
+    const nodes = (params.context_data?.custom_nodes as Array<any>) || defaultNodes;
 
     let finalOutput: any = {};
 
@@ -1206,17 +1421,20 @@ export class OrchestrationEngineService {
       nodesExecuted.push(node.id);
       const nodeStartTime = Date.now();
 
+      const nodeMinTier = (node as any).min_tier_level ?? (node.type.startsWith('ENTERPRISE_') ? 3 : undefined);
+      const nodeAction = (node as any).capability_key || `workflow.node.${node.type.toLowerCase()}`;
+
       // --- TITIK EVALUASI PDP KE-2: Awal Eksekusi Workflow Node ---
       const nodeDecision = authorizePDP(
         subject,
-        `workflow.node.${node.type.toLowerCase()}`,
+        nodeAction,
         {
           resource_type: 'workflow_node',
           resource_id: node.id,
           owner_tenant_id: tenant_id,
-          attributes: { node_type: node.type },
+          attributes: { node_type: node.type, min_tier_level: nodeMinTier, capability_key: nodeAction },
         },
-        { execution_id: executionId }
+        { execution_id: executionId, required_min_tier: nodeMinTier, tenant_tier_level: tenantTier }
       );
 
       const nodeRunId = crypto.randomUUID();

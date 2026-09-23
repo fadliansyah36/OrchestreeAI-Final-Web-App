@@ -33,12 +33,14 @@ import { RevenueIntelligenceScreen } from './components/RevenueIntelligenceScree
 import { SalesCoachScreen } from './components/SalesCoachScreen';
 import { MessageExperimentScreen } from './components/MessageExperimentScreen';
 import { SalesGuardrailsScreen } from './components/SalesGuardrailsScreen';
+import { UniversalSelectionHubScreen } from './components/UniversalSelectionHubScreen';
+import { GenerativeStudioHubScreen } from './components/GenerativeStudioHubScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails' | 'selection' | 'generative'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -331,6 +333,28 @@ export default function App() {
                 >
                   Guardrail Sales & Approval
                 </button>
+                <button
+                  id="nav-btn-selection-hub"
+                  onClick={() => setClientSubView('selection')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'selection'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Seleksi Data Cerdas
+                </button>
+                <button
+                  id="nav-btn-generative-studio"
+                  onClick={() => setClientSubView('generative')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'generative'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Studio Visual AI
+                </button>
               </div>
             )}
             <button
@@ -511,6 +535,20 @@ export default function App() {
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <SalesGuardrailsScreen
                   tenantId={activeTenant?.tenant_id || 'tenant-alpha-001'}
+                />
+              </div>
+            )}
+            {clientSubView === 'selection' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <UniversalSelectionHubScreen
+                  tenant={activeTenant}
+                />
+              </div>
+            )}
+            {clientSubView === 'generative' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <GenerativeStudioHubScreen
+                  tenant={activeTenant}
                 />
               </div>
             )}

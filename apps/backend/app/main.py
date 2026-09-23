@@ -27,6 +27,8 @@ from app.api.v1.commerce import router as commerce_router, webhook_router as com
 from app.api.v1.marketing import router as marketing_router, webhook_router as social_webhook_router
 from app.api.v1.service import router as service_router
 from app.api.v1.sales import router as sales_router
+from app.api.v1.selection import router as selection_router
+from app.api.v1.generative import router as generative_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -84,6 +86,8 @@ app.include_router(marketing_router, prefix="/api/v1")
 app.include_router(social_webhook_router, prefix="/api/v1")
 app.include_router(service_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
+app.include_router(selection_router, prefix="/api/v1")
+app.include_router(generative_router, prefix="/api/v1")
 
 
 @app.get("/")

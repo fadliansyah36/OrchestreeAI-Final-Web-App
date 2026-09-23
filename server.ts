@@ -43,12 +43,15 @@ import {
 import { IntelligenceService } from './src/server/intelligenceService';
 import { IntegrationsService } from './src/server/integrationsService';
 import { WebIntegrityService } from './src/server/webIntegrityService';
+import { EnterpriseService } from './src/server/enterpriseService';
 import { CrmLeadService } from './src/server/crmLeadService';
 import { CommerceService } from './src/server/commerceService';
 import { CompanyBrainService } from './src/server/companyBrainService';
 import { MessageExperimentService } from './src/server/messageExperimentService';
 import { RevenueIntelligenceService } from './src/server/revenueIntelligenceService';
 import { SalesGuardrailService } from './src/server/salesGuardrailService';
+import { SelectionService } from './src/server/selectionService';
+import { GenerativeStudioService } from './src/server/generativeStudioService';
 import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
 
 let pool: pg.Pool | null = null;
@@ -4959,6 +4962,236 @@ app.get('/api/v1/tenants/:tenantId/sales/guardrails/mcp-tools', async (_req, res
   }
 });
 
+// =========================================================================
+// Universal Selection Hub & Scoring Engine (Bagian 13.1, 17.5)
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/selection/jobs
+app.get('/api/v1/tenants/:tenantId/selection/jobs', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const jobs = await SelectionService.getJobs(pool!, tenantId, req.query.status as string);
+    return res.json({ status: 'ok', data: jobs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/jobs
+app.post('/api/v1/tenants/:tenantId/selection/jobs', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const job = await SelectionService.createJob(pool!, tenantId, req.body);
+    return res.json({ status: 'ok', data: job });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/selection/jobs/:jobId
+app.get('/api/v1/tenants/:tenantId/selection/jobs/:jobId', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const job = await SelectionService.getJobDetail(pool!, tenantId, req.params.jobId);
+    return res.json({ status: 'ok', data: job });
+  } catch (err: any) {
+    return res.status(404).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/jobs/:jobId/documents
+app.post('/api/v1/tenants/:tenantId/selection/jobs/:jobId/documents', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const doc = await SelectionService.uploadDocument(pool!, tenantId, req.params.jobId, req.body);
+    return res.json({ status: 'ok', data: doc });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/jobs/:jobId/calibrate
+app.post('/api/v1/tenants/:tenantId/selection/jobs/:jobId/calibrate', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const result = await SelectionService.calibrateWeights(
+      pool!,
+      tenantId,
+      req.params.jobId,
+      req.body.human_feedback_notes,
+      req.body.criteria_adjustments,
+      req.body.human_reviewer_id
+    );
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/jobs/:jobId/score
+app.post('/api/v1/tenants/:tenantId/selection/jobs/:jobId/score', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const job = await SelectionService.executeScoringAndRanking(
+      pool!,
+      tenantId,
+      req.params.jobId,
+      req.body.model_used
+    );
+    return res.json({ status: 'ok', data: job });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/scores/:scoreId/review
+app.post('/api/v1/tenants/:tenantId/selection/scores/:scoreId/review', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const result = await SelectionService.submitHumanReview(
+      pool!,
+      tenantId,
+      req.params.scoreId,
+      req.body.decision,
+      req.body.override_score,
+      req.body.reviewer_notes,
+      req.body.reviewer_id
+    );
+    return res.json({ status: 'ok', data: result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/selection/jobs/:jobId/finalize
+app.post('/api/v1/tenants/:tenantId/selection/jobs/:jobId/finalize', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const job = await SelectionService.finalizeJob(
+      pool!,
+      tenantId,
+      req.params.jobId,
+      req.body.reviewer_id,
+      req.body.approval_notes
+    );
+    return res.json({ status: 'ok', data: job });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/selection/jobs/:jobId/analytics
+app.get('/api/v1/tenants/:tenantId/selection/jobs/:jobId/analytics', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const analytics = await SelectionService.getAnalytics(pool!, tenantId, req.params.jobId);
+    return res.json({ status: 'ok', data: analytics });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================================================================
+// GENERATIVE STUDIO HUB, IMAGE ROUTER & BRAND ASSET LOCKS (Bagian 11.10, 13.2)
+// =========================================================================
+
+app.get('/api/v1/tenants/:tenantId/generative/templates', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const category = req.query.category as string | undefined;
+    const templates = await GenerativeStudioService.listTemplates(pool!, tenantId, category);
+    return res.json({ status: 'ok', data: templates });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/generative/templates', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const template = await GenerativeStudioService.createTemplate(pool!, tenantId, req.body);
+    return res.status(201).json({ status: 'ok', data: template });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/generative/brand-locks', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const locks = await GenerativeStudioService.listBrandLocks(pool!, tenantId);
+    return res.json({ status: 'ok', data: locks });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/generative/brand-locks', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const lock = await GenerativeStudioService.createBrandLock(pool!, tenantId, req.body);
+    return res.status(201).json({ status: 'ok', data: lock });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/generative/jobs', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const statusFilter = req.query.status as string | undefined;
+    const jobs = await GenerativeStudioService.listJobs(pool!, tenantId, statusFilter);
+    return res.json({ status: 'ok', data: jobs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/generative/jobs/:jobId', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const job = await GenerativeStudioService.getJobDetail(pool!, tenantId, req.params.jobId);
+    return res.json({ status: 'ok', data: job });
+  } catch (err: any) {
+    return res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/v1/tenants/:tenantId/generative/jobs', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const job = await GenerativeStudioService.createAndExecuteJob(pool!, tenantId, req.body);
+    return res.status(201).json({ status: 'ok', data: job });
+  } catch (err: any) {
+    if (err.message && err.message.includes('Saldo kredit tidak mencukupi')) {
+      return res.status(402).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/generative/artifacts', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const verifiedOnly = req.query.verified_only !== 'false';
+    const artifacts = await GenerativeStudioService.listArtifacts(pool!, tenantId, verifiedOnly);
+    return res.json({ status: 'ok', data: artifacts });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/v1/tenants/:tenantId/generative/scrub-logs', async (req, res) => {
+  try {
+    const tenantId = req.params.tenantId;
+    const artifactId = req.query.artifact_id as string | undefined;
+    const logs = await GenerativeStudioService.listScrubLogs(pool!, tenantId, artifactId);
+    return res.json({ status: 'ok', data: logs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Background Auto-Refresh & Periodic Health Checker (Interval 2 menit)
 setInterval(async () => {
   if (!pool) return;
@@ -4994,6 +5227,196 @@ setInterval(async () => {
     console.warn(`[Scheduler] Integration health background tick error: ${err.message}`);
   }
 }, 120000);
+
+// =========================================================================
+// 26. ENTERPRISE CAPABILITIES, INTEGRATION FABRIC & AI CHIEF OF STAFF
+// =========================================================================
+const enterpriseService = new EnterpriseService(pool);
+
+// 1. Get Tenant Tier & Enterprise Status
+app.get('/api/v1/tenants/:tenantId/subscription/tier', async (req, res) => {
+  try {
+    const tierInfo = await enterpriseService.getTenantTier(req.params.tenantId);
+    return res.json(tierInfo);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Change Subscription Tier (Downgrade/Upgrade Simulation & Enforcement)
+app.post('/api/v1/tenants/:tenantId/subscription/change-tier', async (req, res) => {
+  const { plan_code } = req.body;
+  if (!plan_code || !['GROWTH', 'ENTERPRISE'].includes(plan_code.toUpperCase())) {
+    return res.status(400).json({ error: "plan_code harus bernilai 'GROWTH' atau 'ENTERPRISE'." });
+  }
+
+  try {
+    const result = await enterpriseService.switchTenantSubscription(req.params.tenantId, plan_code.toUpperCase() as any);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. AI Chief of Staff: Ingest New Event (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/events', async (req, res) => {
+  try {
+    const event = await enterpriseService.ingestChiefOfStaffEvent(req.params.tenantId, req.body);
+    return res.status(201).json(event);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'internal_server_error',
+      code: err.code || 'internal_server_error',
+      message: err.message,
+      required_min_tier: err.required_min_tier,
+      current_tier: err.current_tier,
+    });
+  }
+});
+
+// 4. AI Chief of Staff: List Historical Events (Read-only on Growth/downgraded)
+app.get('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/events', async (req, res) => {
+  try {
+    const data = await enterpriseService.getChiefOfStaffEvents(req.params.tenantId);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. AI Chief of Staff: Generate Morning Briefing (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings/generate', async (req, res) => {
+  try {
+    const briefing = await enterpriseService.generateExecutiveBriefing(req.params.tenantId, req.body?.briefing_date);
+    return res.status(201).json(briefing);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+      required_min_tier: err.required_min_tier,
+      current_tier: err.current_tier,
+    });
+  }
+});
+
+// 6. AI Chief of Staff: List Briefings (Read-only on Growth/downgraded)
+app.get('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings', async (req, res) => {
+  try {
+    const data = await enterpriseService.getChiefOfStaffBriefings(req.params.tenantId);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Integration Fabric: List Connectors
+app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors', async (req, res) => {
+  try {
+    const data = await enterpriseService.listFabricConnectors(req.params.tenantId);
+    return res.json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Integration Fabric: Create Connector (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors', async (req, res) => {
+  try {
+    const conn = await enterpriseService.createFabricConnector(req.params.tenantId, req.body);
+    return res.status(201).json(conn);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+      required_min_tier: err.required_min_tier,
+      current_tier: err.current_tier,
+    });
+  }
+});
+
+// 9. Integration Fabric: Stream Sync (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/sync', async (req, res) => {
+  const { connector_code } = req.body;
+  if (!connector_code) {
+    return res.status(400).json({ error: 'connector_code wajib diisi.' });
+  }
+
+  try {
+    const result = await enterpriseService.syncFabricStream(req.params.tenantId, connector_code);
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+    });
+  }
+});
+
+// 10. Company Context Fabric: Query (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/context-fabric/query', async (req, res) => {
+  try {
+    const result = await enterpriseService.queryContextFabric(req.params.tenantId, req.body?.query || '');
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+    });
+  }
+});
+
+// 11. Specialist Agents: Dispatch (Gated tier 3)
+app.post('/api/v1/tenants/:tenantId/enterprise/specialist-agents/dispatch', async (req, res) => {
+  try {
+    const result = await enterpriseService.dispatchSpecialistAgent(
+      req.params.tenantId,
+      req.body?.agent_role || 'CFO_STRATEGIST',
+      req.body?.task || 'Proyeksi Runway & Alokasi Beban Biaya'
+    );
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+    });
+  }
+});
+
+// 12. Command Center: Metrics (Gated tier 3)
+app.get('/api/v1/tenants/:tenantId/enterprise/command-center/metrics', async (req, res) => {
+  try {
+    const result = await enterpriseService.getCommandCenterMetrics(req.params.tenantId);
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'capability_not_available',
+      code: err.code || 'capability_not_available',
+      message: err.message,
+    });
+  }
+});
+
+// 13. Enforcement Verification Check (Titik 1 REST, Titik 2 Workflow Node, Titik 3 MCP Tool)
+app.get('/api/v1/tenants/:tenantId/enterprise/enforcement-check', async (req, res) => {
+  try {
+    const result = await enterpriseService.testEnforcementPoints(req.params.tenantId);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // 9. Vite Middleware Setup
 async function startServer() {
