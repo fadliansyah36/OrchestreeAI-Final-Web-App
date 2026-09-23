@@ -720,4 +720,409 @@ Rekomendasi Taktis: ${insight.strategic_recommendation}`;
       .replace(/\s+/g, ' ')
       .trim();
   }
+
+  // =========================================================================
+  // DATA QUALITY & 5-STATE AVAILABILITY CONFIDENCE ENGINE
+  // PRD v2.2 Bagian 8.12 & 8.13.5
+  // =========================================================================
+
+  /**
+   * Evaluasi 5-State Data Availability dan rincian skor kepercayaan (0.0 - 1.0)
+   */
+  evaluateAvailabilityAndConfidence(
+    data: Record<string, any> | null | undefined,
+    requiredFields?: string[],
+    sources?: Array<{ source_name?: string; source?: string; data?: Record<string, any> }>,
+    dataTimestamp?: Date | string | null,
+    ttlHours: number = 24.0
+  ): { state: 'AVAILABLE' | 'STALE' | 'CONFLICTING' | 'PARTIAL' | 'NOT_AVAILABLE'; breakdown: any } {
+    const reasons: string[] = [];
+
+    // 1. Data Kosong / Tidak Ditemukan
+    if (!data || Object.keys(data).length === 0 || Object.values(data).every(v => v === null || v === '')) {
+      return {
+        state: 'NOT_AVAILABLE',
+        breakdown: {
+          freshness_score: 0.0,
+          completeness_score: 0.0,
+          source_reliability_score: 0.0,
+          consistency_score: 0.0,
+          overall_confidence: 0.0,
+          availability_state: 'NOT_AVAILABLE',
+          reasons: ['Data tidak ditemukan atau sumber data kosong total.'],
+        },
+      };
+    }
+
+    // 2. Konflik Lintas Sumber Data Eksternal
+    if (sources && sources.length > 1) {
+      const conflict = this.detectSourceConflicts(sources);
+      if (conflict.hasConflict) {
+        reasons.push(`Konflik nilai terdeteksi antar sumber eksternal: ${conflict.details}`);
+        return {
+          state: 'CONFLICTING',
+          breakdown: {
+            freshness_score: 0.7,
+            completeness_score: 0.8,
+            source_reliability_score: 0.5,
+            consistency_score: 0.0,
+            overall_confidence: 0.35,
+            availability_state: 'CONFLICTING',
+            reasons,
+          },
+        };
+      }
+    }
+
+    // 3. Kesegaran Waktu (STALE)
+    let freshnessScore = 1.0;
+    if (dataTimestamp) {
+      const ts = typeof dataTimestamp === 'string' ? new Date(dataTimestamp) : dataTimestamp;
+      const ageHours = (Date.now() - ts.getTime()) / (1000 * 3600);
+      if (ageHours > ttlHours) {
+        reasons.push(`Data telah melampaui ambang batas kesegaran (${ageHours.toFixed(1)} jam > TTL ${ttlHours} jam).`);
+        freshnessScore = Math.max(0.1, 1.0 - (ageHours - ttlHours) / ttlHours);
+        return {
+          state: 'STALE',
+          breakdown: {
+            freshness_score: Math.round(freshnessScore * 10000) / 10000,
+            completeness_score: 0.9,
+            source_reliability_score: 0.8,
+            consistency_score: 0.8,
+            overall_confidence: Math.round((0.4 * freshnessScore + 0.3) * 10000) / 10000,
+            availability_state: 'STALE',
+            reasons,
+          },
+        };
+      }
+    }
+
+    // 4. Kelengkapan Atribut Kunci (PARTIAL)
+    let completenessScore = 1.0;
+    if (requiredFields && requiredFields.length > 0) {
+      const present = requiredFields.filter(f => data[f] !== undefined && data[f] !== null && data[f] !== '');
+      completenessScore = present.length / requiredFields.length;
+      if (completenessScore < 1.0) {
+        const missing = requiredFields.filter(f => !present.includes(f));
+        reasons.push(`Atribut penting tidak lengkap: ${missing.join(', ')}.`);
+        if (completenessScore < 0.6) {
+          return {
+            state: 'PARTIAL',
+            breakdown: {
+              freshness_score: freshnessScore,
+              completeness_score: Math.round(completenessScore * 10000) / 10000,
+              source_reliability_score: 0.6,
+              consistency_score: 0.6,
+              overall_confidence: Math.round((0.3 * completenessScore + 0.2) * 10000) / 10000,
+              availability_state: 'PARTIAL',
+              reasons,
+            },
+          };
+        }
+      }
+    }
+
+    // 5. Data Sah dan Tersedia Penuh (AVAILABLE)
+    const sourceReliability = sources && sources.length >= 1 ? 0.95 : 0.85;
+    const overall = Math.round(
+      (0.35 * completenessScore + 0.30 * freshnessScore + 0.20 * sourceReliability + 0.15) * 10000
+    ) / 10000;
+    reasons.push('Data lengkap, segar, dan konsisten dari sumber terverifikasi.');
+
+    return {
+      state: 'AVAILABLE',
+      breakdown: {
+        freshness_score: freshnessScore,
+        completeness_score: Math.round(completenessScore * 10000) / 10000,
+        source_reliability_score: sourceReliability,
+        consistency_score: 1.0,
+        overall_confidence: overall,
+        availability_state: 'AVAILABLE',
+        reasons,
+      },
+    };
+  }
+
+  /**
+   * Output Validator:
+   * MENOLAK klaim AVAILABLE palsu bila data kosong, konflik, tidak lengkap, atau basi.
+   */
+  async validateOutputClaim(
+    tenantId: string,
+    claimedState: 'AVAILABLE' | 'STALE' | 'CONFLICTING' | 'PARTIAL' | 'NOT_AVAILABLE',
+    actualData?: Record<string, any> | null,
+    requiredFields?: string[],
+    sources?: Array<{ source_name?: string; source?: string; data?: Record<string, any> }>,
+    dataTimestamp?: Date | string | null,
+    ttlHours: number = 24.0
+  ) {
+    const evaluation = this.evaluateAvailabilityAndConfidence(
+      actualData,
+      requiredFields,
+      sources,
+      dataTimestamp,
+      ttlHours
+    );
+
+    const factState = evaluation.state;
+    const breakdown = evaluation.breakdown;
+
+    // Deteksi klaim AVAILABLE palsu
+    if (claimedState === 'AVAILABLE' && factState !== 'AVAILABLE') {
+      const rejectionReason = `Klaim AVAILABLE palsu ditolak oleh Output Validator. Fakta data berstatus '${factState}' dengan skor kepercayaan ${(breakdown.overall_confidence * 100).toFixed(1)}%. Alasan: ${breakdown.reasons.join('; ')}`;
+
+      // Rekam pelanggaran klaim ke database data_quality_issues
+      try {
+        const client = await this.pool.connect();
+        try {
+          await client.query(`
+            INSERT INTO data_quality_issues (
+              id, tenant_id, entity_type, entity_id, field_name,
+              issue_type, severity, availability_state, confidence_score,
+              sources_involved, conflict_details, ai_auto_selection_prevented,
+              requires_human_resolution, resolution_status, created_at, updated_at
+            ) VALUES (
+              gen_random_uuid(), $1, 'ai_output_claim', 'prompt_eval', 'availability_claim',
+              'FALSE_AVAILABILITY_CLAIM', 'HIGH', $2, $3,
+              $4, $5, true, true, 'UNRESOLVED', now(), now()
+            )
+          `, [
+            tenantId,
+            factState,
+            breakdown.overall_confidence,
+            JSON.stringify(sources || []),
+            JSON.stringify({
+              claimed: claimedState,
+              rejection_reason: rejectionReason,
+              breakdown,
+            }),
+          ]);
+        } finally {
+          client.release();
+        }
+      } catch (dbErr: any) {
+        console.error('[IntelligenceService] Error recording false claim violation:', dbErr.message);
+      }
+
+      return {
+        is_valid: false,
+        claimed_state: claimedState,
+        validated_state: factState,
+        was_false_claim_rejected: true,
+        rejection_reason: rejectionReason,
+        confidence_score: breakdown.overall_confidence,
+        breakdown,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    return {
+      is_valid: true,
+      claimed_state: claimedState,
+      validated_state: factState,
+      was_false_claim_rejected: false,
+      rejection_reason: null,
+      confidence_score: breakdown.overall_confidence,
+      breakdown,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Mengambil daftar isu kualitas data dengan filter
+   */
+  async listDataQualityIssues(
+    tenantId: string,
+    status?: string,
+    issueType?: string,
+    limit: number = 50
+  ) {
+    const client = await this.pool.connect();
+    try {
+      let query = 'SELECT * FROM data_quality_issues WHERE tenant_id = $1';
+      const params: any[] = [tenantId];
+
+      if (status) {
+        params.push(status);
+        query += ` AND resolution_status = $${params.length}`;
+      }
+      if (issueType) {
+        params.push(issueType);
+        query += ` AND issue_type = $${params.length}`;
+      }
+
+      query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+      params.push(limit);
+
+      const res = await client.query(query, params);
+      return res.rows;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Mencatat isu kualitas data baru
+   * ATURAN: ai_auto_selection_prevented = true
+   */
+  async createDataQualityIssue(
+    tenantId: string,
+    payload: {
+      entity_type: string;
+      entity_id: string;
+      field_name: string;
+      issue_type: string;
+      severity?: string;
+      availability_state: string;
+      confidence_score?: number;
+      sources_involved?: any[];
+      conflict_details?: Record<string, any>;
+      requires_human_resolution?: boolean;
+    }
+  ) {
+    const client = await this.pool.connect();
+    try {
+      const res = await client.query(`
+        INSERT INTO data_quality_issues (
+          id, tenant_id, entity_type, entity_id, field_name,
+          issue_type, severity, availability_state, confidence_score,
+          sources_involved, conflict_details, ai_auto_selection_prevented,
+          requires_human_resolution, resolution_status, created_at, updated_at
+        ) VALUES (
+          gen_random_uuid(), $1, $2, $3, $4,
+          $5, $6, $7, $8,
+          $9, $10, true,
+          $11, 'UNRESOLVED', now(), now()
+        )
+        RETURNING *;
+      `, [
+        tenantId,
+        payload.entity_type,
+        payload.entity_id,
+        payload.field_name,
+        payload.issue_type,
+        payload.severity || 'MEDIUM',
+        payload.availability_state,
+        payload.confidence_score || 0.0,
+        JSON.stringify(payload.sources_involved || []),
+        JSON.stringify(payload.conflict_details || {}),
+        payload.requires_human_resolution !== false,
+      ]);
+
+      return res.rows[0];
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Menerima penyelesaian manual oleh operator manusia atas konflik sumber
+   * AI TIDAK PERNAH memutuskan konflik sendiri
+   */
+  async resolveDataQualityIssue(
+    tenantId: string,
+    issueId: string,
+    resolution: {
+      resolved_by: string;
+      chosen_source: string;
+      resolution_notes?: string;
+      reconciled_value?: any;
+    }
+  ) {
+    const client = await this.pool.connect();
+    try {
+      const res = await client.query(`
+        UPDATE data_quality_issues
+        SET resolution_status = 'HUMAN_RESOLVED',
+            resolved_by = $1,
+            resolved_at = now(),
+            resolution_source_chosen = $2,
+            resolution_notes = $3,
+            updated_at = now()
+        WHERE id = $4 AND tenant_id = $5
+        RETURNING *;
+      `, [
+        resolution.resolved_by,
+        resolution.chosen_source,
+        resolution.resolution_notes || 'Diselesaikan oleh peninjau manusia.',
+        issueId,
+        tenantId,
+      ]);
+
+      if (res.rows.length === 0) {
+        throw new Error('Isu kualitas data tidak ditemukan.');
+      }
+      return res.rows[0];
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Ringkasan kualitas data tenant
+   */
+  async getDataQualitySummary(tenantId: string) {
+    const client = await this.pool.connect();
+    try {
+      const countRes = await client.query(`
+        SELECT COUNT(*) as unresolved_count
+        FROM data_quality_issues
+        WHERE tenant_id = $1 AND resolution_status = 'UNRESOLVED'
+      `, [tenantId]);
+
+      const typeRes = await client.query(`
+        SELECT issue_type, COUNT(*) as cnt
+        FROM data_quality_issues
+        WHERE tenant_id = $1
+        GROUP BY issue_type
+      `, [tenantId]);
+
+      const stateRes = await client.query(`
+        SELECT availability_state, COUNT(*) as cnt
+        FROM data_quality_issues
+        WHERE tenant_id = $1
+        GROUP BY availability_state
+      `, [tenantId]);
+
+      const typeCounts: Record<string, number> = {};
+      typeRes.rows.forEach(r => { typeCounts[r.issue_type] = parseInt(r.cnt, 10); });
+
+      const stateCounts: Record<string, number> = {};
+      stateRes.rows.forEach(r => { stateCounts[r.availability_state] = parseInt(r.cnt, 10); });
+
+      return {
+        tenant_id: tenantId,
+        total_unresolved_issues: parseInt(countRes.rows[0]?.unresolved_count || '0', 10),
+        issues_by_type: typeCounts,
+        availability_state_distribution: stateCounts,
+        ai_auto_selection_strictly_disabled: true,
+        human_in_the_loop_enforced: true,
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  private detectSourceConflicts(sources: Array<{ source_name?: string; source?: string; data?: Record<string, any> }>): { hasConflict: boolean; details: string } {
+    const fieldMap: Record<string, Record<string, any>> = {};
+    for (const src of sources) {
+      const name = src.source_name || src.source || 'unknown';
+      if (src.data && typeof src.data === 'object') {
+        for (const [key, val] of Object.entries(src.data)) {
+          if (!fieldMap[key]) fieldMap[key] = {};
+          fieldMap[key][name] = val;
+        }
+      }
+    }
+
+    for (const [field, srcValues] of Object.entries(fieldMap)) {
+      const distinct = new Set(Object.values(srcValues).map(v => String(v).trim().toLowerCase()));
+      if (distinct.size > 1) {
+        const details = Object.entries(srcValues).map(([s, v]) => `${s}: '${v}'`).join(' vs ');
+        return { hasConflict: true, details: `Atribut '${field}' bertentangan (${details})` };
+      }
+    }
+
+    return { hasConflict: false, details: '' };
+  }
 }

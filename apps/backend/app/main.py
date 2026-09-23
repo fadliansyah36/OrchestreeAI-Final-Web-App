@@ -31,6 +31,8 @@ from app.api.v1.selection import router as selection_router
 from app.api.v1.generative import router as generative_router
 from app.api.v1.enterprise import router as enterprise_router
 from app.api.v1.permissions import router as permissions_router
+from app.api.v1.tokenopt import router as tokenopt_router
+from app.api.v1.agentcat import admin_router as agentcat_admin_router, tenant_router as agentcat_tenant_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -92,6 +94,9 @@ app.include_router(selection_router, prefix="/api/v1")
 app.include_router(generative_router, prefix="/api/v1")
 app.include_router(enterprise_router)
 app.include_router(permissions_router)
+app.include_router(tokenopt_router)
+app.include_router(agentcat_admin_router)
+app.include_router(agentcat_tenant_router)
 
 
 @app.get("/")

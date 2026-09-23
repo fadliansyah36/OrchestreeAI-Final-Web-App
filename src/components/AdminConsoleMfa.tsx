@@ -28,9 +28,12 @@ import {
   XCircle,
   DollarSign,
   Share2,
+  Boxes,
 } from 'lucide-react';
 import { FinancialCommandCenter } from './FinancialCommandCenter';
 import { IntegrationsHubScreen } from './IntegrationsHubScreen';
+import { AgentBlueprintCatalogScreen } from './AgentBlueprintCatalogScreen';
+import { TokenOptimizationScreen } from './TokenOptimizationScreen';
 
 interface LLMProvider {
   id: string;
@@ -137,7 +140,7 @@ export function AdminConsoleMfa() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   // Admin Dashboard Tabs
-  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial' | 'integrations'>('providers');
+  const [activeTab, setActiveTab] = useState<'providers' | 'mcp' | 'tenants' | 'orchestration' | 'learning' | 'financial' | 'integrations' | 'blueprints' | 'tokenopt'>('providers');
 
   // Continuous Learning States (Fase 5 / PRD v2.2 Bagian 8.11)
   const [outcomes, setOutcomes] = useState<DecisionOutcome[]>([]);
@@ -618,6 +621,30 @@ export function AdminConsoleMfa() {
             >
               <Share2 className="w-4 h-4" />
               <span>Integrasi & Observasi</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('blueprints')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'blueprints'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white'
+              }`}
+            >
+              <Boxes className="w-4 h-4" />
+              <span>Katalog Blueprint Agen (F.01-AGENTCAT)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('tokenopt')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'tokenopt'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white'
+              }`}
+            >
+              <Zap className="w-4 h-4" />
+              <span>Optimasi Token (F.01-TOKENOPT)</span>
             </button>
           </div>
 
@@ -1355,6 +1382,25 @@ export function AdminConsoleMfa() {
                   role: 'SUPER_ADMIN',
                 } as any}
                 defaultCategory="all"
+              />
+            </div>
+          )}
+
+          {/* TAB 8: F.01-AGENTCAT Managed Blueprint Catalog */}
+          {activeTab === 'blueprints' && (
+            <div className="pt-2">
+              <AgentBlueprintCatalogScreen
+                tenantId={selectedTenantId}
+                isSuperAdmin={true}
+              />
+            </div>
+          )}
+
+          {/* TAB 9: F.01-TOKENOPT Token Optimization & Semantic Cache */}
+          {activeTab === 'tokenopt' && (
+            <div className="pt-2">
+              <TokenOptimizationScreen
+                tenantId={selectedTenantId}
               />
             </div>
           )}

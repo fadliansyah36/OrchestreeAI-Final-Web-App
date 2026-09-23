@@ -33,6 +33,7 @@ import { WebAuthnAttendanceScreen } from './WebAuthnAttendanceScreen';
 import { HomeOverviewScreen } from './HomeOverviewScreen';
 import { JobTitleReconciliationPanel } from './JobTitleReconciliationPanel';
 import { AgentCreationScreen } from './AgentCreationScreen';
+import { EnterpriseWorkforceHubScreen } from './EnterpriseWorkforceHubScreen';
 
 interface WorkforceHubScreenProps {
   tenant: TenantRegistrationResponse | null;
@@ -108,7 +109,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   tenant,
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'job_titles' | 'org_chart' | 'kanban' | 'attendance'>('hub');
+  const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'job_titles' | 'org_chart' | 'kanban' | 'attendance' | 'enterprise_command'>('hub');
   const [testRole, setTestRole] = useState<'TENANT_OWNER' | 'DEPT_MANAGER' | 'STAFF_HUMAN'>('TENANT_OWNER');
 
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
@@ -340,6 +341,13 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   };
 
   const categoryCards: CategoryCard[] = [
+    {
+      key: 'enterprise_command',
+      label: 'Enterprise Workforce Command Center (Chief of Staff)',
+      icon: 'briefcase',
+      route: 'enterprise_command',
+      badgeCount: 1,
+    },
     {
       key: 'performance',
       label: 'Evaluasi & Skor Kinerja Tim',
@@ -677,6 +685,12 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
             onNavigate={(route) => {
               setActiveTab(route as any);
             }}
+          />
+        ) : activeTab === 'enterprise_command' ? (
+          <EnterpriseWorkforceHubScreen
+            tenant={tenant}
+            onBack={() => setActiveTab('hub')}
+            isEnterpriseTier={true}
           />
         ) : activeTab === 'performance' ? (
           <HomeOverviewScreen

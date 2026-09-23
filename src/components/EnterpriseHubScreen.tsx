@@ -27,20 +27,21 @@ import {
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
 import { EnterpriseReportingQueryView } from './EnterpriseReportingQueryView';
+import { EnterpriseWorkforceHubScreen } from './EnterpriseWorkforceHubScreen';
 
 interface EnterpriseHubScreenProps {
   tenant: TenantRegistrationResponse | null;
   onBack: () => void;
-  defaultTab?: 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query';
+  defaultTab?: 'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query';
 }
 
 export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   tenant,
   onBack,
-  defaultTab = 'chief_of_staff',
+  defaultTab = 'workforce_hub',
 }) => {
   const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
-  const [activeTab, setActiveTab] = useState<'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query'>(defaultTab);
 
   // Status langganan real-time
   const [tierInfo, setTierInfo] = useState<{
@@ -951,6 +952,16 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
           <button
+            onClick={() => setActiveTab('workforce_hub')}
+            className={`text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'workforce_hub'
+                ? 'bg-purple-600/20 text-purple-300 border border-purple-500/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+            }`}
+          >
+            <Briefcase className="w-4 h-4" /> Enterprise Workforce Hub
+          </button>
+          <button
             onClick={() => setActiveTab('chief_of_staff')}
             className={`text-xs font-semibold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'chief_of_staff'
@@ -1001,6 +1012,14 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
             <FileText className="w-4 h-4" /> Pelaporan Otomatis & Tanya Jawab Manajemen
           </button>
         </div>
+
+        {/* TAB 0: ENTERPRISE WORKFORCE HUB */}
+        {activeTab === 'workforce_hub' && (
+          <EnterpriseWorkforceHubScreen
+            tenant={tenant}
+            isEnterpriseTier={isEnterprise}
+          />
+        )}
 
         {/* TAB 1: AI CHIEF OF STAFF */}
         {activeTab === 'chief_of_staff' && (

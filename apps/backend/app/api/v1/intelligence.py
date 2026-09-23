@@ -396,3 +396,269 @@ async def get_vibe_prospecting(tenant_id: str):
             }
         ]
     }
+
+
+# ==========================================
+# Data Quality & Availability Engine Endpoints
+# PRD v2.2 Bagian 8.12 & 8.13.5
+# ==========================================
+
+class DataQualityIssueInput(BaseModel):
+    entity_type: str = Field(..., description="Tipe entitas, e.g. competitor_price, product_stock")
+    entity_id: str = Field(..., description="Identitas entitas yang terdampak")
+    field_name: str = Field(..., description="Nama bidang data")
+    issue_type: str = Field("CONFLICTING_SOURCES", description="CONFLICTING_SOURCES, STALE_DATA, PARTIAL_DATA, FALSE_AVAILABILITY_CLAIM")
+    severity: str = Field("MEDIUM", description="LOW, MEDIUM, HIGH, CRITICAL")
+    availability_state: str = Field("CONFLICTING", description="AVAILABLE, STALE, CONFLICTING, PARTIAL, NOT_AVAILABLE")
+    confidence_score: float = Field(0.0, ge=0.0, le=1.0)
+    sources_involved: List[Dict[str, Any]] = Field(default_factory=list)
+    conflict_details: Dict[str, Any] = Field(default_factory=dict)
+    requires_human_resolution: bool = True
+
+
+class ResolveIssueInput(BaseModel):
+    resolved_by: str = Field(..., description="Nama atau identitas pengambil keputusan manusia")
+    chosen_source: str = Field(..., description="Sumber data terpilih atau MANUAL_OVERRIDE")
+    resolution_notes: Optional[str] = Field(None, description="Justifikasi resolusi manusia")
+    reconciled_value: Optional[Any] = Field(None, description="Nilai final yang disahkan")
+
+
+class ValidateAvailabilityInput(BaseModel):
+    claimed_state: str = Field("AVAILABLE", description="Klaim ketersediaan data dari AI/LLM")
+    actual_data: Optional[Dict[str, Any]] = None
+    required_fields: Optional[List[str]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+    data_timestamp: Optional[str] = None
+    ttl_hours: float = 24.0
+
+
+@router.get("/intelligence/data-quality/issues")
+async def list_data_quality_issues(
+    tenant_id: str,
+    status: Optional[str] = Query(None),
+    issue_type: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Mengambil riwayat isu kualitas data dan konflik sumber untuk tenant."""
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        query = "SELECT * FROM data_quality_issues WHERE tenant_id = :tenant_id"
+        params: Dict[str, Any] = {"tenant_id": tenant_id}
+        if status:
+            query += " AND resolution_status = :status"
+            params["status"] = status
+        if issue_type:
+            query += " AND issue_type = :issue_type"
+            params["issue_type"] = issue_type
+        query += " ORDER BY created_at DESC LIMIT :limit"
+        params["limit"] = limit
+
+        res = await conn.execute(sa.text(query), params)
+        rows = [dict(r) for r in res.mappings().all()]
+        return {"data": rows, "count": len(rows)}
+
+
+@router.post("/intelligence/data-quality/issues")
+async def create_data_quality_issue(
+    tenant_id: str,
+    payload: DataQualityIssueInput,
+):
+    """
+    Mencatat isu kualitas data baru.
+    ATURAN MUTLAK: ai_auto_selection_prevented = True untuk isu konflik.
+    """
+    engine = get_engine()
+    issue_id = str(uuid.uuid4())
+    auto_prevented = True if payload.issue_type == "CONFLICTING_SOURCES" else True
+
+    async with engine.begin() as conn:
+        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        await conn.execute(
+            sa.text("""
+                INSERT INTO data_quality_issues (
+                    id, tenant_id, entity_type, entity_id, field_name,
+                    issue_type, severity, availability_state, confidence_score,
+                    sources_involved, conflict_details, ai_auto_selection_prevented,
+                    requires_human_resolution, resolution_status, created_at, updated_at
+                ) VALUES (
+                    :id, :tenant_id, :entity_type, :entity_id, :field_name,
+                    :issue_type, :severity, :availability_state, :confidence_score,
+                    :sources_involved, :conflict_details, :ai_auto_selection_prevented,
+                    :requires_human_resolution, 'UNRESOLVED', now(), now()
+                )
+            """),
+            {
+                "id": issue_id,
+                "tenant_id": tenant_id,
+                "entity_type": payload.entity_type,
+                "entity_id": payload.entity_id,
+                "field_name": payload.field_name,
+                "issue_type": payload.issue_type,
+                "severity": payload.severity,
+                "availability_state": payload.availability_state,
+                "confidence_score": payload.confidence_score,
+                "sources_involved": json.dumps(payload.sources_involved),
+                "conflict_details": json.dumps(payload.conflict_details),
+                "ai_auto_selection_prevented": auto_prevented,
+                "requires_human_resolution": payload.requires_human_resolution,
+            }
+        )
+
+        res = await conn.execute(
+            sa.text("SELECT * FROM data_quality_issues WHERE id = :id AND tenant_id = :tenant_id"),
+            {"id": issue_id, "tenant_id": tenant_id}
+        )
+        created = res.mappings().first()
+        return {"data": dict(created) if created else None}
+
+
+@router.post("/intelligence/data-quality/issues/{issue_id}/resolve")
+async def resolve_data_quality_issue(
+    tenant_id: str,
+    issue_id: str,
+    payload: ResolveIssueInput,
+):
+    """
+    Menerima pengesahan resolusi manusia atas konflik data sumber eksternal.
+    AI TIDAK PERNAH memilih secara sepihak; pengesahan murni berasal dari manusia.
+    """
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        result = await conn.execute(
+            sa.text("""
+                UPDATE data_quality_issues
+                SET resolution_status = 'HUMAN_RESOLVED',
+                    resolved_by = :resolved_by,
+                    resolved_at = now(),
+                    resolution_source_chosen = :chosen_source,
+                    resolution_notes = :resolution_notes,
+                    updated_at = now()
+                WHERE id = :issue_id AND tenant_id = :tenant_id
+                RETURNING *;
+            """),
+            {
+                "issue_id": issue_id,
+                "tenant_id": tenant_id,
+                "resolved_by": payload.resolved_by,
+                "chosen_source": payload.chosen_source,
+                "resolution_notes": payload.resolution_notes or "Diselesaikan secara manual oleh operator manusia.",
+            }
+        )
+        updated = result.mappings().first()
+        if not updated:
+            raise HTTPException(status_code=404, detail="Isu kualitas data tidak ditemukan.")
+        return {"data": dict(updated), "message": "Konflik berhasil diselesaikan oleh operator manusia."}
+
+
+@router.post("/intelligence/validate-availability")
+async def validate_data_availability(
+    tenant_id: str,
+    payload: ValidateAvailabilityInput,
+):
+    """
+    Output Validator:
+    Memeriksa klaim ketersediaan data dari LLM/agen.
+    Klaim AVAILABLE palsu secara tegas DITOLAK bila data kosong / tidak sah,
+    dan insiden penolakan dicatat sebagai isu kualitas data.
+    """
+    from orchestree.domains.intelligence.confidence import (
+        DataAvailabilityState,
+        IntelligenceConfidenceEngine,
+    )
+
+    try:
+        claimed_enum = DataAvailabilityState(payload.claimed_state)
+    except ValueError:
+        claimed_enum = DataAvailabilityState.AVAILABLE
+
+    parsed_ts = None
+    if payload.data_timestamp:
+        try:
+            parsed_ts = datetime.fromisoformat(payload.data_timestamp.replace("Z", "+00:00"))
+        except Exception:
+            parsed_ts = None
+
+    validation_result = IntelligenceConfidenceEngine.validate_output_claim(
+        claimed_state=claimed_enum,
+        actual_data=payload.actual_data,
+        required_fields=payload.required_fields,
+        sources=payload.sources,
+        data_timestamp=parsed_ts,
+        ttl_hours=payload.ttl_hours,
+        raise_on_false_claim=False,
+    )
+
+    # Bila klaim AVAILABLE palsu terdeteksi dan ditolak, rekam insiden ke data_quality_issues
+    if validation_result.was_false_claim_rejected:
+        engine = get_engine()
+        async with engine.begin() as conn:
+            await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+            await conn.execute(
+                sa.text("""
+                    INSERT INTO data_quality_issues (
+                        id, tenant_id, entity_type, entity_id, field_name,
+                        issue_type, severity, availability_state, confidence_score,
+                        sources_involved, conflict_details, ai_auto_selection_prevented,
+                        requires_human_resolution, resolution_status, created_at, updated_at
+                    ) VALUES (
+                        gen_random_uuid(), :tenant_id, 'llm_output_claim', 'prompt_inference', 'availability_state',
+                        'FALSE_AVAILABILITY_CLAIM', 'HIGH', :validated_state, :confidence_score,
+                        :sources_involved, :conflict_details, true,
+                        true, 'UNRESOLVED', now(), now()
+                    )
+                """),
+                {
+                    "tenant_id": tenant_id,
+                    "validated_state": validation_result.validated_state.value,
+                    "confidence_score": validation_result.confidence_score,
+                    "sources_involved": json.dumps(payload.sources or []),
+                    "conflict_details": json.dumps({
+                        "claimed": payload.claimed_state,
+                        "rejection_reason": validation_result.rejection_reason,
+                        "breakdown": validation_result.breakdown.to_dict() if validation_result.breakdown else {},
+                    }),
+                }
+            )
+
+    return {"data": validation_result.to_dict()}
+
+
+@router.get("/intelligence/data-quality/summary")
+async def get_data_quality_summary(tenant_id: str):
+    """Mengambil statistik agregat ketersediaan dan isu kualitas data."""
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(sa.text(f"SET LOCAL app.tenant_id = '{tenant_id}';"))
+        
+        # Hitung jumlah isu belum terselesaikan
+        res_unresolved = await conn.execute(
+            sa.text("SELECT COUNT(*) as cnt FROM data_quality_issues WHERE tenant_id = :tenant_id AND resolution_status = 'UNRESOLVED'"),
+            {"tenant_id": tenant_id}
+        )
+        unresolved_cnt = res_unresolved.scalar() or 0
+
+        # Hitung per issue_type
+        res_type = await conn.execute(
+            sa.text("SELECT issue_type, COUNT(*) as cnt FROM data_quality_issues WHERE tenant_id = :tenant_id GROUP BY issue_type"),
+            {"tenant_id": tenant_id}
+        )
+        type_counts = {r["issue_type"]: r["cnt"] for r in res_type.mappings().all()}
+
+        # Hitung per availability_state
+        res_state = await conn.execute(
+            sa.text("SELECT availability_state, COUNT(*) as cnt FROM data_quality_issues WHERE tenant_id = :tenant_id GROUP BY availability_state"),
+            {"tenant_id": tenant_id}
+        )
+        state_counts = {r["availability_state"]: r["cnt"] for r in res_state.mappings().all()}
+
+        return {
+            "tenant_id": tenant_id,
+            "total_unresolved_issues": unresolved_cnt,
+            "issues_by_type": type_counts,
+            "availability_state_distribution": state_counts,
+            "ai_auto_selection_strictly_disabled": True,
+            "human_in_the_loop_enforced": True,
+        }
+

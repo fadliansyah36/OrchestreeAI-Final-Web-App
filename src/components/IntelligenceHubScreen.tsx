@@ -27,14 +27,16 @@ import {
   Target,
   FileSpreadsheet,
   AlertTriangle,
-  Play
+  Play,
+  ShieldAlert
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '../types';
+import { DataQualityCenterScreen } from './DataQualityCenterScreen';
 
 interface IntelligenceHubScreenProps {
   tenant: TenantRegistrationResponse | null;
   onBack?: () => void;
-  defaultTab?: 'competitor' | 'world' | 'prospecting' | 'brain';
+  defaultTab?: 'competitor' | 'world' | 'prospecting' | 'brain' | 'data_quality';
 }
 
 interface CompetitorTarget {
@@ -131,7 +133,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const isValidUuid = (id?: string) => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const tenantId = isValidUuid(tenant?.tenant_id) ? tenant!.tenant_id : 'd1159d6d-0044-42ea-8007-d549a0011402';
 
-  const [topTab, setTopTab] = useState<'competitor' | 'world' | 'prospecting' | 'brain'>(defaultTab);
+  const [topTab, setTopTab] = useState<'competitor' | 'world' | 'prospecting' | 'brain' | 'data_quality'>(defaultTab);
 
   // Competitor Monitor State
   const [targets, setTargets] = useState<CompetitorTarget[]>([]);
@@ -623,6 +625,22 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
           >
             <Brain className="w-4 h-4" />
             Company Brain & Memori
+          </button>
+
+          <button
+            id="tab-btn-data-quality"
+            onClick={() => setTopTab('data_quality')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+              topTab === 'data_quality'
+                ? 'border-emerald-400 text-emerald-400 bg-slate-900/60'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            Kualitas Data & Validasi AI
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20 text-purple-300 font-bold">
+              Output Validator
+            </span>
           </button>
         </div>
 
@@ -1462,6 +1480,13 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
             )}
 
           </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5: PUSAT KUALITAS DATA & VALIDASI AI (DATA QUALITY CENTER) */}
+        {/* ========================================================================= */}
+        {topTab === 'data_quality' && (
+          <DataQualityCenterScreen tenant={tenant} />
         )}
 
         {/* Modal: Tambah Target Kompetitor Baru */}

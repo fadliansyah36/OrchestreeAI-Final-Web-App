@@ -547,7 +547,54 @@ class ModelRouter:
         Rute inferensi dengan urutan prioritas adaptif.
         Menyimpan telemetri panggilan ke llm_usage_logs.
         Mengintegrasikan Credit State Machine (reserve_credit -> consume_credit -> refund_credit).
+        Mengintegrasikan F.01-TOKENOPT: Model Tiering & pgvector Semantic Cache.
         """
+        # F.01-TOKENOPT: Pemeriksaan pra-inferensi (model tiering & pgvector semantic cache)
+        tokenopt_context = None
+        if request.tenant_id and request.task_type != "image_generation":
+            try:
+                from app.skills.f01_tokenopt import get_tokenopt_skill
+                tokenopt = get_tokenopt_skill()
+
+                async def _get_embedding(text_to_embed: str):
+                    return await self.embed_text(text_to_embed, output_dimension=1536)
+
+                is_hit, cached_payload, tokenopt_context = await tokenopt.inspect_and_intercept(
+                    tenant_id=request.tenant_id,
+                    task_type=request.task_type,
+                    prompt=request.prompt,
+                    system_prompt=request.system_prompt,
+                    preferred_model=request.preferred_model,
+                    embed_fn=_get_embedding,
+                )
+
+                if is_hit and cached_payload:
+                    logger.info(f"F.01-TOKENOPT Cache Hit! Menghemat 100% token keluaran untuk tenant {request.tenant_id}.")
+                    cached_res = ModelRouterResponse(
+                        content=cached_payload["response_content"],
+                        provider_id=f"tokenopt_cache:{cached_payload['provider_id']}",
+                        model_id=cached_payload["model_id"],
+                        status="success",
+                        prompt_tokens=tokenopt_context.get("estimated_prompt_tokens", 0),
+                        completion_tokens=max(0, cached_payload["total_tokens"] - tokenopt_context.get("estimated_prompt_tokens", 0)),
+                        total_tokens=cached_payload["total_tokens"],
+                        latency_ms=15,
+                        raw_response={
+                            "cached": True,
+                            "similarity": float(cached_payload["similarity"]),
+                            "cache_id": str(cached_payload["id"]),
+                            "tokens_saved": cached_payload["total_tokens"],
+                        },
+                    )
+                    await self._log_usage(request, cached_res)
+                    return cached_res
+
+                if tokenopt_context and not request.preferred_model:
+                    request.preferred_model = tokenopt_context.get("selected_model")
+
+            except Exception as opt_err:
+                logger.warning(f"F.01-TOKENOPT intercept gagal: {opt_err}")
+
         # Reservasi kredit sebelum memanggil provider
         reservation = None
         if request.tenant_id:
@@ -608,6 +655,26 @@ class ModelRouter:
                             )
                         except Exception as cred_err:
                             logger.warning(f"Gagal mencatat konsumsi kredit: {cred_err}")
+
+                    # F.01-TOKENOPT: Rekam hasil generasi baru dan telemetri penghematan
+                    if request.tenant_id and tokenopt_context:
+                        try:
+                            from app.skills.f01_tokenopt import get_tokenopt_skill
+                            await get_tokenopt_skill().record_new_completion(
+                                tenant_id=request.tenant_id,
+                                task_type=request.task_type,
+                                prompt=request.prompt,
+                                response_content=response.content,
+                                provider_id=response.provider_id,
+                                model_id=response.model_id,
+                                prompt_tokens=response.prompt_tokens or 0,
+                                completion_tokens=response.completion_tokens or 0,
+                                total_tokens=response.total_tokens or 0,
+                                latency_ms=response.latency_ms or 0,
+                                context=tokenopt_context,
+                            )
+                        except Exception as rec_err:
+                            logger.warning(f"Gagal mencatat penyelesaian F.01-TOKENOPT: {rec_err}")
 
                     await self._log_usage(request, response)
                     return response

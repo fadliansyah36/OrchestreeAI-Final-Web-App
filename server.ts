@@ -54,6 +54,8 @@ import { SelectionService } from './src/server/selectionService';
 import { GenerativeStudioService } from './src/server/generativeStudioService';
 import { TrialAllocationService, SlotCapacityExhaustedError } from './src/server/trialAllocationService';
 import { JobTitleReconciliationService } from './src/server/jobTitleReconciliationService';
+import { TokenOptService } from './src/server/tokenOptService';
+import { AgentCatalogService } from './src/server/agentCatalogService';
 
 let pool: pg.Pool | null = null;
 try {
@@ -83,6 +85,8 @@ const messageExperimentService = new MessageExperimentService(pool!);
 const revenueIntelligenceService = new RevenueIntelligenceService(pool!);
 const salesGuardrailService = new SalesGuardrailService(pool!);
 const jobTitleReconciliationService = new JobTitleReconciliationService(pool!);
+const tokenOptService = new TokenOptService(pool!);
+const agentCatalogService = new AgentCatalogService(pool!);
 
 let supabaseClient: any = null;
 function getSupabase() {
@@ -4626,6 +4630,81 @@ app.get('/api/v1/tenants/:tenantId/intelligence/vibe-prospecting', async (req, r
   });
 });
 
+// =========================================================================
+// DATA QUALITY & 5-STATE AVAILABILITY CONFIDENCE ROUTES (PRD v2.2 Bagian 8.12 & 8.13.5)
+// =========================================================================
+
+// GET /api/v1/tenants/:tenantId/intelligence/data-quality/issues
+app.get('/api/v1/tenants/:tenantId/intelligence/data-quality/issues', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { status, issue_type, limit } = req.query as any;
+    const issues = await intelligenceService.listDataQualityIssues(
+      tenantId,
+      status,
+      issue_type,
+      limit ? parseInt(limit, 10) : 50
+    );
+    return res.json({ data: issues, count: issues.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/intelligence/data-quality/issues
+app.post('/api/v1/tenants/:tenantId/intelligence/data-quality/issues', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const created = await intelligenceService.createDataQualityIssue(tenantId, req.body);
+    return res.status(201).json({ data: created });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/intelligence/data-quality/issues/:issueId/resolve
+app.post('/api/v1/tenants/:tenantId/intelligence/data-quality/issues/:issueId/resolve', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { issueId } = req.params;
+    const updated = await intelligenceService.resolveDataQualityIssue(tenantId, issueId, req.body);
+    return res.json({ data: updated, message: 'Konflik berhasil disahkan oleh operator manusia.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/tenants/:tenantId/intelligence/validate-availability
+app.post('/api/v1/tenants/:tenantId/intelligence/validate-availability', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const { claimed_state, actual_data, required_fields, sources, data_timestamp, ttl_hours } = req.body;
+    const result = await intelligenceService.validateOutputClaim(
+      tenantId,
+      claimed_state || 'AVAILABLE',
+      actual_data,
+      required_fields,
+      sources,
+      data_timestamp,
+      ttl_hours ? parseFloat(ttl_hours) : 24.0
+    );
+    return res.json({ data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/intelligence/data-quality/summary
+app.get('/api/v1/tenants/:tenantId/intelligence/data-quality/summary', async (req, res) => {
+  try {
+    const tenantId = await commerceService.resolveTenantUuid(req.params.tenantId);
+    const summary = await intelligenceService.getDataQualitySummary(tenantId);
+    return res.json({ data: summary });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Scheduler Job Crawl Terjadwal per competitor_targets.frequency
 setInterval(async () => {
   if (!pool) return;
@@ -5846,7 +5925,7 @@ app.get('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/events', async (req
 });
 
 // 5. AI Chief of Staff: Generate Morning Briefing (Gated tier 3)
-app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings/generate', async (req, res) => {
+const handleGenerateBriefing = async (req: any, res: any) => {
   try {
     const briefing = await enterpriseService.generateExecutiveBriefing(req.params.tenantId, req.body?.briefing_date);
     return res.status(201).json(briefing);
@@ -5860,17 +5939,45 @@ app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings/generate
       current_tier: err.current_tier,
     });
   }
-});
+};
+
+app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings/generate', handleGenerateBriefing);
+app.post('/api/v1/tenants/:tenantId/enterprise/chief_of_staff/briefings/generate', handleGenerateBriefing);
 
 // 6. AI Chief of Staff: List Briefings (Read-only on Growth/downgraded)
-app.get('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings', async (req, res) => {
+const handleListBriefings = async (req: any, res: any) => {
   try {
     const data = await enterpriseService.getChiefOfStaffBriefings(req.params.tenantId);
     return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
-});
+};
+
+app.get('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings', handleListBriefings);
+app.get('/api/v1/tenants/:tenantId/enterprise/chief_of_staff/briefings', handleListBriefings);
+
+// 6b. AI Chief of Staff: Human Approval on Action Items (Mandatory governance)
+const handleActionApproval = async (req: any, res: any) => {
+  try {
+    const { tenantId, briefingId, actionId } = req.params;
+    const { decision, approved_by, review_notes } = req.body || {};
+    const result = await enterpriseService.approveBriefingAction(
+      tenantId,
+      briefingId,
+      actionId,
+      decision || 'APPROVED',
+      approved_by || 'Human Executive Reviewer',
+      review_notes
+    );
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+app.post('/api/v1/tenants/:tenantId/enterprise/chief-of-staff/briefings/:briefingId/actions/:actionId/approval', handleActionApproval);
+app.post('/api/v1/tenants/:tenantId/enterprise/chief_of_staff/briefings/:briefingId/actions/:actionId/approval', handleActionApproval);
 
 // 7. Integration Fabric: List Connectors
 app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors', async (req, res) => {
@@ -6260,6 +6367,105 @@ app.get(['/api/v1/tenants/:tenantId/enterprise/conversational-sessions/:sessionI
   } catch (err: any) {
     const status = err.status || (err.code === 'capability_not_available' ? 403 : 500);
     return res.status(status).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// F.01-TOKENOPT: Token Optimization & Semantic Cache Endpoints (PRD v2.2 Bagian 11.8)
+// ============================================================================
+
+// GET /api/v1/tenants/:tenantId/tokenopt/summary
+app.get('/api/v1/tenants/:tenantId/tokenopt/summary', async (req, res) => {
+  try {
+    const summary = await tokenOptService.getSummary(req.params.tenantId);
+    return res.json(summary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/tokenopt/logs
+app.get('/api/v1/tenants/:tenantId/tokenopt/logs', async (req, res) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 50;
+    const logs = await tokenOptService.getLogs(req.params.tenantId, limit);
+    return res.json(logs);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// F.01-AGENTCAT: Super Admin Agent Blueprint Catalog & Staged Rollout (PRD v2.2 Bagian 11.3)
+// ============================================================================
+
+// POST /api/v1/admin/agent-catalog/ingest
+app.post('/api/v1/admin/agent-catalog/ingest', async (req, res) => {
+  try {
+    const operator = (req.body.operator as string) || 'Super Admin';
+    const blueprint = await agentCatalogService.ingestPackage(req.body, operator);
+    return res.status(201).json(blueprint);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/admin/agent-catalog/blueprints/:blueprintId/rollout
+app.post('/api/v1/admin/agent-catalog/blueprints/:blueprintId/rollout', async (req, res) => {
+  try {
+    const { target_stage, targetStage, allowed_tenant_ids, allowedTenantIds, operator } = req.body || {};
+    const stage = target_stage || targetStage;
+    if (!stage) {
+      return res.status(400).json({ error: 'target_stage wajib diisi (INTERNAL, BETA_TENANT, GENERAL_AVAILABILITY).' });
+    }
+    const tenants = allowed_tenant_ids || allowedTenantIds || [];
+    const updated = await agentCatalogService.transitionRollout(
+      req.params.blueprintId,
+      stage,
+      tenants,
+      operator || 'Super Admin'
+    );
+    return res.json(updated);
+  } catch (err: any) {
+    const status = err.name === 'PolicyScanRequiredError' ? 422 : 400;
+    return res.status(status).json({ error: err.message, name: err.name });
+  }
+});
+
+// GET /api/v1/admin/agent-catalog/blueprints
+app.get('/api/v1/admin/agent-catalog/blueprints', async (req, res) => {
+  try {
+    const stage = req.query.stage as string | undefined;
+    const category = req.query.category as string | undefined;
+    const policyStatus = (req.query.policy_status || req.query.policyStatus) as string | undefined;
+    const list = await agentCatalogService.listBlueprints(stage, category, policyStatus);
+    return res.json(list);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/admin/agent-catalog/blueprints/:blueprintId
+app.get('/api/v1/admin/agent-catalog/blueprints/:blueprintId', async (req, res) => {
+  try {
+    const bp = await agentCatalogService.getBlueprint(req.params.blueprintId);
+    if (!bp) {
+      return res.status(404).json({ error: 'Blueprint tidak ditemukan.' });
+    }
+    return res.json(bp);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/tenants/:tenantId/agent-catalog/available
+app.get('/api/v1/tenants/:tenantId/agent-catalog/available', async (req, res) => {
+  try {
+    const category = req.query.category as string | undefined;
+    const available = await agentCatalogService.listAvailableForTenant(req.params.tenantId, category);
+    return res.json(available);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

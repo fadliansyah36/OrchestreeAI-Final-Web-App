@@ -36,12 +36,14 @@ import { SalesGuardrailsScreen } from './components/SalesGuardrailsScreen';
 import { UniversalSelectionHubScreen } from './components/UniversalSelectionHubScreen';
 import { GenerativeStudioHubScreen } from './components/GenerativeStudioHubScreen';
 import { AIDataPermissionScreen } from './components/AIDataPermissionScreen';
+import { TokenOptimizationScreen } from './components/TokenOptimizationScreen';
+import { AgentBlueprintCatalogScreen } from './components/AgentBlueprintCatalogScreen';
 import { TenantRegistrationResponse } from './types';
 
 export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [activeWorkspace, setActiveWorkspace] = useState<'client' | 'admin' | 'startup_gate'>('client');
-  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails' | 'selection' | 'generative' | 'permissions'>('landing');
+  const [clientSubView, setClientSubView] = useState<'landing' | 'onboarding' | 'dashboard' | 'workforce' | 'kanban' | 'attendance' | 'billing' | 'proactive' | 'intelligence' | 'crm_pipeline' | 'crm_personas' | 'commerce_catalog' | 'commerce_orders' | 'marketing_campaigns' | 'service_requests' | 'revenue_intelligence' | 'sales_coach' | 'message_experiments' | 'sales_guardrails' | 'selection' | 'generative' | 'permissions' | 'tokenopt' | 'agentcat'>('landing');
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>('FREE_TRIAL');
   const [activeTenant, setActiveTenant] = useState<TenantRegistrationResponse | null>(() => {
     const saved = localStorage.getItem('orchestree_active_tenant');
@@ -367,6 +369,28 @@ export default function App() {
                 >
                   Izin Data AI (ABAC)
                 </button>
+                <button
+                  id="nav-btn-tokenopt"
+                  onClick={() => setClientSubView('tokenopt')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'tokenopt'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Optimasi Token
+                </button>
+                <button
+                  id="nav-btn-agentcat"
+                  onClick={() => setClientSubView('agentcat')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                    clientSubView === 'agentcat'
+                      ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Katalog Blueprint
+                </button>
               </div>
             )}
             <button
@@ -572,6 +596,21 @@ export default function App() {
                 userId={activeTenant?.user_id}
                 onBack={() => setClientSubView('dashboard')}
               />
+            )}
+            {clientSubView === 'tokenopt' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <TokenOptimizationScreen
+                  tenantId={activeTenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+                />
+              </div>
+            )}
+            {clientSubView === 'agentcat' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <AgentBlueprintCatalogScreen
+                  tenantId={activeTenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+                  isSuperAdmin={false}
+                />
+              </div>
             )}
           </div>
         )}
