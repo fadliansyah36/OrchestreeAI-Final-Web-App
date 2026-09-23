@@ -480,7 +480,7 @@ class AgentBlueprintCatalog:
         allowed_tenant_ids: Optional[List[str]] = None,
         operator: str = "Super Admin",
     ) -> Dict[str, Any]:
-        """Mentransisikan tahap rollout blueprint."""
+        """Mentransisikan status rollout blueprint."""
         return await self.rollout_controller.transition_stage(
             identifier=identifier,
             target_stage=target_stage,

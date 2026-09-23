@@ -529,7 +529,7 @@
       "post": {
         "tags": ["agent-catalog-admin"],
         "summary": "Transition Blueprint Rollout Stage",
-        "description": "Mentransisikan tahap rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY). Wajib lolos pemindai kebijakan ('PASSED').",
+        "description": "Mentransisikan status rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY). Wajib lolos pemindai kebijakan ('PASSED').",
         "operationId": "transition_rollout_stage",
         "parameters": [
           { "name": "blueprint_id", "in": "path", "required": true, "schema": { "type": "string" } }

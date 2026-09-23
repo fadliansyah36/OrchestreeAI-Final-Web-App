@@ -143,3 +143,42 @@ def decrypt_fabric_credentials(
         return json.loads(plaintext_bytes.decode("utf-8"))
     except Exception as e:
         raise ValueError(f"Dekripsi berhasil namun payload bukan JSON valid: {e}")
+
+
+def rotate_fabric_credentials(
+    encrypted_payload: str,
+    tenant_id: str,
+    connector_id: str,
+    expected_old_key_id: Optional[str] = None,
+    custom_new_key_id: Optional[str] = None,
+) -> Tuple[str, str, str, Dict[str, Any]]:
+    """
+    Melakukan rotasi kunci KMS Envelope (PRD v2.2 Bagian 3.4, 3.5, 12):
+    1. Mendekripsi kredensial lama menggunakan expected_old_key_id (legacy readability).
+    2. Menghasilkan key ID baru dan melakukan re-wrap dengan material kunci turunan segar.
+    3. Memverifikasi round-trip bahwa dekripsi menghasilkan data yang identik 100%.
+
+    Returns:
+        Tuple[new_encrypted_payload, previous_key_id, new_key_id, verified_decrypted_data]
+    """
+    decrypted = decrypt_fabric_credentials(
+        encrypted_payload, tenant_id, connector_id, expected_old_key_id
+    )
+    raw_json = base64.b64decode(encrypted_payload.encode("ascii")).decode("utf-8")
+    old_envelope = json.loads(raw_json)
+    previous_key_id = expected_old_key_id or old_envelope.get("kid", "unknown")
+
+    new_key_id = custom_new_key_id or f"kid-fabric-rot-{secrets.token_hex(8)}"
+    new_encrypted_payload, assigned_kid = encrypt_fabric_credentials(
+        decrypted, tenant_id, connector_id, new_key_id
+    )
+
+    # Verifikasi round-trip
+    re_decrypted = decrypt_fabric_credentials(
+        new_encrypted_payload, tenant_id, connector_id, assigned_kid
+    )
+    if json.dumps(decrypted, sort_keys=True) != json.dumps(re_decrypted, sort_keys=True):
+        raise ValueError("KMS Key Rotation Verification Failed: Payload hasil rotasi tidak cocok")
+
+    return new_encrypted_payload, previous_key_id, assigned_kid, re_decrypted
+

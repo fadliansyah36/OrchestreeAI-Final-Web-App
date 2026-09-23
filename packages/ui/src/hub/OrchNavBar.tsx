@@ -459,10 +459,12 @@ export function OrchNavBar({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                Navigasi Lengkap
+                {locale === 'en' ? 'Full Navigation' : 'Navigasi Lengkap'}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {mode === 'client' ? 'Ruang Kerja Organisasi' : 'Konsol Kendali Super Admin'}
+                {mode === 'client'
+                  ? (locale === 'en' ? 'Organization Workspace' : 'Ruang Kerja Organisasi')
+                  : (locale === 'en' ? 'Super Admin Control Plane' : 'Konsol Kendali Super Admin')}
               </p>
             </div>
           </div>
@@ -505,7 +507,7 @@ export function OrchNavBar({
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari domain atau fitur..." // allowlist: standard UI search input hint
+              placeholder={locale === 'en' ? 'Search domain or feature...' : 'Cari domain atau fitur...'} // allowlist: standard UI search input hint
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9.5 pr-4 py-2 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" // allowlist: standard UI input hint
@@ -518,7 +520,9 @@ export function OrchNavBar({
           {groupedCategories.length === 0 ? (
             <div className="py-12 text-center text-slate-400 dark:text-slate-500">
               <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm font-medium">Tidak ada domain yang cocok dengan pencarian</p>
+              <p className="text-sm font-medium">
+                {locale === 'en' ? 'No domains match your search' : 'Tidak ada domain yang cocok dengan pencarian'}
+              </p>
             </div>
           ) : (
             groupedCategories.map(([categoryName, items]) => (
@@ -590,7 +594,7 @@ export function OrchNavBar({
         <div className="p-4 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B1220] flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
           <div className="flex flex-col">
             <span className="font-semibold text-slate-700 dark:text-slate-300">OrchestreeAI</span>
-            <span>Sistem Operasi Tenaga Kerja</span>
+            <span>{locale === 'en' ? 'Autonomous AI Workforce OS' : 'Sistem Operasi Tenaga Kerja'}</span>
           </div>
           <PWAInstallButton />
         </div>

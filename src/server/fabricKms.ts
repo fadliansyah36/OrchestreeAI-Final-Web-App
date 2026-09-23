@@ -153,3 +153,47 @@ export function decryptFabricCredentials(
     throw new Error(`Dekripsi berhasil namun payload bukan JSON valid: ${err.message}`);
   }
 }
+
+/**
+ * Melakukan rotasi kunci enkripsi amplop KMS:
+ * 1. Mendekripsi payload lama menggunakan oldKeyId (memastikan data lama tetap terbaca).
+ * 2. Menghasilkan newKeyId (atau customNewKeyId).
+ * 3. Mengenksipsi ulang (re-wrapping) payload dengan kunci turunan baru.
+ * 4. Memverifikasi round-trip dekripsi kunci baru menghasilkan data yang identik 100%.
+ */
+export function rotateFabricCredentials(
+  encryptedPayload: string,
+  tenantId: string,
+  connectorId: string,
+  expectedOldKeyId?: string,
+  customNewKeyId?: string
+): {
+  newEncryptedPayload: string;
+  previousKeyId: string;
+  newKeyId: string;
+  decryptedVerification: Record<string, any>;
+} {
+  // 1. Dekripsi data lama (memastikan data lama tetap terbaca dan valid)
+  const decrypted = decryptFabricCredentials(encryptedPayload, tenantId, connectorId, expectedOldKeyId);
+  const rawJson = Buffer.from(encryptedPayload, 'base64').toString('utf-8');
+  const oldEnvelope = JSON.parse(rawJson);
+  const previousKeyId = expectedOldKeyId || oldEnvelope.kid;
+
+  // 2. Enkripsi ulang dengan Key ID baru
+  const newKeyId = customNewKeyId || `kid-fabric-rot-${crypto.randomBytes(8).toString('hex')}`;
+  const newEnvelope = encryptFabricCredentials(decrypted, tenantId, connectorId, newKeyId);
+
+  // 3. Verifikasi round-trip dekripsi payload baru
+  const reDecrypted = decryptFabricCredentials(newEnvelope.encryptedPayload, tenantId, connectorId, newKeyId);
+  const roundtripMatches = JSON.stringify(decrypted) === JSON.stringify(reDecrypted);
+  if (!roundtripMatches) {
+    throw new Error('KMS Key Rotation Verification Failed: Payload hasil rotasi tidak cocok dengan data asli!');
+  }
+
+  return {
+    newEncryptedPayload: newEnvelope.encryptedPayload,
+    previousKeyId,
+    newKeyId,
+    decryptedVerification: reDecrypted,
+  };
+}

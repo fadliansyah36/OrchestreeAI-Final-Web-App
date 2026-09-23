@@ -58,7 +58,7 @@ async def ingest_skill_package(payload: BlueprintIngestRequest):
 @admin_router.post("/blueprints/{blueprint_id}/rollout")
 async def transition_rollout_stage(blueprint_id: str, payload: RolloutTransitionRequest):
     """
-    Mentransisikan tahap rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY).
+    Mentransisikan status rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY).
     Wajib lolos pemindai kebijakan ('PASSED') sebelum diizinkan melangkah.
     """
     catalog = get_agentcat_catalog()

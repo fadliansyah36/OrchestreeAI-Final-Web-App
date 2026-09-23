@@ -1,7 +1,7 @@
 import pg from 'pg';
 import crypto from 'crypto';
 import { authorizePDP, MCPToolRegistryService, OrchestrationEngineService, ModelRouterService } from './cognitiveCore';
-import { encryptFabricCredentials, decryptFabricCredentials } from './fabricKms';
+import { encryptFabricCredentials, decryptFabricCredentials, rotateFabricCredentials } from './fabricKms';
 
 export interface TenantTierInfo {
   tenant_id: string;
@@ -326,11 +326,11 @@ export class EnterpriseService {
         trend_direction: direction,
         decay_applied: currConf < confScore,
         last_calculated_at: row.last_calculated_at,
-        historical_origin: 'Fase 5 Continuous Learning',
+        historical_origin: 'Continuous Learning Feedback Loop',
       };
     });
 
-    // 3. Ambil data Specialist Agent & Project Health (Fase 31)
+    // 3. Ambil data Specialist Agent & Project Health
     let projectHealthRows: any[] = [];
     try {
       const phRes = await this.pool.query(
@@ -460,7 +460,7 @@ export class EnterpriseService {
 
     const executiveSummary =
       `Executive Morning Briefing [${targetDate}]: Koordinasi lintas departemen berjalan stabil dengan ${specialistInsights.length} pilar wawasan spesialis. ` +
-      `Evaluasi matriks keahlian mencatat rata-rata kepercayaan ${avgConfidence}% pada ${skillTrends.length} kompetensi terlacak sejak Fase 5. ` +
+      `Evaluasi matriks keahlian mencatat rata-rata kepercayaan ${avgConfidence}% pada ${skillTrends.length} kompetensi terlacak dalam siklus pembelajaran berkelanjutan. ` +
       (degradingSkills.length > 0
         ? `Perhatian khusus diarahkan pada ${degradingSkills.length} keahlian yang mengalami degradasi performa atau penyesuaian skor decay. `
         : `Seluruh keahlian operasional berada dalam parameter kepercayaan optimal. `) +
@@ -1189,6 +1189,99 @@ export class EnterpriseService {
     }
 
     return decryptFabricCredentials(credentials_encrypted, tenantId, connectorId, credential_key_id);
+  }
+
+  /**
+   * Rotasi kunci enkripsi amplop KMS per-koneksi Fabric (PRD v2.2 Bagian 3.4, 3.5, 12).
+   * 1. Memverifikasi hak akses Enterprise ('integration.fabric.kms.rotate').
+   * 2. Mendekripsi kredensial lama menggunakan credential_key_id lama (legacy readability).
+   * 3. Menghasilkan credential_key_id baru dan melakukan re-wrapping dengan fresh salt & nonce.
+   * 4. Memverifikasi round-trip bahwa dekripsi dengan kunci baru identik 100%.
+   * 5. Memperbarui database dan mencatat immutable audit log ke audit_logs.
+   */
+  async rotateConnectorKmsKey(
+    tenantId: string,
+    connectorId: string,
+    customNewKeyId?: string
+  ): Promise<{
+    status: 'ROTATED';
+    connector_id: string;
+    previous_key_id: string;
+    new_key_id: string;
+    rotated_at: string;
+    roundtrip_verified: boolean;
+  }> {
+    await this.assertEnterpriseAccess(
+      tenantId,
+      'integration.fabric.kms.rotate',
+      'Rotasi Kunci Enkripsi KMS Fabric'
+    );
+
+    if (!this.pool) throw new Error('Database pool tidak tersedia');
+
+    const res = await this.pool.query(
+      `SELECT id, connector_name, credential_key_id, credentials_encrypted
+       FROM integration_fabric_connectors
+       WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, connectorId]
+    );
+
+    if (res.rows.length === 0) {
+      throw new Error(`Konektor '${connectorId}' tidak ditemukan.`);
+    }
+
+    const conn = res.rows[0];
+    if (!conn.credentials_encrypted || !conn.credential_key_id) {
+      throw new Error(`Konektor '${conn.connector_name}' tidak memiliki kredensial terenkripsi untuk dirotasi.`);
+    }
+
+    // Eksekusi rotasi KMS envelope
+    const rotation = rotateFabricCredentials(
+      conn.credentials_encrypted,
+      tenantId,
+      connectorId,
+      conn.credential_key_id,
+      customNewKeyId
+    );
+
+    // Update database dengan payload dan key_id baru
+    await this.pool.query(
+      `UPDATE integration_fabric_connectors
+       SET credential_key_id = $1,
+           credentials_encrypted = $2,
+           updated_at = now()
+       WHERE id = $3 AND tenant_id = $4`,
+      [rotation.newKeyId, rotation.newEncryptedPayload, connectorId, tenantId]
+    );
+
+    // Catat audit log rotasi kunci KMS
+    const auditId = crypto.randomUUID();
+    await this.pool.query(
+      `INSERT INTO audit_logs (
+         id, tenant_id, actor_type, action,
+         payload_before, payload_after, created_at
+       ) VALUES ($1, $2, 'system', 'integration.fabric.kms.rotate', $3, $4, now())`,
+      [
+        auditId,
+        tenantId,
+        JSON.stringify({ previous_key_id: rotation.previousKeyId, connector_id: connectorId }),
+        JSON.stringify({
+          new_key_id: rotation.newKeyId,
+          connector_id: connectorId,
+          status: 'ROTATED',
+          roundtrip_verified: true,
+        }),
+      ]
+    );
+
+    return {
+      status: 'ROTATED',
+      connector_id: connectorId,
+      previous_key_id: rotation.previousKeyId,
+      new_key_id: rotation.newKeyId,
+      rotated_at: new Date().toISOString(),
+      roundtrip_verified: true,
+    };
   }
 
   // =========================================================================

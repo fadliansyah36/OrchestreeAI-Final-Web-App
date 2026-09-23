@@ -8,11 +8,13 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import uuid
 import datetime
+import json
 
 from app.core.database import get_db_connection
 from orchestree.core.security.fabric_kms import (
     encrypt_fabric_credentials,
     decrypt_fabric_credentials,
+    rotate_fabric_credentials,
 )
 from orchestree.domains.enterprise.research_agent import (
     KnowledgeSourceItem,
@@ -429,6 +431,90 @@ async def activate_fabric_connector(tenant_id: str, connector_id: str):
                 "is_complete": True,
             }
         }
+
+
+@router.post("/integration-fabric/connectors/{connector_id}/rotate-kms")
+async def rotate_fabric_connector_kms(
+    tenant_id: str,
+    connector_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+):
+    """
+    Rotasi kunci KMS Envelope untuk konektor Fabric (PRD v2.2 Bagian 3.4, 3.5, 12).
+    Mendekripsi payload lama (legacy readability), re-wrap dengan key ID baru,
+    memvalidasi roundtrip, mengupdate tabel integration_fabric_connectors,
+    dan mencatat audit log 'integration.fabric.kms.rotate'.
+    """
+    async with get_db_connection() as db:
+        await assert_enterprise_tier(tenant_id, db)
+
+        conn = await db.fetchrow(
+            "SELECT * FROM integration_fabric_connectors WHERE id = $1 AND tenant_id = $2",
+            uuid.UUID(connector_id),
+            uuid.UUID(tenant_id)
+        )
+        if not conn:
+            raise HTTPException(status_code=404, detail=f"Konektor '{connector_id}' tidak ditemukan.")
+
+        enc_payload = conn.get("credentials_encrypted")
+        old_kid = conn.get("credential_key_id")
+        if not enc_payload or not old_kid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Konektor '{conn['connector_name']}' tidak memiliki kredensial terenkripsi untuk dirotasi."
+            )
+
+        custom_kid = (payload or {}).get("custom_new_key_id")
+        new_payload, prev_kid, new_kid, _ = rotate_fabric_credentials(
+            enc_payload,
+            tenant_id,
+            connector_id,
+            expected_old_key_id=old_kid,
+            custom_new_key_id=custom_kid,
+        )
+
+        await db.execute(
+            """
+            UPDATE integration_fabric_connectors
+            SET credential_key_id = $1,
+                credentials_encrypted = $2,
+                updated_at = now()
+            WHERE id = $3 AND tenant_id = $4
+            """,
+            new_kid,
+            new_payload,
+            uuid.UUID(connector_id),
+            uuid.UUID(tenant_id)
+        )
+
+        audit_id = uuid.uuid4()
+        await db.execute(
+            """
+            INSERT INTO audit_logs (
+                id, tenant_id, actor_type, action,
+                payload_before, payload_after, created_at
+            ) VALUES ($1, $2, 'system', 'integration.fabric.kms.rotate', $3, $4, now())
+            """,
+            audit_id,
+            uuid.UUID(tenant_id),
+            json.dumps({"previous_key_id": prev_kid, "connector_id": connector_id}),
+            json.dumps({
+                "new_key_id": new_kid,
+                "connector_id": connector_id,
+                "status": "ROTATED",
+                "roundtrip_verified": True
+            })
+        )
+
+        return {
+            "status": "ROTATED",
+            "connector_id": connector_id,
+            "previous_key_id": prev_kid,
+            "new_key_id": new_kid,
+            "rotated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "roundtrip_verified": True,
+        }
+
 
 
 @router.post("/integration-fabric/sync")

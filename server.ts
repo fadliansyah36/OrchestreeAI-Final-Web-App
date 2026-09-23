@@ -6094,6 +6094,25 @@ app.get('/api/v1/tenants/:tenantId/enterprise/integration-fabric/sync-logs', asy
   }
 });
 
+// 9g. Integration Fabric: Rotate KMS Envelope Key (Gated tier 3 Enterprise & Audit Logged)
+app.post('/api/v1/tenants/:tenantId/enterprise/integration-fabric/connectors/:connectorId/rotate-kms', async (req, res) => {
+  try {
+    const result = await enterpriseService.rotateConnectorKmsKey(
+      req.params.tenantId,
+      req.params.connectorId,
+      req.body?.custom_new_key_id
+    );
+    return res.json(result);
+  } catch (err: any) {
+    const status = err.status || 500;
+    return res.status(status).json({
+      error: err.code || 'kms_rotation_failed',
+      code: err.code || 'kms_rotation_failed',
+      message: err.message,
+    });
+  }
+});
+
 // 10. Company Context Fabric: Query (Gated tier 3)
 app.post('/api/v1/tenants/:tenantId/enterprise/context-fabric/query', async (req, res) => {
   try {

@@ -23,8 +23,12 @@ import {
 
 dotenv.config();
 
+const connectionString =
+  process.env.DATABASE_URL ||
+  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: { rejectUnauthorized: false },
 });
 
@@ -62,12 +66,15 @@ async function runPenetrationSuite() {
       ON CONFLICT (id) DO NOTHING;
     `, [testDeptId, testTenantId]);
 
-    // 3. Buat agen AI di ai_agents
+    // 3. Ambil job title valid dan buat agen AI di ai_agents
+    const jobTitleRes = await client.query(`SELECT id FROM ai_job_titles LIMIT 1;`);
+    const validJobTitleId = jobTitleRes.rows[0]?.id;
+
     await client.query(`
-      INSERT INTO ai_agents (id, tenant_id, department_id, persona_type, display_name, status)
-      VALUES ($1, $2, $3, 'market_intelligence', 'Test Security Analyst Agent', 'active')
+      INSERT INTO ai_agents (id, tenant_id, department_id, persona_type, display_name, status, job_title_id)
+      VALUES ($1, $2, $3, 'market_intelligence', 'Test Security Analyst Agent', 'active', $4)
       ON CONFLICT (id) DO NOTHING;
-    `, [testAgentId, testTenantId, testDeptId]);
+    `, [testAgentId, testTenantId, testDeptId, validJobTitleId]);
 
     console.log('----------------------------------------------------------------');
     console.log('TEST 1: SIFAT MUTLAK ABAC — DEFAULT DENIED_NO_POLICY & AUDIT LOG');

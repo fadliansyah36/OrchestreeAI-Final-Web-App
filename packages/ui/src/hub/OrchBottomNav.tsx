@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocaleContext } from '../i18n';
 import {
   Home,
   Briefcase,
@@ -35,20 +36,22 @@ export function OrchBottomNav({
   unreadCount = 0,
   pendingTasksCount = 0
 }: OrchBottomNavProps) {
+  const { locale } = useLocaleContext();
+
   const clientItems: BottomNavItem[] = [
-    { id: 'home', label: 'Beranda', icon: Home },
-    { id: 'work', label: 'Kerja', icon: Briefcase, badgeCount: pendingTasksCount },
-    { id: 'ask_ai', label: 'Tanya AI', icon: Sparkles, isSpecialAction: true },
-    { id: 'activity', label: 'Aktivitas', icon: Bell, badgeCount: unreadCount },
-    { id: 'account', label: 'Akun', icon: User }
+    { id: 'home', label: locale === 'en' ? 'Home' : 'Beranda', icon: Home },
+    { id: 'work', label: locale === 'en' ? 'Work' : 'Kerja', icon: Briefcase, badgeCount: pendingTasksCount },
+    { id: 'ask_ai', label: locale === 'en' ? 'Ask AI' : 'Tanya AI', icon: Sparkles, isSpecialAction: true },
+    { id: 'activity', label: locale === 'en' ? 'Activity' : 'Aktivitas', icon: Bell, badgeCount: unreadCount },
+    { id: 'account', label: locale === 'en' ? 'Account' : 'Akun', icon: User }
   ];
 
   const adminItems: BottomNavItem[] = [
-    { id: 'admin_overview', label: 'Ringkasan', icon: ShieldCheck },
-    { id: 'admin_tenants', label: 'Tenant', icon: Building2 },
-    { id: 'admin_system', label: 'Sistem', icon: Server },
-    { id: 'admin_finance', label: 'Keuangan', icon: DollarSign },
-    { id: 'admin_account', label: 'Akun', icon: User }
+    { id: 'admin_overview', label: locale === 'en' ? 'Overview' : 'Ringkasan', icon: ShieldCheck },
+    { id: 'admin_tenants', label: locale === 'en' ? 'Tenants' : 'Tenant', icon: Building2 },
+    { id: 'admin_system', label: locale === 'en' ? 'System' : 'Sistem', icon: Server },
+    { id: 'admin_finance', label: locale === 'en' ? 'Finance' : 'Keuangan', icon: DollarSign },
+    { id: 'admin_account', label: locale === 'en' ? 'Account' : 'Akun', icon: User }
   ];
 
   const items = mode === 'client' ? clientItems : adminItems;

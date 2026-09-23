@@ -66,3 +66,4 @@ export const OrchIntlProvider: React.FC<{
 };
 
 export { idMessages, enMessages };
+export { useTranslations } from 'next-intl';
