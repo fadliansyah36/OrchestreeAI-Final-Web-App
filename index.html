@@ -1,13 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/logoorchestreeweb.png" />
-    <title>OrchestreeAI</title>
-    <meta name="description" content="Autonomous AI Workforce Operating System" />
-    <meta property="og:title" content="OrchestreeAI" />
-    <meta property="og:description" content="Autonomous AI Workforce Operating System" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1FA35A" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OrchestreeAI" />
+    <title>OrchestreeAI — Autonomous AI Workforce Operating System</title>
+    <meta name="description" content="Autonomous AI Workforce Operating System for Enterprise Multi-Tenant Operations" />
+    <meta property="og:title" content="OrchestreeAI — Autonomous AI Workforce Operating System" />
+    <meta property="og:description" content="Autonomous AI Workforce Operating System for Enterprise Multi-Tenant Operations" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <script>
@@ -24,6 +31,13 @@
           }
         } catch (e) {}
       })();
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function(err) {
+            console.warn('SW registration warning:', err);
+          });
+        });
+      }
     </script>
   </head>
   <body>

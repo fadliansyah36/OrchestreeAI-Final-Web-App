@@ -931,7 +931,7 @@ export const EnterpriseWorkforceHubScreen: React.FC<EnterpriseWorkforceHubScreen
 
                 <div className="text-xs text-slate-500 border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <span>Penegekan Skema Database: chief_of_staff_briefings · RLS Terisolasi Multi-Tenant</span>
-                  <span className="font-mono">Versi Regulasi: PRD Enterprise Compliance</span>
+                  <span className="font-mono">Versi Regulasi: Enterprise Compliance Standards</span>
                 </div>
               </div>
             )}

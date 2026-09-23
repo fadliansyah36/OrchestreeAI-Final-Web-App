@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { PWAInstallButton } from '../feedback/PWAInstallButton';
+import { useLocaleContext } from '../i18n';
 import {
   X,
   Search,
@@ -35,7 +37,8 @@ import {
   Sun,
   Moon,
   BarChart3,
-  MessageSquare
+  MessageSquare,
+  Languages
 } from 'lucide-react';
 
 export interface NavDomainItem {
@@ -73,10 +76,11 @@ export function OrchNavBar({
   theme,
   onToggleTheme
 }: OrchNavBarProps) {
+  const { locale, toggleLocale } = useLocaleContext();
   const [searchQuery, setSearchQuery] = useState('');
 
   const clientDomains: NavDomainItem[] = [
-    // 1. Kelompok Kerja & Tim (PRD Resmi)
+    // 1. Kelompok Kerja & Tim (Standar Platform Resmi)
     {
       id: 'workforce',
       label: 'Tenaga Kerja',
@@ -126,11 +130,11 @@ export function OrchNavBar({
       category: 'Kerja & Tim'
     },
 
-    // 2. Kelompok Penjualan & Komunikasi (PRD Resmi: Omnichannel dan Proactive DIPISAHKAN TOTAL)
+    // 2. Kelompok Penjualan & Komunikasi (Standar Platform: Omnichannel dan Proactive DIPISAHKAN TOTAL)
     {
       id: 'omnichannel',
       label: 'Penjualan & Omnichannel',
-      description: 'Pipeline CRM 8 tahap, AI handoff, inbox komunikasi pelanggan multi-kanal',
+      description: 'Pipeline CRM 8 tingkat status, AI handoff, inbox komunikasi pelanggan multi-kanal',
       icon: MessageSquare,
       route: 'omnichannel',
       category: 'Penjualan & Komunikasi'
@@ -224,7 +228,7 @@ export function OrchNavBar({
       category: 'Penjualan & Komunikasi'
     },
 
-    // 3. Kelompok Kecerdasan & Data (PRD Resmi)
+    // 3. Kelompok Kecerdasan & Data (Standar Platform Resmi)
     {
       id: 'intelligence',
       label: 'Kecerdasan Eksternal',
@@ -283,7 +287,7 @@ export function OrchNavBar({
       category: 'Kecerdasan & Data'
     },
 
-    // 4. Kelompok Pengaturan (PRD Resmi)
+    // 4. Kelompok Pengaturan (Standar Platform Resmi)
     {
       id: 'billing',
       label: 'Kredit & Tagihan',
@@ -463,6 +467,16 @@ export function OrchNavBar({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleLocale}
+              aria-label="Ganti bahasa antarmuka"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Ganti bahasa (ID / EN)"
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>{locale.toUpperCase()}</span>
+            </button>
             {onToggleTheme && (
               <button
                 type="button"
@@ -573,9 +587,12 @@ export function OrchNavBar({
         </div>
 
         {/* Drawer Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B1220] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>OrchestreeAI v2.2</span>
-          <span>Sistem Operasi Tenaga Kerja</span>
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0B1220] flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-col">
+            <span className="font-semibold text-slate-700 dark:text-slate-300">OrchestreeAI</span>
+            <span>Sistem Operasi Tenaga Kerja</span>
+          </div>
+          <PWAInstallButton />
         </div>
       </div>
 

@@ -188,7 +188,7 @@ export const OrderManagementScreen: React.FC<{
     }
   };
 
-  // Pengujian Webhook Pembayaran Resmi Berbasis Signature Midtrans (PRD v2.2 Bagian 12.5)
+  // Pengujian Webhook Pembayaran Resmi Berbasis Signature Midtrans
   const handleSimulatePaymentWebhook = async (order: Order) => {
     try {
       const grossAmount = order.total_amount.toFixed(0);

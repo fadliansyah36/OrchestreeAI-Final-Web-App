@@ -223,7 +223,7 @@ export function calculateLeadScore(params: {
   const stagePt = stageWeights[currentStage] || 0.0;
   score += stagePt;
   breakdown.stage_score = stagePt;
-  breakdown.details.push({ component: 'Tahap Pipeline', points: stagePt, reason: `Tahap saat ini: ${currentStage}` });
+  breakdown.details.push({ component: 'Status Pipeline', points: stagePt, reason: `Status saat ini: ${currentStage}` });
 
   // 3. Engagement Score
   const engagementPts = Math.min(msgCount * 2.0, 10.0);
@@ -538,7 +538,7 @@ export class CrmLeadService {
     return this.executeWithTenant(tenantId, async (client) => {
       const stage = newStage.toUpperCase();
       if (!LEAD_STAGES.includes(stage)) {
-        throw new Error(`Tahap '${stage}' tidak valid. Pilihan: ${LEAD_STAGES.join(', ')}`);
+        throw new Error(`Status '${stage}' tidak valid. Pilihan: ${LEAD_STAGES.join(', ')}`);
       }
 
       await client.query('BEGIN');

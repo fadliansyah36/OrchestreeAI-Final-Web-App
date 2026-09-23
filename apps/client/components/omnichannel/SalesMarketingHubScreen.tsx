@@ -27,7 +27,7 @@ export const SalesMarketingHubScreen: React.FC<SalesMarketingHubScreenProps> = (
             Pusat Penjualan, Pemasaran & Omnichannel
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Pipeline CRM 8 Tahap, Dynamic Lead Scoring (BANT), dan Konfigurasi Persona AI Handoff terintegrasi gateway omnichannel.
+            Pipeline CRM 8 Tingkat Status, Dynamic Lead Scoring (BANT), dan Konfigurasi Persona AI Handoff terintegrasi gateway omnichannel.
           </p>
         </div>
 

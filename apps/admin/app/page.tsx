@@ -32,7 +32,7 @@ export default function AdminHomePage() {
         </div>
       </header>
 
-      {/* Complete Admin Super Hub Screen (PRD v2.2) */}
+      {/* Complete Admin Super Hub Screen */}
       <AdminSuperHubScreen initialTab="overview" />
     </main>
   );

@@ -1114,7 +1114,7 @@ export class CommerceService {
           found: true,
           order_number: order.order_number,
           status: order.fulfillment_status,
-          message: `Pesanan ${order.order_number} saat ini berstatus ${order.fulfillment_status}. Nomor resi pengiriman belum diterbitkan oleh bagian logistik.`,
+          message: `Pesanan ${order.order_number} saat ini berstatus ${order.fulfillment_status}. Nomor resi pengiriman belum diterbitkan oleh tim logistik.`,
           events: [],
         };
       }

@@ -263,13 +263,13 @@ export class AgentCatalogService {
         if (bp.policy_scan_status !== 'PASSED') {
           throw new PolicyScanRequiredError(
             `Paket skill '${bp.name}' (${bp.package_id}) memiliki status kebijakan '${bp.policy_scan_status}'. ` +
-            `Paket skill baru WAJIB lolos pemindai kebijakan ('PASSED') sebelum staged rollout diizinkan berlanjut ke tahap '${targetStage}'.`
+            `Paket skill baru WAJIB lolos pemindai kebijakan ('PASSED') sebelum staged rollout diizinkan berlanjut ke tingkat '${targetStage}'.`
           );
         }
       }
 
       if (targetStage === 'BETA_TENANT' && (!allowedTenantIds || allowedTenantIds.length === 0)) {
-        throw new Error('Tahap BETA_TENANT memerlukan minimal 1 tenant yang diizinkan (allowedTenantIds).');
+        throw new Error('Tingkat BETA_TENANT memerlukan minimal 1 tenant yang diizinkan (allowedTenantIds).');
       }
 
       const updateRes = await client.query(

@@ -1730,7 +1730,7 @@ export class OrchestrationEngineService {
                 const currStage = currentContext.lead_stage || currentContext.lead?.stage;
                 if (currStage === expectedStage) {
                   targetPersona = r.target_persona_type;
-                  reason = `Tahap lead berubah menjadi ${currStage}`;
+                  reason = `Status lead berubah menjadi ${currStage}`;
                   break;
                 }
               }

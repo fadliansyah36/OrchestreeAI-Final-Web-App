@@ -315,7 +315,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
                 Pipeline CRM & Penilaian Lead Dinamis
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                F.01-CRM: Kanban 8 Tahap Penjualan terintegrasi Kualifikasi BANT & Dynamic Lead Scoring (0-100).
+                F.01-CRM: Kanban 8 Status Penjualan terintegrasi Kualifikasi BANT & Dynamic Lead Scoring (0-100).
               </p>
             </div>
           </div>
@@ -469,7 +469,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
 
                         {/* Fast Action Stage Buttons */}
                         <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400">Geser Tahap:</span>
+                          <span className="text-slate-400">Geser Status:</span>
                           <div className="flex items-center gap-1">
                             {col.stage !== 'WON' && col.stage !== 'LOST' && (
                               <button
@@ -562,7 +562,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block">Tahap Saat Ini:</span>
+                      <span className="text-slate-400 block">Status Saat Ini:</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
                         {STAGE_LABELS[leadDetail.lead.stage]?.label || leadDetail.lead.stage}
                       </span>
@@ -572,7 +572,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
                   {/* Stage Switcher Controls */}
                   <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60">
                     <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">
-                      Ubah Tahap Pipeline:
+                      Ubah Status Pipeline:
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {Object.keys(STAGE_LABELS).map((st) => (
@@ -739,7 +739,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
 
                     <div className="space-y-2">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                        Komposisi Penilaian (PRD v2.2 Bagian 12.4):
+                        Komposisi Penilaian Standar Penjualan:
                       </span>
                       {leadDetail.score_breakdown.details.map((item, idx) => (
                         <div

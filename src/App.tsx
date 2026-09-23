@@ -15,7 +15,7 @@ import {
   User,
   ArrowLeft
 } from 'lucide-react';
-import { OrchNavBar, OrchBottomNav, AdminSuperHubScreen } from '@orchestree/ui';
+import { OrchNavBar, OrchBottomNav, AdminSuperHubScreen, OrchIntlProvider } from '@orchestree/ui';
 import { PublicLandingScreen } from './components/landing/PublicLandingScreen';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { HomeOverviewScreen } from './components/HomeOverviewScreen';
@@ -157,7 +157,8 @@ export default function App() {
   const isPublicPage = activeWorkspace === 'client' && (clientSubView === 'landing' || clientSubView === 'onboarding');
 
   return (
-    <div className={`min-h-screen max-w-full overflow-x-hidden ${theme === 'dark' ? 'dark bg-[#0B1220] text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-200`}>
+    <OrchIntlProvider>
+      <div className={`min-h-screen max-w-full overflow-x-hidden ${theme === 'dark' ? 'dark bg-[#0B1220] text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-200`}>
       {/* Platform Top Navigation Bar */}
       <nav
         id="platform-navbar"
@@ -684,6 +685,7 @@ export default function App() {
           pendingTasksCount={pendingTasksCount}
         />
       )}
-    </div>
+      </div>
+    </OrchIntlProvider>
   );
 }
