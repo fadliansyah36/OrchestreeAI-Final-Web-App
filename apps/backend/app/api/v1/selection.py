@@ -22,7 +22,7 @@ from orchestree.domains.selection.scoring import (
 )
 
 router = APIRouter(
-    prefix="/selection",
+    prefix="",
     tags=["Universal Selection Hub & Scoring"],
     dependencies=[Depends(require_capability("selection.hub.manage"))]
 )
@@ -68,6 +68,8 @@ class FinalizeJobRequest(BaseModel):
     approval_notes: str = Field(..., min_length=10, description="Catatan persetujuan akhir komprehensif")
 
 
+@router.get("/tenants/{tenant_id}/selection/jobs")
+@router.get("/selection/tenants/{tenant_id}/jobs")
 @router.get("/tenants/{tenant_id}/jobs")
 async def list_selection_jobs(tenant_id: str, status: Optional[str] = Query(None)):
     """Mengambil seluruh pekerjaan seleksi organisasi."""
@@ -78,6 +80,8 @@ async def list_selection_jobs(tenant_id: str, status: Optional[str] = Query(None
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/jobs")
+@router.post("/selection/tenants/{tenant_id}/jobs")
 @router.post("/tenants/{tenant_id}/jobs")
 async def create_selection_job(tenant_id: str, request: CreateSelectionJobRequest):
     """Membuat pekerjaan seleksi baru."""
@@ -95,6 +99,8 @@ async def create_selection_job(tenant_id: str, request: CreateSelectionJobReques
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}")
 @router.get("/tenants/{tenant_id}/jobs/{job_id}")
 async def get_selection_job_detail(tenant_id: str, job_id: str):
     """Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi."""
@@ -107,6 +113,8 @@ async def get_selection_job_detail(tenant_id: str, job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/documents")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/documents")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/documents")
 async def upload_source_document(tenant_id: str, job_id: str, request: UploadDocumentRequest):
     """Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya."""
@@ -127,6 +135,8 @@ async def upload_source_document(tenant_id: str, job_id: str, request: UploadDoc
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/calibrate")
 async def calibrate_selection_weights(tenant_id: str, job_id: str, request: CalibrateWeightsRequest):
     """Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail."""
@@ -143,6 +153,8 @@ async def calibrate_selection_weights(tenant_id: str, job_id: str, request: Cali
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/score")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/score")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/score")
 async def execute_scoring_and_ranking(tenant_id: str, job_id: str, request: ExecuteScoringRequest):
     """Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking."""
@@ -159,6 +171,8 @@ async def execute_scoring_and_ranking(tenant_id: str, job_id: str, request: Exec
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/scores/{score_id}/review")
+@router.post("/selection/tenants/{tenant_id}/scores/{score_id}/review")
 @router.post("/tenants/{tenant_id}/scores/{score_id}/review")
 async def submit_human_review(tenant_id: str, score_id: str, request: SubmitReviewRequest):
     """Mencatat keputusan tinjauan manusia (wajib untuk integritas audit)."""
@@ -178,6 +192,8 @@ async def submit_human_review(tenant_id: str, score_id: str, request: SubmitRevi
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/finalize")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/finalize")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/finalize")
 async def finalize_selection_job(tenant_id: str, job_id: str, request: FinalizeJobRequest):
     """
@@ -198,6 +214,8 @@ async def finalize_selection_job(tenant_id: str, job_id: str, request: FinalizeJ
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/analytics")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/analytics")
 @router.get("/tenants/{tenant_id}/jobs/{job_id}/analytics")
 async def get_selection_analytics(tenant_id: str, job_id: str):
     """Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas."""

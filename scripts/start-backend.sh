@@ -5,9 +5,14 @@ set -e
 if curl -s http://127.0.0.1:8001/health/live >/dev/null 2>&1; then
   echo "Backend already running and healthy on port 8001."
   while curl -s http://127.0.0.1:8001/health/live >/dev/null 2>&1; do
-    sleep 5
+    sleep 3
   done
+  echo "Backend stopped responding, attempting restart..."
 fi
+
+# Ensure port 8001 is clean before starting
+pkill -f "uvicorn.*8001" 2>/dev/null || true
+sleep 1
 
 # If .venv/bin/uvicorn exists, use it
 if [ -f ".venv/bin/uvicorn" ]; then

@@ -20,7 +20,7 @@ from app.domains.commerce.grounding_validator import CommerceGroundingValidator
 from app.domains.commerce.courier_service import CourierAggregatorService
 
 router = APIRouter(
-    prefix="/commerce",
+    prefix="",
     tags=["Commerce & Sales Engine"],
     dependencies=[Depends(require_capability("commerce.catalog.view"))]
 )
@@ -120,19 +120,21 @@ class UpdateSalesStageRequest(BaseModel):
 
 # --- Endpoint Katalog Produk & Inventori ---
 
-@router.get("/products")
+@router.get("/tenants/{tenant_id}/commerce/products")
+@router.get("/commerce/products")
 async def get_products(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
     """Mengambil katalog produk resmi bertenant dari database nyata."""
+    tid = tenant_id or "default"
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tenant_id}
+            {"tenant_id": tid}
         )
         sql = """
             SELECT p.id, p.tenant_id, p.sku, p.name, p.description, p.category,
@@ -144,7 +146,7 @@ async def get_products(
             LEFT JOIN inventory_stock s ON s.product_id = p.id AND s.tenant_id = p.tenant_id
             WHERE p.tenant_id = :tenant_id
         """
-        params = {"tenant_id": tenant_id}
+        params = {"tenant_id": tid}
         if status:
             sql += " AND p.status = :status"
             params["status"] = status
@@ -173,15 +175,17 @@ async def get_products(
                 "created_at": r.created_at.isoformat() if r.created_at else None,
                 "updated_at": r.updated_at.isoformat() if r.updated_at else None,
             })
-        return {"status": "ok", "products": products}
+        return {"status": "ok", "data": products, "products": products}
 
 
-@router.post("/products")
+@router.post("/tenants/{tenant_id}/commerce/products")
+@router.post("/commerce/products")
 async def create_product(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: CreateProductRequest = None,
 ):
     """Menambahkan produk baru ke katalog resmi."""
+    tid = tenant_id or "default"
     if not payload:
         raise HTTPException(status_code=400, detail="Payload produk harus disertakan.")
     engine = get_database_engine()
@@ -190,7 +194,7 @@ async def create_product(
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-                {"tenant_id": tenant_id}
+                {"tenant_id": tid}
             )
             prod_id = str(uuid.uuid4())
             stock_qty = payload.initial_stock if payload.initial_stock is not None else 10
@@ -207,7 +211,7 @@ async def create_product(
                 """),
                 {
                     "id": prod_id,
-                    "tenant_id": tenant_id,
+                    "tenant_id": tid,
                     "sku": payload.sku,
                     "name": payload.name,
                     "description": payload.description,
@@ -229,7 +233,7 @@ async def create_product(
                 """),
                 {
                     "id": str(uuid.uuid4()),
-                    "tenant_id": tenant_id,
+                    "tenant_id": tid,
                     "prod_id": prod_id,
                     "quantity": stock_qty
                 }
@@ -237,13 +241,15 @@ async def create_product(
             return {"status": "ok", "product_id": prod_id}
 
 
-@router.put("/products/{product_id}")
+@router.put("/tenants/{tenant_id}/commerce/products/{product_id}")
+@router.put("/commerce/products/{product_id}")
 async def update_product(
     product_id: str = Path(...),
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: UpdateProductRequest = None,
 ):
     """Memperbarui metadata produk di katalog."""
+    tid = tenant_id or "default"
     if not payload:
         raise HTTPException(status_code=400, detail="Payload produk harus disertakan.")
     engine = get_database_engine()
@@ -252,10 +258,10 @@ async def update_product(
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-                {"tenant_id": tenant_id}
+                {"tenant_id": tid}
             )
             updates = []
-            params = {"id": product_id, "tenant_id": tenant_id}
+            params = {"id": product_id, "tenant_id": tid}
             if payload.name is not None:
                 updates.append("name = :name")
                 params["name"] = payload.name
@@ -282,13 +288,16 @@ async def update_product(
             return {"status": "ok", "updated": True}
 
 
-@router.put("/products/{product_id}/stock")
+@router.put("/tenants/{tenant_id}/commerce/products/{product_id}/stock")
+@router.post("/tenants/{tenant_id}/commerce/products/{product_id}/stock")
+@router.post("/commerce/products/{product_id}/stock")
 async def update_stock(
     product_id: str = Path(...),
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: UpdateStockRequest = None,
 ):
     """Memperbarui tingkat stok gudang aktual produk."""
+    tid = tenant_id or "default"
     if not payload:
         raise HTTPException(status_code=400, detail="Payload stok harus disertakan.")
     engine = get_database_engine()
@@ -297,7 +306,7 @@ async def update_stock(
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-                {"tenant_id": tenant_id}
+                {"tenant_id": tid}
             )
             conn.execute(
                 sa.text("""
@@ -311,7 +320,7 @@ async def update_stock(
                 """),
                 {
                     "id": str(uuid.uuid4()),
-                    "tenant_id": tenant_id,
+                    "tenant_id": tid,
                     "product_id": product_id,
                     "location": payload.warehouse_location or "DEFAULT",
                     "quantity": payload.quantity
@@ -320,22 +329,24 @@ async def update_stock(
             new_status = "ACTIVE" if payload.quantity > 0 else "OUT_OF_STOCK"
             conn.execute(
                 sa.text("UPDATE products SET status = :status, updated_at = now() WHERE id = :id AND tenant_id = :tenant_id;"),
-                {"status": new_status, "id": product_id, "tenant_id": tenant_id}
+                {"status": new_status, "id": product_id, "tenant_id": tid}
             )
             return {"status": "ok", "product_id": product_id, "quantity_available": payload.quantity}
 
 
 # --- Endpoint Promosi & Kupon Diskon ---
 
-@router.get("/promotions")
-async def get_promotions(tenant_id: str = Query(...)):
+@router.get("/tenants/{tenant_id}/commerce/promotions")
+@router.get("/commerce/promotions")
+async def get_promotions(tenant_id: Optional[str] = None):
     """Mengambil daftar promosi aktif tenant dari basis data nyata."""
+    tid = tenant_id or "default"
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tenant_id}
+            {"tenant_id": tid}
         )
         rows = conn.execute(
             sa.text("""
@@ -346,7 +357,7 @@ async def get_promotions(tenant_id: str = Query(...)):
                 WHERE tenant_id = :tenant_id
                 ORDER BY created_at DESC;
             """),
-            {"tenant_id": tenant_id}
+            {"tenant_id": tid}
         ).fetchall()
         promos = []
         for r in rows:
@@ -365,15 +376,17 @@ async def get_promotions(tenant_id: str = Query(...)):
                 "is_active": r.is_active,
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             })
-        return {"status": "ok", "promotions": promos}
+        return {"status": "ok", "data": promos, "promotions": promos}
 
 
-@router.post("/promotions")
+@router.post("/tenants/{tenant_id}/commerce/promotions")
+@router.post("/commerce/promotions")
 async def create_promotion(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: CreatePromotionRequest = None,
 ):
     """Menerbitkan aturan promosi diskon baru."""
+    tid = tenant_id or "default"
     if not payload:
         raise HTTPException(status_code=400, detail="Payload promosi harus disertakan.")
     engine = get_database_engine()
@@ -382,7 +395,7 @@ async def create_promotion(
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-                {"tenant_id": tenant_id}
+                {"tenant_id": tid}
             )
             promo_id = str(uuid.uuid4())
             conn.execute(
@@ -399,7 +412,7 @@ async def create_promotion(
                 """),
                 {
                     "id": promo_id,
-                    "tenant_id": tenant_id,
+                    "tenant_id": tid,
                     "code": payload.code.upper(),
                     "name": payload.name,
                     "discount_type": payload.discount_type,
