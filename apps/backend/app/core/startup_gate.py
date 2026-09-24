@@ -231,21 +231,65 @@ class StartupGate:
         )
 
     def check_step_17_runtime_security(self) -> StartupCheckResult:
+        import os
+        import re
         from pathlib import Path
-        rogue_files = ["server.ts", "server.js", "src/server"]
-        found = [f for f in rogue_files if Path(f).exists()]
-        if found:
+
+        # 1. Deteksi file backend terlarang di root atau folder sub-app
+        rogue_files = [
+            "server.ts",
+            "server.js",
+            "src/server",
+            "apps/client/server.ts",
+            "apps/client/server.js",
+            "apps/admin/server.ts",
+            "apps/admin/server.js",
+        ]
+        found_files = [f for f in rogue_files if Path(f).exists()]
+        if found_files:
             return StartupCheckResult(
                 step_number=17,
                 name="Keamanan Runtime & Header HTTP",
                 status="failed",
-                detail=f"Ditemukan backend server kedua terlarang: {', '.join(found)}"
+                detail=f"Ditemukan berkas server backend kedua terlarang: {', '.join(found_files)}"
             )
+
+        # 2. Deteksi proses rogue yang berjalan di latar belakang (Node/Express/tsx server)
+        rogue_process_patterns = [
+            r"tsx\s+.*server\.(ts|js)",
+            r"node\s+.*server\.(ts|js)",
+            r"express.*server",
+        ]
+        found_rogue_procs = []
+        try:
+            for pid_dir in os.listdir("/proc"):
+                if pid_dir.isdigit() and int(pid_dir) != os.getpid():
+                    cmdline_path = os.path.join("/proc", pid_dir, "cmdline")
+                    if os.path.exists(cmdline_path):
+                        try:
+                            with open(cmdline_path, "rb") as f:
+                                cmd = f.read().decode("utf-8", errors="ignore").replace("\0", " ").strip()
+                                for pat in rogue_process_patterns:
+                                    if re.search(pat, cmd, re.IGNORECASE):
+                                        found_rogue_procs.append(f"PID {pid_dir} ({cmd[:40]})")
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        if found_rogue_procs:
+            return StartupCheckResult(
+                step_number=17,
+                name="Keamanan Runtime & Header HTTP",
+                status="failed",
+                detail=f"Ditemukan proses server backend kedua terlarang: {', '.join(found_rogue_procs)}"
+            )
+
         return StartupCheckResult(
             step_number=17,
             name="Keamanan Runtime & Header HTTP",
             status="passed",
-            detail="Pengaturan runtime aman aktif (FastAPI Python tunggal, zero rogue server)."
+            detail="Pengaturan runtime aman aktif (FastAPI Python tunggal di port 8001, zero rogue server/process)."
         )
 
     def check_step_18_platform_admin(self) -> StartupCheckResult:

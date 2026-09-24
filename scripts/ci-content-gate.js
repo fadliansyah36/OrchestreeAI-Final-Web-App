@@ -98,22 +98,67 @@ function runContentGate() {
   const files = walkDir(rootDir);
   const violations = [];
 
-  // CI Guard: Dilarang keras server.ts atau src/server duplikat di root repositori
-  if (fs.existsSync(path.join(rootDir, 'server.ts')) || fs.existsSync(path.join(rootDir, 'server.js'))) {
-    violations.push({
-      file: 'server.ts / server.js',
-      line: 1,
-      term: 'server.ts legacy Node backend runner',
-      snippet: 'server.ts dilarang berada di repositori'
-    });
+  // CI Guard (Bagian 5.2): Dilarang keras server.ts/server.js atau server directory di luar apps/backend
+  const rogueFiles = [
+    'server.ts',
+    'server.js',
+    path.join('apps', 'client', 'server.ts'),
+    path.join('apps', 'client', 'server.js'),
+    path.join('apps', 'admin', 'server.ts'),
+    path.join('apps', 'admin', 'server.js'),
+  ];
+  for (const rf of rogueFiles) {
+    if (fs.existsSync(path.join(rootDir, rf))) {
+      violations.push({
+        file: rf,
+        line: 1,
+        term: 'rogue backend runner file',
+        snippet: `${rf} dilarang berada di repositori (backend HANYA Python di apps/backend)`
+      });
+    }
   }
-  if (fs.existsSync(path.join(rootDir, 'src', 'server'))) {
-    violations.push({
-      file: 'src/server',
-      line: 1,
-      term: 'src/server duplicate backend files',
-      snippet: 'src/server direktori dilarang berada di repositori'
-    });
+
+  const rogueDirs = [
+    path.join('src', 'server'),
+    path.join('apps', 'client', 'server'),
+    path.join('apps', 'admin', 'server')
+  ];
+  for (const rd of rogueDirs) {
+    if (fs.existsSync(path.join(rootDir, rd))) {
+      violations.push({
+        file: rd,
+        line: 1,
+        term: 'rogue server directory',
+        snippet: `${rd} direktori dilarang berada di repositori`
+      });
+    }
+  }
+
+  // CI Guard (Bagian 5.2): Dilarang dependency express di package.json manapun
+  const manifestFiles = [
+    'package.json',
+    path.join('apps', 'client', 'package.json'),
+    path.join('apps', 'admin', 'package.json'),
+    path.join('packages', 'ui', 'package.json'),
+    path.join('packages', 'design-tokens', 'package.json'),
+    path.join('packages', 'api-types', 'package.json'),
+  ];
+  for (const mf of manifestFiles) {
+    const mfPath = path.join(rootDir, mf);
+    if (fs.existsSync(mfPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(mfPath, 'utf-8'));
+        const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+        if (allDeps['express'] || allDeps['@types/express']) {
+          violations.push({
+            file: mf,
+            line: 1,
+            term: 'express dependency',
+            snippet: `Dependency express dilarang di ${mf} (backend HANYA Python FastAPI di apps/backend)`
+          });
+        }
+      } catch (err) {}
+    }
   }
 
   for (const filePath of files) {

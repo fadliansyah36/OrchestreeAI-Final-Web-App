@@ -51,6 +51,7 @@ Jika AI Agent Coding menemukan lingkungan kerja (sandbox/container) **tidak dapa
 AI Agent Coding **wajib mencantumkan hasil checklist berikut secara eksplisit** di setiap laporan penyelesaian tugas yang menyentuh backend, database, atau konfigurasi environment:
 
 - [ ] Backend runtime yang berjalan adalah Python/FastAPI (bukan `server.ts`/Express/Node sebagai server aplikasi), dan TIDAK ADA server backend kedua di luar `apps/backend`.
+- [ ] Apakah ada proses/file server backend KEDUA di luar apps/backend? (jawaban harus TIDAK, dibuktikan git ls-files dan daftar proses yang di-boot).
 - [ ] Tidak ada `Map()`, objek/array in-memory, atau *store* sejenis dipakai untuk menyimpan entitas data bisnis (users, tenants, tasks, dst.) — penggunaan struktur in-memory hanya boleh untuk hal non-bisnis yang murni transien di satu proses (mis. debounce timer), dan harus disebutkan eksplisit sebagai pengecualian yang dipahami, bukan disembunyikan dalam istilah "safe fallback".
 - [ ] `DATABASE_URL`/`SUPABASE_URL` yang dipakai mengarah ke proyek Supabase nyata (host mengandung domain Supabase resmi atau host proyek Supabase CLI lokal) — bukan Cloud SQL, RDS, atau file SQLite lokal.
 - [ ] Tidak ada kalimat di laporan yang menyarankan provider database/cloud lain sebagai langkah berikutnya.
