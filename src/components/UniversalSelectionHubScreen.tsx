@@ -25,6 +25,7 @@ import {
   ArrowUpDown,
   BookOpen
 } from 'lucide-react';
+import { CreditEstimateConfirm } from './billing/CreditEstimateConfirm';
 
 interface SelectionCriterion {
   key: string;
@@ -156,6 +157,7 @@ export function UniversalSelectionHubScreen({ tenant }: { tenant: any }) {
   // Continuous Calibration form
   const [calNotes, setCalNotes] = useState('');
   const [calAdjustments, setCalAdjustments] = useState<Record<string, number>>({});
+  const [showEstimateConfirm, setShowEstimateConfirm] = useState(false);
 
   const showFeedback = (text: string, type: 'success' | 'error' = 'success') => {
     setFeedbackMessage({ text, type });
@@ -689,7 +691,7 @@ export function UniversalSelectionHubScreen({ tenant }: { tenant: any }) {
             </div>
 
             <button
-              onClick={handleExecuteScoring}
+              onClick={() => setShowEstimateConfirm(true)}
               disabled={actionLoading || !currentJob?.documents || currentJob.documents.length === 0}
               className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-emerald-700/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -1345,6 +1347,27 @@ export function UniversalSelectionHubScreen({ tenant }: { tenant: any }) {
           </div>
         </div>
       )}
+
+      {/* Dialog Konfirmasi & Reservasi Kredit AI Sebelum Eksekusi */}
+      <CreditEstimateConfirm
+        isOpen={showEstimateConfirm}
+        tenantId={tenantId}
+        params={{
+          activity_code: 'universal_selection',
+          activity_name: 'Seleksi & Perangkingan Deterministik AI',
+          complexity_code: 'high',
+          llm_model_id: 'meta-llama/llama-3.3-70b-instruct',
+          tool_risk_tier: 'medium',
+          execution_mode: 'multi_step',
+          reference_id: currentJob ? `sel-job-${currentJob.id}` : `sel-job-${Date.now()}`,
+          reference_type: 'UNIVERSAL_SELECTION',
+        }}
+        onConfirm={({ reservation_id }) => {
+          setShowEstimateConfirm(false);
+          handleExecuteScoring();
+        }}
+        onCancel={() => setShowEstimateConfirm(false)}
+      />
     </div>
   );
 }

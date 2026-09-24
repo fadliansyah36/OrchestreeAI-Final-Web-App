@@ -162,7 +162,7 @@ export function AdminConsoleMfa() {
 
   // Workflow Dispatcher State
   const [testIntent, setTestIntent] = useState('Tolong buatkan tugas follow up klien Bapak Budi Santoso via WhatsApp');
-  const [selectedTenantId, setSelectedTenantId] = useState('11111111-1111-1111-1111-111111111111');
+  const [selectedTenantId, setSelectedTenantId] = useState('');
   const [dispatchLoading, setDispatchLoading] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<any>(null);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
@@ -203,7 +203,12 @@ export function AdminConsoleMfa() {
     try {
       const res = await fetch('/api/v1/tenants');
       const data = await res.json();
-      if (Array.isArray(data)) setTenants(data);
+      if (Array.isArray(data)) {
+        setTenants(data);
+        if (data.length > 0 && !selectedTenantId) {
+          setSelectedTenantId(data[0].id);
+        }
+      }
     } catch (e) {
       console.error('Fetch tenants error:', e);
     } finally {

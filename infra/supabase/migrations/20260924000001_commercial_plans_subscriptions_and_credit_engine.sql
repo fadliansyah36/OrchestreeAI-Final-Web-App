@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS credit_complexity_factors (
 
 CREATE TABLE IF NOT EXISTS credit_model_cost_factors (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    llm_model_id uuid REFERENCES llm_models(id) ON DELETE SET NULL,
+    llm_model_id text REFERENCES llm_models(id) ON DELETE SET NULL,
     model_code text NOT NULL UNIQUE,
     multiplier numeric(6,3) NOT NULL
 );
@@ -138,16 +138,45 @@ BEGIN
 END $$;
 
 -- 8. Seed Master Data Resmi (Idempotent ON CONFLICT)
+-- Handle migration from old plan codes if existing
+DO $$
+DECLARE
+    v_trial_id uuid;
+    v_starter_id uuid;
+    v_pro_id uuid;
+    v_ent_id uuid;
+BEGIN
+    -- Standardize existing plan_code if needed
+    UPDATE subscription_plans SET plan_code = 'trial' WHERE plan_code = 'TRIAL' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'trial');
+    UPDATE subscription_plans SET plan_code = 'starter' WHERE plan_code = 'STARTER' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'starter');
+    UPDATE subscription_plans SET plan_code = 'professional' WHERE plan_code IN ('PROFESSIONAL', 'PRO') AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'professional');
+    UPDATE subscription_plans SET plan_code = 'enterprise' WHERE plan_code = 'ENTERPRISE' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'enterprise');
+    
+    -- Reassign any tenants referencing legacy FREE_TRIAL to trial
+    SELECT id INTO v_trial_id FROM subscription_plans WHERE plan_code = 'trial';
+    IF v_trial_id IS NOT NULL THEN
+        UPDATE tenants SET subscription_plan_id = v_trial_id WHERE subscription_plan_id IN (
+            SELECT id FROM subscription_plans WHERE plan_code IN ('FREE_TRIAL', 'TRIAL') AND id <> v_trial_id
+        );
+        DELETE FROM subscription_plans WHERE plan_code IN ('FREE_TRIAL', 'TRIAL') AND id <> v_trial_id;
+    END IF;
+
+    -- Clean up legacy GROWTH if unused
+    DELETE FROM subscription_plans WHERE plan_code = 'GROWTH' AND NOT EXISTS (
+        SELECT 1 FROM tenants WHERE subscription_plan_id = subscription_plans.id
+    );
+END $$;
+
 INSERT INTO subscription_plans (
     plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
     ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
     trial_duration_days, is_custom_quote, display_order, currency
 ) VALUES
-('TRIAL', 0, 'Trial 7 Hari', 0.00, 0.00, 1000.0000, 3, 2, true, 7, false, 1, 'IDR'),
-('STARTER', 1, 'Starter SME', 1500000.00, 1500000.00, 15000.0000, 10, 5, false, NULL, false, 2, 'IDR'),
-('PROFESSIONAL', 2, 'Professional Business', 4500000.00, 4500000.00, 50000.0000, 30, 15, false, NULL, false, 3, 'IDR'),
-('ENTERPRISE', 3, 'Enterprise Scaled', 12500000.00, 12500000.00, 150000.0000, 100, 50, false, NULL, false, 4, 'IDR'),
-('CUSTOM', 4, 'Custom Enterprise & Gov', NULL, NULL, NULL, NULL, NULL, false, NULL, true, 5, 'IDR')
+('trial', 0, 'Trial', 0.00, 0.00, 500.0000, 10, 10, true, 7, false, 1, 'IDR'),
+('starter', 1, 'Starter', 989000.00, 989000.00, 50000.0000, 10, 10, false, NULL, false, 2, 'IDR'),
+('professional', 2, 'Professional', 3999000.00, 3999000.00, 250000.0000, 50, 50, false, NULL, false, 3, 'IDR'),
+('enterprise', 3, 'Enterprise', 14999000.00, 14999000.00, 1000000.0000, 200, 200, false, NULL, false, 4, 'IDR'),
+('custom', 4, 'Custom', NULL, NULL, NULL, NULL, NULL, false, NULL, true, 5, 'IDR')
 ON CONFLICT (plan_code) DO UPDATE SET
     tier_level = EXCLUDED.tier_level,
     display_name = EXCLUDED.display_name,
@@ -186,6 +215,152 @@ INSERT INTO plan_facility_catalog (facility_key, display_name, display_order) VA
 ON CONFLICT (facility_key) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     display_order = EXCLUDED.display_order;
+
+-- Seed Matriks Fasilitas per Paket Resmi
+DO $$
+DECLARE
+    p_trial uuid;
+    p_starter uuid;
+    p_pro uuid;
+    p_ent uuid;
+    p_custom uuid;
+BEGIN
+    SELECT id INTO p_trial FROM subscription_plans WHERE plan_code = 'trial';
+    SELECT id INTO p_starter FROM subscription_plans WHERE plan_code = 'starter';
+    SELECT id INTO p_pro FROM subscription_plans WHERE plan_code = 'professional';
+    SELECT id INTO p_ent FROM subscription_plans WHERE plan_code = 'enterprise';
+    SELECT id INTO p_custom FROM subscription_plans WHERE plan_code = 'custom';
+
+    IF p_trial IS NOT NULL THEN
+        INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES
+        (p_trial, 'orchestreeai_app', 'basic'),
+        (p_trial, 'ai_workforce', 'basic'),
+        (p_trial, 'ai_chief_of_staff', 'limited'),
+        (p_trial, 'company_brain', 'basic'),
+        (p_trial, 'semantic_memory', 'basic'),
+        (p_trial, 'task_workflow', 'basic'),
+        (p_trial, 'ai_selection_analytics', 'limited'),
+        (p_trial, 'proactive_ai', 'limited'),
+        (p_trial, 'whatsapp_telegram', 'none'),
+        (p_trial, 'multi_llm', 'basic'),
+        (p_trial, 'integrations', 'basic'),
+        (p_trial, 'rbac', 'basic'),
+        (p_trial, 'audit_trail', 'basic'),
+        (p_trial, 'api_access', 'none'),
+        (p_trial, 'advanced_automation', 'none'),
+        (p_trial, 'enterprise_security', 'basic'),
+        (p_trial, 'sso', 'none'),
+        (p_trial, 'private_deployment', 'none'),
+        (p_trial, 'dedicated_infrastructure', 'none'),
+        (p_trial, 'sla_support', 'none'),
+        (p_trial, 'custom_ai_workforce', 'none')
+        ON CONFLICT (plan_id, facility_key) DO UPDATE SET level = EXCLUDED.level;
+    END IF;
+
+    IF p_starter IS NOT NULL THEN
+        INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES
+        (p_starter, 'orchestreeai_app', 'basic'),
+        (p_starter, 'ai_workforce', 'basic'),
+        (p_starter, 'ai_chief_of_staff', 'basic'),
+        (p_starter, 'company_brain', 'basic'),
+        (p_starter, 'semantic_memory', 'basic'),
+        (p_starter, 'task_workflow', 'basic'),
+        (p_starter, 'ai_selection_analytics', 'basic'),
+        (p_starter, 'proactive_ai', 'basic'),
+        (p_starter, 'whatsapp_telegram', 'basic'),
+        (p_starter, 'multi_llm', 'basic'),
+        (p_starter, 'integrations', 'basic'),
+        (p_starter, 'rbac', 'basic'),
+        (p_starter, 'audit_trail', 'basic'),
+        (p_starter, 'api_access', 'basic'),
+        (p_starter, 'advanced_automation', 'limited'),
+        (p_starter, 'enterprise_security', 'basic'),
+        (p_starter, 'sso', 'none'),
+        (p_starter, 'private_deployment', 'none'),
+        (p_starter, 'dedicated_infrastructure', 'none'),
+        (p_starter, 'sla_support', 'basic'),
+        (p_starter, 'custom_ai_workforce', 'none')
+        ON CONFLICT (plan_id, facility_key) DO UPDATE SET level = EXCLUDED.level;
+    END IF;
+
+    IF p_pro IS NOT NULL THEN
+        INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES
+        (p_pro, 'orchestreeai_app', 'advanced'),
+        (p_pro, 'ai_workforce', 'advanced'),
+        (p_pro, 'ai_chief_of_staff', 'advanced'),
+        (p_pro, 'company_brain', 'advanced'),
+        (p_pro, 'semantic_memory', 'advanced'),
+        (p_pro, 'task_workflow', 'advanced'),
+        (p_pro, 'ai_selection_analytics', 'advanced'),
+        (p_pro, 'proactive_ai', 'advanced'),
+        (p_pro, 'whatsapp_telegram', 'advanced'),
+        (p_pro, 'multi_llm', 'advanced'),
+        (p_pro, 'integrations', 'advanced'),
+        (p_pro, 'rbac', 'advanced'),
+        (p_pro, 'audit_trail', 'advanced'),
+        (p_pro, 'api_access', 'advanced'),
+        (p_pro, 'advanced_automation', 'advanced'),
+        (p_pro, 'enterprise_security', 'advanced'),
+        (p_pro, 'sso', 'basic'),
+        (p_pro, 'private_deployment', 'none'),
+        (p_pro, 'dedicated_infrastructure', 'none'),
+        (p_pro, 'sla_support', 'advanced'),
+        (p_pro, 'custom_ai_workforce', 'limited')
+        ON CONFLICT (plan_id, facility_key) DO UPDATE SET level = EXCLUDED.level;
+    END IF;
+
+    IF p_ent IS NOT NULL THEN
+        INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES
+        (p_ent, 'orchestreeai_app', 'enterprise'),
+        (p_ent, 'ai_workforce', 'unlimited'),
+        (p_ent, 'ai_chief_of_staff', 'unlimited'),
+        (p_ent, 'company_brain', 'unlimited'),
+        (p_ent, 'semantic_memory', 'unlimited'),
+        (p_ent, 'task_workflow', 'unlimited'),
+        (p_ent, 'ai_selection_analytics', 'unlimited'),
+        (p_ent, 'proactive_ai', 'unlimited'),
+        (p_ent, 'whatsapp_telegram', 'unlimited'),
+        (p_ent, 'multi_llm', 'unlimited'),
+        (p_ent, 'integrations', 'unlimited'),
+        (p_ent, 'rbac', 'enterprise'),
+        (p_ent, 'audit_trail', 'enterprise'),
+        (p_ent, 'api_access', 'unlimited'),
+        (p_ent, 'advanced_automation', 'unlimited'),
+        (p_ent, 'enterprise_security', 'enterprise'),
+        (p_ent, 'sso', 'enterprise'),
+        (p_ent, 'private_deployment', 'limited'),
+        (p_ent, 'dedicated_infrastructure', 'limited'),
+        (p_ent, 'sla_support', 'enterprise'),
+        (p_ent, 'custom_ai_workforce', 'advanced')
+        ON CONFLICT (plan_id, facility_key) DO UPDATE SET level = EXCLUDED.level;
+    END IF;
+
+    IF p_custom IS NOT NULL THEN
+        INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES
+        (p_custom, 'orchestreeai_app', 'custom'),
+        (p_custom, 'ai_workforce', 'custom'),
+        (p_custom, 'ai_chief_of_staff', 'custom'),
+        (p_custom, 'company_brain', 'custom'),
+        (p_custom, 'semantic_memory', 'custom'),
+        (p_custom, 'task_workflow', 'custom'),
+        (p_custom, 'ai_selection_analytics', 'custom'),
+        (p_custom, 'proactive_ai', 'custom'),
+        (p_custom, 'whatsapp_telegram', 'custom'),
+        (p_custom, 'multi_llm', 'custom'),
+        (p_custom, 'integrations', 'custom'),
+        (p_custom, 'rbac', 'custom'),
+        (p_custom, 'audit_trail', 'custom'),
+        (p_custom, 'api_access', 'custom'),
+        (p_custom, 'advanced_automation', 'custom'),
+        (p_custom, 'enterprise_security', 'custom'),
+        (p_custom, 'sso', 'custom'),
+        (p_custom, 'private_deployment', 'custom'),
+        (p_custom, 'dedicated_infrastructure', 'custom'),
+        (p_custom, 'sla_support', 'custom'),
+        (p_custom, 'custom_ai_workforce', 'custom')
+        ON CONFLICT (plan_id, facility_key) DO UPDATE SET level = EXCLUDED.level;
+    END IF;
+END $$;
 
 INSERT INTO ai_activity_types (activity_code, display_name, base_work_unit_min, base_work_unit_max) VALUES
 ('simple_chat', 'Simple Conversational Query', 1.0000, 3.0000),

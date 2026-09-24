@@ -42,11 +42,31 @@ export interface TenantWalletInfo {
   is_low_balance: boolean;
 }
 
+export async function resolveTenantUuid(pool: pg.Pool | pg.PoolClient, rawId?: string): Promise<string> {
+  if (!rawId) {
+    const defaultRes = await pool.query('SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1;');
+    return defaultRes.rows[0]?.id || '9c9105eb-dc56-4bd5-9516-e3197e591dd8';
+  }
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+  if (isUuid) return rawId;
+
+  const res = await pool.query(
+    'SELECT id FROM tenants WHERE id::text = $1 OR display_name ILIKE $1 OR legal_name ILIKE $1 LIMIT 1;',
+    [rawId]
+  );
+  if (res.rows.length > 0) {
+    return res.rows[0].id;
+  }
+  const defaultRes = await pool.query('SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1;');
+  return defaultRes.rows[0]?.id || rawId;
+}
+
 export async function getOrCreateWalletTx(
   client: pg.PoolClient,
-  tenantId: string,
+  rawTenantId: string,
   forUpdate = false
 ): Promise<TenantWalletInfo> {
+  const tenantId = await resolveTenantUuid(client, rawTenantId);
   const lockClause = forUpdate ? 'FOR UPDATE' : '';
   const selRes = await client.query(
     `SELECT id, tenant_id, balance, reserved_balance, low_balance_threshold, currency,
@@ -123,7 +143,7 @@ export async function getOrCreateWalletTx(
 
 export async function reserveCredit(
   pool: pg.Pool,
-  tenantId: string,
+  rawTenantId: string,
   estimatedCost: number,
   referenceType: string,
   referenceId: string,
@@ -135,6 +155,7 @@ export async function reserveCredit(
 
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
 
@@ -400,7 +421,7 @@ export async function refundCredit(
 
 export async function topupCredit(
   pool: pg.Pool,
-  tenantId: string,
+  rawTenantId: string,
   amount: number,
   referenceId: string,
   description = 'Top up saldo kredit organisasi',
@@ -412,6 +433,7 @@ export async function topupCredit(
 
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
 
@@ -455,9 +477,10 @@ export async function topupCredit(
   }
 }
 
-export async function getWallet(pool: pg.Pool, tenantId: string): Promise<TenantWalletInfo> {
+export async function getWallet(pool: pg.Pool, rawTenantId: string): Promise<TenantWalletInfo> {
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
     return await getOrCreateWalletTx(client, tenantId, false);
   } finally {
@@ -465,12 +488,13 @@ export async function getWallet(pool: pg.Pool, tenantId: string): Promise<Tenant
   }
 }
 
-export async function getTransactions(pool: pg.Pool, tenantId: string, limit = 50) {
+export async function getTransactions(pool: pg.Pool, rawTenantId: string, limit = 50) {
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
     const res = await client.query(
-      `SELECT id, transaction_type, amount, balance_after, reference_id, description, created_at
+      `SELECT id, transaction_type, amount, balance_after, reference_id, description, created_at, metadata
        FROM tenant_credit_transactions
        WHERE tenant_id = $1
        ORDER BY created_at DESC
@@ -485,15 +509,17 @@ export async function getTransactions(pool: pg.Pool, tenantId: string, limit = 5
       reference_id: r.reference_id,
       description: r.description,
       created_at: r.created_at,
+      metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata || {},
     }));
   } finally {
     client.release();
   }
 }
 
-export async function getInvoices(pool: pg.Pool, tenantId: string, limit = 50) {
+export async function getInvoices(pool: pg.Pool, rawTenantId: string, limit = 50) {
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
     const res = await client.query(
       `SELECT id, invoice_number, amount, currency, status, payment_gateway, payment_reference, payment_url, items, created_at, paid_at
@@ -519,6 +545,266 @@ export async function getInvoices(pool: pg.Pool, tenantId: string, limit = 50) {
   } finally {
     client.release();
   }
+}
+
+export async function getTenantCreditWalletSummary(pool: pg.Pool, rawTenantId: string) {
+  const client = await pool.connect();
+  try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+    const wallet = await getOrCreateWalletTx(client, tenantId, false);
+
+    // Sum actual_cost from credit_reservations where status = 'consumed' or transactions where transaction_type = 'consumed'
+    const usedRes = await client.query(
+      `SELECT COALESCE(SUM(ABS(amount)), 0) as used
+       FROM tenant_credit_transactions
+       WHERE tenant_id = $1 AND transaction_type = 'consumed'
+       AND created_at >= date_trunc('month', now());`,
+      [tenantId]
+    );
+    const usedThisCycle = parseFloat(usedRes.rows[0]?.used || '0');
+
+    // Total allocated quota this cycle
+    const totalAllocated = Math.max(50000, wallet.balance + usedThisCycle);
+    const available = Math.max(0, wallet.balance - wallet.reserved_balance);
+    const isUnlimited = false;
+    const lowBalanceWarning = available <= wallet.low_balance_threshold && !isUnlimited;
+
+    return {
+      available,
+      reserved: wallet.reserved_balance,
+      used_this_cycle: usedThisCycle,
+      total_allocated_this_cycle: totalAllocated,
+      is_unlimited: isUnlimited,
+      low_balance_warning: lowBalanceWarning,
+      balance: wallet.balance,
+      low_balance_threshold: wallet.low_balance_threshold,
+      currency: 'AI Credits',
+    };
+  } finally {
+    client.release();
+  }
+}
+
+export async function getReservations(pool: pg.Pool, rawTenantId: string, limit = 50) {
+  const client = await pool.connect();
+  try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
+    const res = await client.query(
+      `SELECT id, tenant_id, estimated_cost, actual_cost, status, reference_type, reference_id, metadata, created_at, updated_at
+       FROM credit_reservations
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2;`,
+      [tenantId, limit]
+    );
+    return res.rows.map((r) => ({
+      id: r.id,
+      tenant_id: r.tenant_id,
+      estimated_cost: parseFloat(r.estimated_cost),
+      actual_cost: r.actual_cost !== null ? parseFloat(r.actual_cost) : null,
+      status: r.status,
+      reference_type: r.reference_type,
+      reference_id: r.reference_id,
+      metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata || {},
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+  } finally {
+    client.release();
+  }
+}
+
+export function estimateCreditCost(params: {
+  activity_code: string;
+  complexity_code?: string;
+  llm_model_id?: string;
+  tool_risk_tier?: string;
+  execution_mode?: string;
+}) {
+  const activityBaseMap: Record<string, number> = {
+    simple_chat: 2.0,
+    ai_selection: 10.0,
+    candidate_ranking: 12.0,
+    generative_visual: 15.0,
+    image_synthesis: 15.0,
+    summarization: 3.5,
+    document_analysis: 6.0,
+    research: 14.0,
+    deep_research: 25.0,
+    report_generation: 21.0,
+    workflow_execution: 4.0,
+    multi_agent_task: 42.5,
+    autonomous_execution: 52.5,
+    crm_lead_scoring: 5.0,
+    code_generation: 8.0,
+    data_extraction: 4.5,
+  };
+
+  const complexityMap: Record<string, number> = {
+    low: 1.0,
+    medium: 1.5,
+    high: 2.5,
+    very_high: 4.0,
+  };
+
+  const modelMap: Record<string, number> = {
+    default: 1.0,
+    'gemini-1.5-flash': 0.7,
+    'gemini-2.5-flash': 0.75,
+    'gemini-1.5-pro': 1.5,
+    'gemini-2.5-pro': 1.6,
+    'gpt-4o': 2.0,
+    'gpt-4o-mini': 0.6,
+  };
+
+  const toolMap: Record<string, number> = {
+    none: 1.0,
+    low: 1.0,
+    medium: 1.3,
+    high: 2.0,
+  };
+
+  const executionMap: Record<string, number> = {
+    single_step: 1.0,
+    multi_step: 1.8,
+    autonomous: 3.0,
+  };
+
+  const base = activityBaseMap[params.activity_code] || 5.0;
+  const complexity = complexityMap[params.complexity_code || 'medium'] || 1.5;
+  const model = modelMap[params.llm_model_id || 'default'] || 1.0;
+  const tool = toolMap[params.tool_risk_tier || 'none'] || 1.0;
+  const execution = executionMap[params.execution_mode || 'single_step'] || 1.0;
+
+  const rawEstimate = base * complexity * model * tool * execution;
+  const finalEstimate = Math.round(rawEstimate * 10) / 10;
+
+  return {
+    activity_code: params.activity_code,
+    base_work_units: base,
+    complexity_multiplier: complexity,
+    model_multiplier: model,
+    tool_multiplier: tool,
+    execution_multiplier: execution,
+    final_estimate: finalEstimate,
+  };
+}
+
+export function getTopUpPackages() {
+  return [
+    {
+      id: 'pkg-micro-01',
+      name: 'Micro Top-Up',
+      credit_amount: 50000,
+      price_idr: 50000,
+      validity_days: 30,
+      is_active: true,
+      description: 'Cocok untuk eksperimen fitur AI dan verifikasi dokumen.',
+    },
+    {
+      id: 'pkg-starter-02',
+      name: 'Starter Top-Up',
+      credit_amount: 150000,
+      price_idr: 150000,
+      validity_days: 60,
+      is_active: true,
+      description: 'Paket populer untuk alur kerja AI tim kecil.',
+    },
+    {
+      id: 'pkg-pro-03',
+      name: 'Pro Autonomous',
+      credit_amount: 550000,
+      price_idr: 500000,
+      validity_days: 90,
+      is_active: true,
+      description: 'Termasuk bonus 50.000 AI Credits untuk multi-agent tasks.',
+    },
+    {
+      id: 'pkg-enterprise-04',
+      name: 'Scale Enterprise',
+      credit_amount: 2300000,
+      price_idr: 2000000,
+      validity_days: 180,
+      is_active: true,
+      description: 'Termasuk bonus 300.000 AI Credits dan jalur prioritas.',
+    },
+  ];
+}
+
+export async function getSubscriptionPlansWithFacilities(pool: pg.Pool) {
+  const client = await pool.connect();
+  try {
+    const plansRes = await client.query(`
+      SELECT id, plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
+             ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
+             trial_duration_days, is_custom_quote, display_order, currency
+      FROM subscription_plans
+      ORDER BY display_order ASC, tier_level ASC;
+    `);
+
+    const matrixRes = await client.query(`
+      SELECT pfm.plan_id, sp.plan_code, pfm.facility_key, pfc.display_name as facility_name, pfm.level
+      FROM plan_facility_matrix pfm
+      JOIN subscription_plans sp ON pfm.plan_id = sp.id
+      JOIN plan_facility_catalog pfc ON pfm.facility_key = pfc.facility_key
+      ORDER BY pfc.display_order ASC;
+    `);
+
+    // Group facilities by plan_id
+    const facilitiesByPlanId: Record<string, Record<string, string>> = {};
+    for (const row of matrixRes.rows) {
+      if (!facilitiesByPlanId[row.plan_id]) {
+        facilitiesByPlanId[row.plan_id] = {};
+      }
+      facilitiesByPlanId[row.plan_id][row.facility_key] = row.level;
+    }
+
+    return plansRes.rows.map((r) => {
+      const planFacilities = facilitiesByPlanId[r.id] || {};
+      return {
+        id: r.id,
+        plan_code: r.plan_code,
+        tier_level: r.tier_level,
+        display_name: r.display_name,
+        monthly_price_idr: r.monthly_price_idr !== null ? parseFloat(r.monthly_price_idr) : (r.price_monthly ? parseFloat(r.price_monthly) : null),
+        ai_credit_allowance: r.ai_credit_allowance !== null ? parseFloat(r.ai_credit_allowance) : null,
+        human_staff_limit: r.human_staff_limit !== null ? parseInt(r.human_staff_limit, 10) : null,
+        ai_agent_limit: r.ai_agent_limit !== null ? parseInt(r.ai_agent_limit, 10) : null,
+        is_trial: Boolean(r.is_trial),
+        trial_duration_days: r.trial_duration_days !== null ? parseInt(r.trial_duration_days, 10) : null,
+        is_custom_quote: Boolean(r.is_custom_quote),
+        display_order: r.display_order,
+        currency: r.currency || 'IDR',
+        facilities: planFacilities,
+      };
+    });
+  } finally {
+    client.release();
+  }
+}
+
+export function getActivityTypes() {
+  return [
+    { id: 'act-1', activity_code: 'simple_chat', display_name: 'Chat Konsultasi Standar', base_work_unit_min: 1.0, base_work_unit_max: 3.0 },
+    { id: 'act-2', activity_code: 'ai_selection', display_name: 'Seleksi Pintar & Peringkat Kandidat', base_work_unit_min: 8.0, base_work_unit_max: 15.0 },
+    { id: 'act-3', activity_code: 'generative_visual', display_name: 'Studio Visual & Generasi Gambar', base_work_unit_min: 12.0, base_work_unit_max: 20.0 },
+    { id: 'act-4', activity_code: 'summarization', display_name: 'Peringkasan Dokumen & Kontrak', base_work_unit_min: 2.0, base_work_unit_max: 5.0 },
+    { id: 'act-5', activity_code: 'deep_research', display_name: 'Riset Pasar & Analisis Intelijen', base_work_unit_min: 20.0, base_work_unit_max: 35.0 },
+    { id: 'act-6', activity_code: 'report_generation', display_name: 'Penyusunan Laporan Bisnis Lengkap', base_work_unit_min: 15.0, base_work_unit_max: 30.0 },
+    { id: 'act-7', activity_code: 'workflow_execution', display_name: 'Eksekusi Alur Kerja Terjadwal', base_work_unit_min: 3.0, base_work_unit_max: 8.0 },
+    { id: 'act-8', activity_code: 'autonomous_execution', display_name: 'Operasi Otonom Multi-Agen', base_work_unit_min: 40.0, base_work_unit_max: 75.0 },
+  ];
+}
+
+export function getCreditFactors() {
+  return {
+    complexity_factors: { low: 1.0, medium: 1.5, high: 2.5, very_high: 4.0 },
+    model_factors: { default: 1.0, 'gemini-1.5-flash': 0.7, 'gemini-2.5-flash': 0.75, 'gemini-1.5-pro': 1.5, 'gpt-4o': 2.0 },
+    tool_factors: { none: 1.0, low: 1.0, medium: 1.3, high: 2.0 },
+    execution_factors: { single_step: 1.0, multi_step: 1.8, autonomous: 3.0 },
+  };
 }
 
 export async function getFinancialCommandCenter(pool: pg.Pool) {

@@ -31,7 +31,13 @@ const FORBIDDEN_PATTERNS = [
   { pattern: /in-memory fallback/i, name: 'in-memory fallback' },
   { pattern: /memorystore/i, name: 'memorystore' },
   { pattern: /cloud sql/i, name: 'cloud sql' },
-  { pattern: /cloudsql/i, name: 'cloudsql' }
+  { pattern: /cloudsql/i, name: 'cloudsql' },
+  // CI Guard: Dilarang keras email test/dummy/pentest hardcode
+  { pattern: /\b(test|demo|dummy|pentest)@/i, name: 'test email literal' },
+  { pattern: /admin@admin/i, name: 'admin@admin literal' },
+  // CI Guard: Dilarang arsitektur Room / SQLite lokal di luar stack Supabase Postgres
+  { pattern: /\b(RoomDatabase|androidx\.room)\b/i, name: 'Android Room SQLite architecture' },
+  { pattern: /\bsqlite3\b/i, name: 'sqlite3 local database' }
 ];
 
 const IGNORED_DIRS = new Set([

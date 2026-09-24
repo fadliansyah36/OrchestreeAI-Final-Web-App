@@ -4,6 +4,17 @@ import {
   getInvoices,
   topupCredit,
   getFinancialCommandCenter,
+  getTenantCreditWalletSummary,
+  estimateCreditCost,
+  getTopUpPackages,
+  getSubscriptionPlansWithFacilities,
+  getActivityTypes,
+  getCreditFactors,
+  getReservations,
+  reserveCredit,
+  consumeCredit,
+  refundCredit,
+  resolveTenantUuid,
 } from './src/server/creditWallet';
 import express from 'express';
 import path from 'path';
@@ -317,21 +328,113 @@ app.get('/api/v1/public/subscription-plans', async (req, res) => {
       const client = await pool.connect();
       try {
         const result = await client.query(
-          `SELECT id, plan_code, tier_level, display_name, price_monthly, currency
+          `SELECT id, plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
+                  ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
+                  trial_duration_days, is_custom_quote, display_order, currency
            FROM subscription_plans
-           ORDER BY tier_level ASC, price_monthly ASC;`
+           ORDER BY display_order ASC, tier_level ASC;`
         );
         if (result.rows && result.rows.length > 0) {
-          return res.json(result.rows);
+          const plans = result.rows.map(r => ({
+            id: r.id,
+            plan_code: r.plan_code,
+            tier_level: r.tier_level,
+            display_name: r.display_name,
+            price_monthly: r.price_monthly !== null ? parseFloat(r.price_monthly) : null,
+            monthly_price_idr: r.monthly_price_idr !== null ? parseFloat(r.monthly_price_idr) : (r.price_monthly !== null ? parseFloat(r.price_monthly) : null),
+            ai_credit_allowance: r.ai_credit_allowance !== null ? parseFloat(r.ai_credit_allowance) : null,
+            human_staff_limit: r.human_staff_limit !== null ? parseInt(r.human_staff_limit, 10) : null,
+            ai_agent_limit: r.ai_agent_limit !== null ? parseInt(r.ai_agent_limit, 10) : null,
+            is_trial: Boolean(r.is_trial),
+            trial_duration_days: r.trial_duration_days !== null ? parseInt(r.trial_duration_days, 10) : null,
+            is_custom_quote: Boolean(r.is_custom_quote),
+            display_order: r.display_order,
+            currency: r.currency || 'IDR',
+          }));
+          return res.json(plans);
         }
       } finally {
         client.release();
       }
-    } catch {
-      // Supabase query error
+    } catch (err) {
+      console.error('Error fetching subscription-plans:', err);
     }
   }
   return res.status(500).json({ error: 'Data paket langganan gagal dimuat dari Supabase.' });
+});
+
+// Public: Plan Facility Matrix (Read-only query directly from Supabase PostgreSQL)
+app.get('/api/v1/public/plan-facility-matrix', async (req, res) => {
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      try {
+        const plansRes = await client.query(
+          `SELECT id, plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
+                  ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
+                  trial_duration_days, is_custom_quote, display_order, currency
+           FROM subscription_plans
+           ORDER BY display_order ASC, tier_level ASC;`
+        );
+
+        const matrixRes = await client.query(
+          `SELECT pfm.id, pfm.plan_id, sp.plan_code, pfm.facility_key, pfc.display_name as facility_name, pfc.display_order as facility_order, pfm.level
+           FROM plan_facility_matrix pfm
+           JOIN subscription_plans sp ON pfm.plan_id = sp.id
+           JOIN plan_facility_catalog pfc ON pfm.facility_key = pfc.facility_key
+           ORDER BY pfc.display_order ASC, sp.display_order ASC;`
+        );
+
+        const catalogRes = await client.query(
+          `SELECT facility_key, display_name, display_order
+           FROM plan_facility_catalog
+           ORDER BY display_order ASC;`
+        );
+
+        // Map facilities with level per plan_code
+        const facilitiesMap: Record<string, { facility_key: string; display_name: string; display_order: number; levels: Record<string, string> }> = {};
+        for (const cat of catalogRes.rows) {
+          facilitiesMap[cat.facility_key] = {
+            facility_key: cat.facility_key,
+            display_name: cat.display_name,
+            display_order: cat.display_order,
+            levels: {},
+          };
+        }
+
+        for (const m of matrixRes.rows) {
+          if (facilitiesMap[m.facility_key]) {
+            facilitiesMap[m.facility_key].levels[m.plan_code] = m.level;
+          }
+        }
+
+        return res.json({
+          facilities: Object.values(facilitiesMap),
+          plans: plansRes.rows.map(r => ({
+            id: r.id,
+            plan_code: r.plan_code,
+            tier_level: r.tier_level,
+            display_name: r.display_name,
+            monthly_price_idr: r.monthly_price_idr !== null ? parseFloat(r.monthly_price_idr) : null,
+            ai_credit_allowance: r.ai_credit_allowance !== null ? parseFloat(r.ai_credit_allowance) : null,
+            human_staff_limit: r.human_staff_limit !== null ? parseInt(r.human_staff_limit, 10) : null,
+            ai_agent_limit: r.ai_agent_limit !== null ? parseInt(r.ai_agent_limit, 10) : null,
+            is_trial: Boolean(r.is_trial),
+            trial_duration_days: r.trial_duration_days !== null ? parseInt(r.trial_duration_days, 10) : null,
+            is_custom_quote: Boolean(r.is_custom_quote),
+            display_order: r.display_order,
+            currency: r.currency || 'IDR',
+          })),
+          matrix: matrixRes.rows,
+        });
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Error fetching plan-facility-matrix:', err);
+    }
+  }
+  return res.status(500).json({ error: 'Data matriks fasilitas gagal dimuat dari Supabase.' });
 });
 
 // Public: Prospect / Demo Registration with Web Integrity & Atomic Slot Allocation (PRD 13.5 & 13.6)
@@ -3138,19 +3241,134 @@ app.post('/api/v1/learning/feedback', async (req, res) => {
 
 
 // ============================================================================
-// BILLING, CREDIT WALLET & PAYMENT GATEWAYS (PRD v2.2 Bagian 2.6 & Bagian 8)
+// BILLING, CREDIT WALLET & PAYMENT GATEWAYS
 // ============================================================================
 
 // GET /api/v1/billing/wallet & /api/v1/tenants/:tenantId/billing/wallet
 app.get(['/api/v1/billing/wallet', '/api/v1/tenants/:tenantId/billing/wallet'], async (req, res) => {
   const tenantId = req.params.tenantId || (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
-  if (!tenantId) {
-    return res.status(400).json({ error: 'Tenant ID is required (via route param, X-Tenant-Id header, or query param)' });
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const resolved = await resolveTenantUuid(pool, tenantId);
+    const wallet = await getWallet(pool, resolved);
+    return res.json(wallet);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/wallet/summary & /api/v1/tenants/:tenantId/credit-wallet/summary
+app.get(
+  ['/api/v1/billing/wallet/summary', '/api/v1/tenants/:tenantId/credit-wallet/summary'],
+  async (req, res) => {
+    const tenantId = req.params.tenantId || (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+    if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+    try {
+      const resolved = await resolveTenantUuid(pool, tenantId);
+      const summary = await getTenantCreditWalletSummary(pool, resolved);
+      return res.json(summary);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// GET /api/v1/billing/plans
+app.get('/api/v1/billing/plans', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const plans = await getSubscriptionPlansWithFacilities(pool);
+    return res.json(plans);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/topup-packages
+app.get('/api/v1/billing/topup-packages', (req, res) => {
+  return res.json(getTopUpPackages());
+});
+
+// GET /api/v1/billing/activity-types
+app.get('/api/v1/billing/activity-types', (req, res) => {
+  return res.json(getActivityTypes());
+});
+
+// GET /api/v1/billing/factors
+app.get('/api/v1/billing/factors', (req, res) => {
+  return res.json(getCreditFactors());
+});
+
+// POST /api/v1/billing/estimate
+app.post('/api/v1/billing/estimate', (req, res) => {
+  try {
+    const estimate = estimateCreditCost(req.body);
+    return res.json(estimate);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/billing/reserve
+app.post('/api/v1/billing/reserve', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || req.body.tenant_id;
+  const { estimate, estimated_cost, reference_type = 'ai_task', reference_id, metadata } = req.body;
+  const cost = estimated_cost !== undefined ? estimated_cost : estimate?.final_estimate;
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const resolved = await resolveTenantUuid(pool, tenantId);
+    const result = await reserveCredit(
+      pool,
+      resolved,
+      cost,
+      reference_type,
+      reference_id || `task-${Date.now()}`,
+      metadata || {}
+    );
+    return res.status(201).json(result);
+  } catch (err: any) {
+    return res.status(err.name === 'InsufficientCreditError' ? 402 : 500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/billing/consume
+app.post('/api/v1/billing/consume', async (req, res) => {
+  const { reservation_id, actual_cost, metadata } = req.body;
+  if (!reservation_id || actual_cost === undefined) {
+    return res.status(400).json({ error: 'reservation_id and actual_cost are required' });
   }
   if (!pool) return res.status(500).json({ error: 'Database unavailable' });
   try {
-    const wallet = await getWallet(pool, tenantId);
-    return res.json(wallet);
+    const result = await consumeCredit(pool, reservation_id, parseFloat(actual_cost), metadata || {});
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/billing/refund
+app.post('/api/v1/billing/refund', async (req, res) => {
+  const { reservation_id, reason = 'Pembatalan eksekusi tugas' } = req.body;
+  if (!reservation_id) {
+    return res.status(400).json({ error: 'reservation_id is required' });
+  }
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const result = await refundCredit(pool, reservation_id, reason);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/reservations
+app.get('/api/v1/billing/reservations', async (req, res) => {
+  const tenantId = (req.headers['x-tenant-id'] as string) || (req.query.tenant_id as string);
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  try {
+    const resolved = await resolveTenantUuid(pool, tenantId);
+    const reservations = await getReservations(pool, resolved);
+    return res.json(reservations);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -3188,9 +3406,9 @@ app.get('/api/v1/billing/invoices', async (req, res) => {
 
 // POST /api/v1/billing/topup
 app.post('/api/v1/billing/topup', async (req, res) => {
-  const tenantId = (req.headers['x-tenant-id'] as string) || req.body.tenant_id;
+  const rawTenantId = (req.headers['x-tenant-id'] as string) || req.body.tenant_id;
   const { amount, payment_gateway = 'midtrans', package_name } = req.body;
-  if (!tenantId) {
+  if (!rawTenantId) {
     return res.status(400).json({ error: 'Header X-Tenant-Id is required' });
   }
   const numericAmount = parseFloat(amount);
@@ -3201,6 +3419,7 @@ app.post('/api/v1/billing/topup', async (req, res) => {
 
   const client = await pool.connect();
   try {
+    const tenantId = await resolveTenantUuid(client, rawTenantId);
     const invId = crypto.randomUUID();
     const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     const now = new Date().toISOString();

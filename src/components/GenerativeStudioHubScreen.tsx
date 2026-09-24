@@ -24,6 +24,7 @@ import {
   Copy,
   ExternalLink,
 } from 'lucide-react';
+import { CreditEstimateConfirm } from './billing/CreditEstimateConfirm';
 
 interface PromptTemplate {
   id: string;
@@ -132,6 +133,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
   const [modelUsed, setModelUsed] = useState<string>('gpt-image-2');
   const [selectedBrandLockId, setSelectedBrandLockId] = useState<string>('');
   const [forceFailForTest, setForceFailForTest] = useState<boolean>(false);
+  const [showEstimateConfirm, setShowEstimateConfirm] = useState<boolean>(false);
 
   // Selected job modal / detail
   const [selectedJob, setSelectedJob] = useState<GenerativeJob | null>(null);
@@ -223,7 +225,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
-  const handleExecuteJob = async () => {
+  const handleExecuteJob = async (reservationId?: string) => {
     if (!prompt.trim()) {
       setErrorMsg('Harap masukkan deskripsi visual prompt.');
       return;
@@ -246,6 +248,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
           model_used: modelUsed,
           brand_lock_id: selectedBrandLockId || undefined,
           credit_cost: 5.0,
+          reservation_id: reservationId,
           force_fail_for_test: forceFailForTest,
         }),
       });
@@ -581,7 +584,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
               {/* Action Buttons */}
               <div className="pt-2 flex items-center gap-3">
                 <button
-                  onClick={handleExecuteJob}
+                  onClick={() => setShowEstimateConfirm(true)}
                   disabled={executing || !prompt.trim()}
                   className={`flex-1 py-3 px-5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer ${
                     executing
@@ -597,7 +600,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Generasi Visual Bersih (Reserve 5.0 Kredit)</span>
+                      <span>Generasi Visual Bersih (Estimasi & Reservasi AI Credits)</span>
                     </>
                   )}
                 </button>
@@ -1301,6 +1304,27 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
           </form>
         </div>
       )}
+
+      {/* Dialog Konfirmasi & Reservasi Kredit AI Sebelum Eksekusi */}
+      <CreditEstimateConfirm
+        isOpen={showEstimateConfirm}
+        tenantId={tenantId}
+        params={{
+          activity_code: 'generative_visual',
+          activity_name: 'Studio Visual & Kreasi Gambar AI',
+          complexity_code: 'high',
+          llm_model_id: modelUsed,
+          tool_risk_tier: 'medium',
+          execution_mode: 'single_step',
+          reference_id: `gen-job-${Date.now()}`,
+          reference_type: 'GENERATIVE_STUDIO',
+        }}
+        onConfirm={({ reservation_id }) => {
+          setShowEstimateConfirm(false);
+          handleExecuteJob(reservation_id);
+        }}
+        onCancel={() => setShowEstimateConfirm(false)}
+      />
     </div>
   );
 }

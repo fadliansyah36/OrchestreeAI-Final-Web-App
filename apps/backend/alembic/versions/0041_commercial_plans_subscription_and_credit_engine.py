@@ -78,7 +78,7 @@ def upgrade() -> None:
 
     CREATE TABLE IF NOT EXISTS credit_model_cost_factors (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        llm_model_id uuid REFERENCES llm_models(id) ON DELETE SET NULL,
+        llm_model_id text REFERENCES llm_models(id) ON DELETE SET NULL,
         model_code text NOT NULL UNIQUE,
         multiplier numeric(6,3) NOT NULL
     );
@@ -178,16 +178,45 @@ def upgrade() -> None:
     # 8. SEED MASTER DATA RESMI (Idempotent ON CONFLICT)
     # Master Subscription Plans
     op.execute("""
+    -- Handle migration from old plan codes if existing
+    DO $$
+    DECLARE
+        v_trial_id uuid;
+        v_starter_id uuid;
+        v_pro_id uuid;
+        v_ent_id uuid;
+    BEGIN
+        -- Standardize existing plan_code if needed
+        UPDATE subscription_plans SET plan_code = 'trial' WHERE plan_code = 'TRIAL' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'trial');
+        UPDATE subscription_plans SET plan_code = 'starter' WHERE plan_code = 'STARTER' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'starter');
+        UPDATE subscription_plans SET plan_code = 'professional' WHERE plan_code IN ('PROFESSIONAL', 'PRO') AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'professional');
+        UPDATE subscription_plans SET plan_code = 'enterprise' WHERE plan_code = 'ENTERPRISE' AND NOT EXISTS (SELECT 1 FROM subscription_plans WHERE plan_code = 'enterprise');
+        
+        -- Reassign any tenants referencing legacy FREE_TRIAL to trial
+        SELECT id INTO v_trial_id FROM subscription_plans WHERE plan_code = 'trial';
+        IF v_trial_id IS NOT NULL THEN
+            UPDATE tenants SET subscription_plan_id = v_trial_id WHERE subscription_plan_id IN (
+                SELECT id FROM subscription_plans WHERE plan_code IN ('FREE_TRIAL', 'TRIAL') AND id <> v_trial_id
+            );
+            DELETE FROM subscription_plans WHERE plan_code IN ('FREE_TRIAL', 'TRIAL') AND id <> v_trial_id;
+        END IF;
+
+        -- Clean up legacy GROWTH if unused
+        DELETE FROM subscription_plans WHERE plan_code = 'GROWTH' AND NOT EXISTS (
+            SELECT 1 FROM tenants WHERE subscription_plan_id = subscription_plans.id
+        );
+    END $$;
+
     INSERT INTO subscription_plans (
         plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
         ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
         trial_duration_days, is_custom_quote, display_order, currency
     ) VALUES
-    ('TRIAL', 0, 'Trial 7 Hari', 0.00, 0.00, 1000.0000, 3, 2, true, 7, false, 1, 'IDR'),
-    ('STARTER', 1, 'Starter SME', 1500000.00, 1500000.00, 15000.0000, 10, 5, false, NULL, false, 2, 'IDR'),
-    ('PROFESSIONAL', 2, 'Professional Business', 4500000.00, 4500000.00, 50000.0000, 30, 15, false, NULL, false, 3, 'IDR'),
-    ('ENTERPRISE', 3, 'Enterprise Scaled', 12500000.00, 12500000.00, 150000.0000, 100, 50, false, NULL, false, 4, 'IDR'),
-    ('CUSTOM', 4, 'Custom Enterprise & Gov', NULL, NULL, NULL, NULL, NULL, false, NULL, true, 5, 'IDR')
+    ('trial', 0, 'Trial', 0.00, 0.00, 500.0000, 10, 10, true, 7, false, 1, 'IDR'),
+    ('starter', 1, 'Starter', 989000.00, 989000.00, 50000.0000, 10, 10, false, NULL, false, 2, 'IDR'),
+    ('professional', 2, 'Professional', 3999000.00, 3999000.00, 250000.0000, 50, 50, false, NULL, false, 3, 'IDR'),
+    ('enterprise', 3, 'Enterprise', 14999000.00, 14999000.00, 1000000.0000, 200, 200, false, NULL, false, 4, 'IDR'),
+    ('custom', 4, 'Custom', NULL, NULL, NULL, NULL, NULL, false, NULL, true, 5, 'IDR')
     ON CONFLICT (plan_code) DO UPDATE SET
         tier_level = EXCLUDED.tier_level,
         display_name = EXCLUDED.display_name,
@@ -241,11 +270,11 @@ def upgrade() -> None:
         p_ent uuid;
         p_custom uuid;
     BEGIN
-        SELECT id INTO p_trial FROM subscription_plans WHERE plan_code = 'TRIAL';
-        SELECT id INTO p_starter FROM subscription_plans WHERE plan_code = 'STARTER';
-        SELECT id INTO p_pro FROM subscription_plans WHERE plan_code = 'PROFESSIONAL';
-        SELECT id INTO p_ent FROM subscription_plans WHERE plan_code = 'ENTERPRISE';
-        SELECT id INTO p_custom FROM subscription_plans WHERE plan_code = 'CUSTOM';
+        SELECT id INTO p_trial FROM subscription_plans WHERE plan_code IN ('trial', 'TRIAL');
+        SELECT id INTO p_starter FROM subscription_plans WHERE plan_code IN ('starter', 'STARTER');
+        SELECT id INTO p_pro FROM subscription_plans WHERE plan_code IN ('professional', 'PROFESSIONAL');
+        SELECT id INTO p_ent FROM subscription_plans WHERE plan_code IN ('enterprise', 'ENTERPRISE');
+        SELECT id INTO p_custom FROM subscription_plans WHERE plan_code IN ('custom', 'CUSTOM');
 
         IF p_trial IS NOT NULL THEN
             INSERT INTO plan_facility_matrix (plan_id, facility_key, level) VALUES

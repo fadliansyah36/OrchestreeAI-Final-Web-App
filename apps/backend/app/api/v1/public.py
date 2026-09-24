@@ -24,8 +24,29 @@ class SubscriptionPlanResponse(BaseModel):
     plan_code: str
     tier_level: int
     display_name: str
-    price_monthly: float
-    currency: str
+    price_monthly: Optional[float] = None
+    monthly_price_idr: Optional[float] = None
+    ai_credit_allowance: Optional[float] = None
+    human_staff_limit: Optional[int] = None
+    ai_agent_limit: Optional[int] = None
+    is_trial: bool = False
+    trial_duration_days: Optional[int] = None
+    is_custom_quote: bool = False
+    display_order: int = 0
+    currency: str = "IDR"
+
+
+class FacilityItem(BaseModel):
+    facility_key: str
+    display_name: str
+    display_order: int
+    levels: Dict[str, str]
+
+
+class PlanFacilityMatrixResponse(BaseModel):
+    facilities: List[FacilityItem]
+    plans: List[SubscriptionPlanResponse]
+    matrix: List[Dict[str, Any]]
 
 
 class ProspectRegistrationRequest(BaseModel):
@@ -83,9 +104,11 @@ async def list_public_subscription_plans():
     with engine.connect() as conn:
         rows = conn.execute(
             sa.text("""
-                SELECT id, plan_code, tier_level, display_name, price_monthly, currency
+                SELECT id, plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
+                       ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
+                       trial_duration_days, is_custom_quote, display_order, currency
                 FROM subscription_plans
-                ORDER BY tier_level ASC, price_monthly ASC;
+                ORDER BY display_order ASC, tier_level ASC;
             """)
         ).mappings().all()
 
@@ -95,11 +118,113 @@ async def list_public_subscription_plans():
                 plan_code=r["plan_code"],
                 tier_level=int(r["tier_level"]),
                 display_name=r["display_name"],
-                price_monthly=float(r["price_monthly"]),
-                currency=r["currency"],
+                price_monthly=float(r["price_monthly"]) if r["price_monthly"] is not None else None,
+                monthly_price_idr=float(r["monthly_price_idr"]) if r["monthly_price_idr"] is not None else (float(r["price_monthly"]) if r["price_monthly"] is not None else None),
+                ai_credit_allowance=float(r["ai_credit_allowance"]) if r["ai_credit_allowance"] is not None else None,
+                human_staff_limit=int(r["human_staff_limit"]) if r["human_staff_limit"] is not None else None,
+                ai_agent_limit=int(r["ai_agent_limit"]) if r["ai_agent_limit"] is not None else None,
+                is_trial=bool(r["is_trial"]),
+                trial_duration_days=int(r["trial_duration_days"]) if r["trial_duration_days"] is not None else None,
+                is_custom_quote=bool(r["is_custom_quote"]),
+                display_order=int(r["display_order"]),
+                currency=r["currency"] or "IDR",
             )
             for r in rows
         ]
+
+
+@router.get(
+    "/plan-facility-matrix",
+    response_model=PlanFacilityMatrixResponse,
+    summary="Matriks Fasilitas Paket Langganan Publik",
+    dependencies=[Depends(public_endpoint("public.plan_facility_matrix"))]
+)
+async def get_public_plan_facility_matrix():
+    """
+    Mengembalikan matriks fasilitas paket langganan langsung dari basis data Supabase PostgreSQL.
+    Read-only tanpa otentikasi.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        plans_rows = conn.execute(
+            sa.text("""
+                SELECT id, plan_code, tier_level, display_name, price_monthly, monthly_price_idr,
+                       ai_credit_allowance, human_staff_limit, ai_agent_limit, is_trial,
+                       trial_duration_days, is_custom_quote, display_order, currency
+                FROM subscription_plans
+                ORDER BY display_order ASC, tier_level ASC;
+            """)
+        ).mappings().all()
+
+        catalog_rows = conn.execute(
+            sa.text("""
+                SELECT facility_key, display_name, display_order
+                FROM plan_facility_catalog
+                ORDER BY display_order ASC;
+            """)
+        ).mappings().all()
+
+        matrix_rows = conn.execute(
+            sa.text("""
+                SELECT pfm.id, pfm.plan_id, sp.plan_code, pfm.facility_key, pfc.display_name as facility_name, pfm.level
+                FROM plan_facility_matrix pfm
+                JOIN subscription_plans sp ON pfm.plan_id = sp.id
+                JOIN plan_facility_catalog pfc ON pfm.facility_key = pfc.facility_key
+                ORDER BY pfc.display_order ASC, sp.display_order ASC;
+            """)
+        ).mappings().all()
+
+        facilities_map: Dict[str, Dict[str, Any]] = {}
+        for c in catalog_rows:
+            facilities_map[c["facility_key"]] = {
+                "facility_key": c["facility_key"],
+                "display_name": c["display_name"],
+                "display_order": int(c["display_order"]),
+                "levels": {},
+            }
+
+        for m in matrix_rows:
+            fkey = m["facility_key"]
+            if fkey in facilities_map:
+                facilities_map[fkey]["levels"][m["plan_code"]] = m["level"]
+
+        plans = [
+            SubscriptionPlanResponse(
+                id=str(r["id"]),
+                plan_code=r["plan_code"],
+                tier_level=int(r["tier_level"]),
+                display_name=r["display_name"],
+                price_monthly=float(r["price_monthly"]) if r["price_monthly"] is not None else None,
+                monthly_price_idr=float(r["monthly_price_idr"]) if r["monthly_price_idr"] is not None else (float(r["price_monthly"]) if r["price_monthly"] is not None else None),
+                ai_credit_allowance=float(r["ai_credit_allowance"]) if r["ai_credit_allowance"] is not None else None,
+                human_staff_limit=int(r["human_staff_limit"]) if r["human_staff_limit"] is not None else None,
+                ai_agent_limit=int(r["ai_agent_limit"]) if r["ai_agent_limit"] is not None else None,
+                is_trial=bool(r["is_trial"]),
+                trial_duration_days=int(r["trial_duration_days"]) if r["trial_duration_days"] is not None else None,
+                is_custom_quote=bool(r["is_custom_quote"]),
+                display_order=int(r["display_order"]),
+                currency=r["currency"] or "IDR",
+            )
+            for r in plans_rows
+        ]
+
+        matrix_list = [
+            {
+                "id": str(m["id"]),
+                "plan_id": str(m["plan_id"]),
+                "plan_code": m["plan_code"],
+                "facility_key": m["facility_key"],
+                "facility_name": m["facility_name"],
+                "level": m["level"],
+            }
+            for m in matrix_rows
+        ]
+
+        return PlanFacilityMatrixResponse(
+            facilities=[FacilityItem(**item) for item in facilities_map.values()],
+            plans=plans,
+            matrix=matrix_list,
+        )
 
 
 @router.post(

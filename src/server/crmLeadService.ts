@@ -274,10 +274,10 @@ export class CrmLeadService {
           return res.rows[0].id;
         }
       } catch {
-        // Abaikan dan gunakan UUID standar
+        // Abaikan error koneksi sementara
       }
     }
-    return '00000000-0000-0000-0000-000000000001';
+    throw new Error('Tenant ID tidak valid atau tenant tidak ditemukan di database.');
   }
 
   /**
