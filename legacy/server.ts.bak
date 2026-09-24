@@ -1,3 +1,8 @@
+/**
+ * ARTEFAK LAMA (DEPRECATED): server.ts ini TIDAK LAGI DIPAKAI.
+ * Backend resmi proyek OrchestreeAI adalah Python 3.12 + FastAPI di apps/backend/
+ * Port resmi FastAPI: 8001 (atau routing /api/* via reverse proxy).
+ */
 import {
   getWallet,
   getTransactions,

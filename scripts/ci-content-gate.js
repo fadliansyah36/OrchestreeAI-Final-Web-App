@@ -37,7 +37,9 @@ const FORBIDDEN_PATTERNS = [
   { pattern: /admin@admin/i, name: 'admin@admin literal' },
   // CI Guard: Dilarang arsitektur Room / SQLite lokal di luar stack Supabase Postgres
   { pattern: /\b(RoomDatabase|androidx\.room)\b/i, name: 'Android Room SQLite architecture' },
-  { pattern: /\bsqlite3\b/i, name: 'sqlite3 local database' }
+  { pattern: /\bsqlite3\b/i, name: 'sqlite3 local database' },
+  // CI Guard: Dilarang runner Express tsx server.ts
+  { pattern: /tsx server\.ts/i, name: 'tsx server.ts legacy runner' }
 ];
 
 const IGNORED_DIRS = new Set([
@@ -51,7 +53,8 @@ const IGNORED_DIRS = new Set([
   'test',
   'docs',
   'scripts',
-  '.ref_landing'
+  '.ref_landing',
+  'legacy'
 ]);
 
 const IGNORED_FILES = new Set([

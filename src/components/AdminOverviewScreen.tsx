@@ -12,6 +12,7 @@ import {
   Activity,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   Server,
   RefreshCw,
   Search,

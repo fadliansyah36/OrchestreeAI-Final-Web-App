@@ -13,11 +13,14 @@ import sqlalchemy as sa
 from sqlalchemy import text
 from app.core.config import settings
 
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+
 _engine: Optional[sa.Engine] = None
+_async_engine: Optional[AsyncEngine] = None
 
 
 def get_database_engine() -> sa.Engine:
-    """Mengambil atau membuat singleton SQLAlchemy Engine runtime (orchestree_app)."""
+    """Mengambil atau membuat singleton SQLAlchemy Engine sinkron runtime (orchestree_app)."""
     global _engine
     if _engine is None:
         url = get_runtime_database_url()
@@ -30,6 +33,80 @@ def get_database_engine() -> sa.Engine:
             max_overflow=20,
         )
     return _engine
+
+
+class HybridContext:
+    def __init__(self, sync_ctx_fn, async_ctx_fn):
+        self._sync_fn = sync_ctx_fn
+        self._async_fn = async_ctx_fn
+        self._sync_cm = None
+        self._async_cm = None
+
+    def __enter__(self):
+        self._sync_cm = self._sync_fn()
+        return self._sync_cm.__enter__()
+
+    def __exit__(self, *args):
+        return self._sync_cm.__exit__(*args)
+
+    async def __aenter__(self):
+        self._async_cm = self._async_fn()
+        return await self._async_cm.__aenter__()
+
+    async def __aexit__(self, *args):
+        return await self._async_cm.__aexit__(*args)
+
+
+class HybridEngine:
+    """Wrapper yang mendukung eksekusi 'with engine.connect()' sinkron dan 'async with engine.begin()' asinkron."""
+    def __init__(self, sync_eng: sa.Engine, async_eng: AsyncEngine):
+        self._sync = sync_eng
+        self._async = async_eng
+
+    def connect(self):
+        return HybridContext(lambda: self._sync.connect(), lambda: self._async.connect())
+
+    def begin(self):
+        return HybridContext(lambda: self._sync.begin(), lambda: self._async.begin())
+
+    @property
+    def sync_engine(self) -> sa.Engine:
+        return self._sync
+
+    @property
+    def async_engine(self) -> AsyncEngine:
+        return self._async
+
+    def __getattr__(self, name):
+        return getattr(self._sync, name)
+
+
+_hybrid_engine: Optional[HybridEngine] = None
+
+
+def get_engine() -> HybridEngine:
+    """Mengambil atau membuat singleton HybridEngine yang mendukung sync dan async context manager."""
+    global _hybrid_engine
+    if _hybrid_engine is None:
+        sync_eng = get_database_engine()
+        raw_url = get_runtime_database_url()
+        if not raw_url:
+            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+        async_url = raw_url
+        if async_url.startswith("postgresql://"):
+            async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif async_url.startswith("postgres://"):
+            async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif "+psycopg2" in async_url:
+            async_url = async_url.replace("+psycopg2", "+asyncpg")
+        async_eng = create_async_engine(
+            async_url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+        )
+        _hybrid_engine = HybridEngine(sync_eng, async_eng)
+    return _hybrid_engine
 
 
 @contextmanager
@@ -251,3 +328,61 @@ def verify_extensions_and_migrations(target_url: Optional[str] = None) -> Tuple[
             }
     except Exception as exc:
         return False, f"Gagal memverifikasi ekstensi dan migrasi database: {str(exc)}", {}
+
+
+# AsyncPG connection management for async router operations (Enterprise & Permissions)
+_async_pool = None
+
+
+async def get_async_pool():
+    global _async_pool
+    if _async_pool is None:
+        import asyncpg
+        raw_url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
+        if not raw_url:
+            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+        # Ensure pure postgresql:// DSN for asyncpg
+        dsn = raw_url
+        if "+psycopg2" in dsn:
+            dsn = dsn.replace("+psycopg2", "")
+        if "+asyncpg" in dsn:
+            dsn = dsn.replace("+asyncpg", "")
+        _async_pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=10)
+    return _async_pool
+
+
+class DBConnectionWrapper:
+    """Wrapper supporting both 'async with get_db_connection() as db' and 'Depends(get_db_connection)'."""
+    def __init__(self):
+        self._conn = None
+        self._cm = None
+
+    async def __aenter__(self):
+        pool = await get_async_pool()
+        self._cm = pool.acquire()
+        self._conn = await self._cm.__aenter__()
+        return self._conn
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._cm:
+            await self._cm.__aexit__(exc_type, exc_val, exc_tb)
+
+    async def fetch(self, query: str, *args):
+        pool = await get_async_pool()
+        return await pool.fetch(query, *args)
+
+    async def fetchrow(self, query: str, *args):
+        pool = await get_async_pool()
+        return await pool.fetchrow(query, *args)
+
+    async def fetchval(self, query: str, *args):
+        pool = await get_async_pool()
+        return await pool.fetchval(query, *args)
+
+    async def execute(self, query: str, *args):
+        pool = await get_async_pool()
+        return await pool.execute(query, *args)
+
+
+def get_db_connection():
+    return DBConnectionWrapper()

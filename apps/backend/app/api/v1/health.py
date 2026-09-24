@@ -4,7 +4,7 @@ Health & Startup Gate Endpoints (PRD v2.2 Bagian 15.3 & Bagian 18.2.10)
 
 import time
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from app.core.startup_gate import startup_gate, StartupGateReport
 from app.authz.pdp import public_endpoint
 
@@ -23,18 +23,22 @@ async def health_live():
 
 
 @router.get("/health/ready", dependencies=[Depends(public_endpoint("health.ready"))])
-async def health_ready():
-    """Kesiapan layanan menerima beban trafik (readiness probe)."""
+async def health_ready(response: Response):
+    """Kesiapan layanan menerima beban trafik (readiness probe - Fail-Closed)."""
     report = startup_gate.evaluate_all()
-    status_str = "ready" if report.overall_passed else "not_ready"
     db_check = next((c for c in report.checks if c.step_number == 2), None)
     db_status = db_check.status if db_check else "failed"
+    is_ready = report.overall_passed and db_status == "passed"
+    status_str = "ready" if is_ready else "not_ready"
+
+    if not is_ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     return {
         "status": status_str,
         "database": db_status,
         "redis": "not_implemented_yet",
-        "storage": "not_implemented_yet",
+        "storage": "passed",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

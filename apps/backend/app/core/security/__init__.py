@@ -270,6 +270,9 @@ def validate_uploaded_file(
     return True, mime, storage_path, signed_url
 
 
+validate_magic_bytes = validate_uploaded_file
+
+
 # ============================================================================
 # PROMPT INJECTION DEFENSE & OUTPUT SANITIZATION
 # ============================================================================
