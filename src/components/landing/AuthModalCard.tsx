@@ -16,7 +16,12 @@ import {
   ChevronRight,
   ExternalLink
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { TenantRegistrationResponse } from '../../types';
+
+const SUPABASE_URL = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || 'https://szvbcvmvrucqxfikgjlx.supabase.co';
+const SUPABASE_ANON_KEY = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dmJjdm12cnVjcXhmaWtnamx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MjA5ODcsImV4cCI6MjEwNTQ5Njk4N30.LOypKsnvMNZzp1MWaf3m1fJ4cfUWm2Qd0ZxFqXGtEj0';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export type AuthModalMode = 'login' | 'register_tenant' | 'join_staff';
 
@@ -71,14 +76,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     message?: string;
   }>({ status: 'idle' });
 
-  // Quick Tenant Switcher list (real DB data)
-  const [availableTenants, setAvailableTenants] = useState<Array<{
-    id: string;
-    legal_name: string;
-    display_name: string;
-    status: string;
-  }>>([]);
-
   // UI status states
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -93,26 +90,15 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     }
   }, [isOpen, initialMode]);
 
-  // Fetch plans and registered tenants for quick login
+  // Fetch plans for registration wizard
   useEffect(() => {
     if (!isOpen) return;
 
-    // 1. Fetch plans
     fetch('/api/v1/public/subscription-plans')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setPlans(data);
-        }
-      })
-      .catch(() => {});
-
-    // 2. Fetch recent tenants for quick demo/test access
-    fetch('/api/v1/auth/tenants-list')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setAvailableTenants(data);
         }
       })
       .catch(() => {});
@@ -150,7 +136,7 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     }
   };
 
-  // 1. Submit Login Handler
+  // 1. Submit Login Handler (Direct Supabase Auth Client)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -158,42 +144,43 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     setSuccessMessage(null);
 
     try {
-      const payload: any = {
-        email: loginIdentifier.trim(),
-        password: loginPassword,
-        login_type: loginSubRole,
-      };
+      const email = loginIdentifier.trim();
+      const password = loginPassword;
 
-      if (loginSubRole === 'staff') {
-        if (!loginCompanyCode.trim()) {
-          throw new Error('Kode akses perusahaan wajib diisi untuk login staff.');
-        }
-        payload.company_code = loginCompanyCode.trim().toUpperCase();
+      if (!email || !password) {
+        throw new Error('Email dan kata sandi wajib diisi.');
       }
 
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // Otentikasi langsung menggunakan Supabase Auth Client
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Login gagal. Periksa kembali kredensial Anda.');
+      if (error) {
+        throw new Error(error.message || 'Kredensial login tidak valid.');
       }
 
+      if (!data.user) {
+        throw new Error('Pengguna tidak ditemukan dalam sistem otentikasi.');
+      }
+
+      const userMeta = data.user.user_metadata || {};
       const tenantPayload: TenantRegistrationResponse = {
-        tenant_id: data.tenant_id,
-        legal_name: data.legal_name,
-        display_name: data.display_name,
+        tenant_id: userMeta.tenant_id || data.user.id,
+        legal_name: userMeta.legal_name || 'Organisasi Terdaftar',
+        display_name: userMeta.display_name || userMeta.full_name || email.split('@')[0],
         status: 'active',
-        membership_id: data.membership_id || crypto.randomUUID(),
-        role: data.role || (loginSubRole === 'owner' ? 'TENANT_OWNER' : 'TENANT_MEMBER'),
-        owner_full_name: data.owner_full_name || loginIdentifier || 'Pengguna Terverifikasi',
+        membership_id: crypto.randomUUID(),
+        role: userMeta.role || (loginSubRole === 'owner' ? 'TENANT_OWNER' : 'TENANT_MEMBER'),
+        owner_full_name: userMeta.full_name || email,
         created_at: new Date().toISOString(),
       };
 
       localStorage.setItem('orchestree_active_tenant', JSON.stringify(tenantPayload));
+      if (data.session?.access_token) {
+        localStorage.setItem('orchestree_auth_token', data.session.access_token);
+      }
       setSuccessMessage(`Selamat datang kembali, ${tenantPayload.owner_full_name}!`);
 
       setTimeout(() => {
@@ -205,29 +192,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Quick Select an Existing Tenant to Log In
-  const handleQuickSelectTenant = (t: { id: string; legal_name: string; display_name: string }) => {
-    setIsLoading(true);
-    const tenantPayload: TenantRegistrationResponse = {
-      tenant_id: t.id,
-      legal_name: t.legal_name,
-      display_name: t.display_name,
-      status: 'trial',
-      membership_id: crypto.randomUUID(),
-      role: 'TENANT_OWNER',
-      owner_full_name: 'Administrator Perusahaan',
-      created_at: new Date().toISOString(),
-    };
-
-    localStorage.setItem('orchestree_active_tenant', JSON.stringify(tenantPayload));
-    setSuccessMessage(`Beralih ke ruang kerja: ${t.display_name}`);
-
-    setTimeout(() => {
-      onSuccess(tenantPayload);
-      onClose();
-    }, 600);
   };
 
   // 2. Submit Register Tenant Handler
@@ -566,42 +530,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
                   </>
                 )}
               </button>
-
-              {/* Quick Tenant Switcher (Real DB Data) */}
-              {availableTenants.length > 0 && (
-                <div className="pt-3 border-t border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Tenant Aktif di Database Supabase
-                    </span>
-                    <span className="text-[10px] text-[#34D399] font-mono font-medium">
-                      Koneksi Langsung
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {availableTenants.slice(0, 4).map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => handleQuickSelectTenant(t)}
-                        className="w-full p-2 rounded-lg bg-white/[0.04] hover:bg-white/10 border border-white/5 text-left text-xs transition-colors flex items-center justify-between group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5 text-[#34D399]" />
-                          <div>
-                            <span className="font-semibold text-white block">{t.display_name}</span>
-                            <span className="text-[10px] text-slate-400 block">{t.legal_name}</span>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-slate-400 group-hover:text-white flex items-center gap-1">
-                          <span>Masuk</span>
-                          <ChevronRight className="w-3 h-3" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </form>
           )}
 

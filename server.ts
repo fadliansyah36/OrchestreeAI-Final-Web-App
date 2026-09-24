@@ -632,259 +632,6 @@ app.get('/api/v1/auth/verify-company-code', async (req, res) => {
   return res.status(200).json({ valid: false, error: 'Kode akses perusahaan tidak ditemukan pada basis data sistem.' });
 });
 
-app.get(['/api/v1/auth/tenants-list', '/api/v1/tenants'], async (req, res) => {
-  if (pool) {
-    try {
-      const client = await pool.connect();
-      try {
-        const queryRes = await client.query(
-          `SELECT t.id, t.legal_name, t.display_name, t.status, sp.plan_code
-           FROM tenants t
-           LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
-           ORDER BY t.created_at DESC
-           LIMIT 15;`
-        );
-        return res.json(queryRes.rows);
-      } finally {
-        client.release();
-      }
-    } catch {
-      // fallback
-    }
-  }
-  return res.status(500).json({ error: 'Gagal memuat direktori tenant dari Supabase.' });
-});
-
-app.post('/api/v1/auth/login', async (req, res) => {
-  const { email, password, login_type = 'owner', company_code } = req.body;
-  const identifier = (email || company_code || 'unknown').trim();
-
-  // 1. Audit Anti-Brute Force: Check if account is temporarily locked
-  const lockCheck = isAccountLocked(identifier);
-  if (lockCheck.locked) {
-    return res.status(423).json(
-      createProblemDetails(
-        423,
-        'Account Temporarily Locked',
-        `Akun terkunci sementara karena 5 kali percobaan gagal berturut-turut. Silakan coba lagi dalam ${lockCheck.remainingLockoutSeconds} detik.`,
-        req.originalUrl,
-        'AUTH_ACCOUNT_LOCKED'
-      )
-    );
-  }
-
-  if (login_type === 'staff' && company_code) {
-    const codeHash = hashCompanyCode((company_code as string).trim().toUpperCase());
-    let staffTenant: any = null;
-
-    if (pool) {
-      try {
-        const client = await pool.connect();
-        try {
-          const codeRes = await client.query(
-            `SELECT c.tenant_id, t.legal_name, t.display_name
-             FROM tenant_company_codes c
-             JOIN tenants t ON t.id = c.tenant_id
-             WHERE c.code_hash = $1 AND c.status = 'active'
-             LIMIT 1;`,
-            [codeHash]
-          );
-          if (codeRes.rows.length > 0) {
-            staffTenant = codeRes.rows[0];
-          }
-        } finally {
-          client.release();
-        }
-      } catch {
-        // query fallback
-      }
-    }
-
-    if (!staffTenant) {
-      const failStatus = recordFailedLogin(identifier);
-      if (failStatus.locked) {
-        return res.status(423).json(
-          createProblemDetails(
-            423,
-            'Account Locked',
-            'Akun telah dikunci selama 15 menit karena 5 kali percobaan gagal berturut-turut.',
-            req.originalUrl,
-            'AUTH_ACCOUNT_LOCKED'
-          )
-        );
-      }
-      return res.status(401).json(
-        createProblemDetails(
-          401,
-          'Authentication Failed',
-          `Kode perusahaan staff tidak valid atau tidak aktif. Sisa percobaan: ${failStatus.remainingAttempts}`,
-          req.originalUrl,
-          'AUTH_INVALID_CREDENTIALS'
-        )
-      );
-    }
-
-    resetLoginAttempts(identifier);
-    const membershipId = crypto.randomUUID();
-    return res.json({
-      success: true,
-      tenant_id: staffTenant.tenant_id,
-      legal_name: staffTenant.legal_name,
-      display_name: staffTenant.display_name,
-      membership_id: membershipId,
-      full_name: identifier || 'Staff Organisasi',
-      role: 'TENANT_MEMBER',
-      plan_code: 'PRO',
-      token: `staff_token_${Date.now()}`,
-    });
-  }
-
-  // Owner / Admin Tenant Login
-  if (pool) {
-    try {
-      const client = await pool.connect();
-      try {
-        const isEmailFormat = identifier.includes('@');
-
-        // 1. If email format is provided, verify against Supabase auth.users with bcrypt
-        if (isEmailFormat) {
-          const authRes = await client.query(
-            `SELECT
-               au.id as auth_user_id,
-               au.email,
-               (au.encrypted_password IS NOT NULL AND au.encrypted_password = crypt($2, au.encrypted_password)) as is_password_valid,
-               t.id as tenant_id,
-               t.legal_name,
-               t.display_name,
-               t.status,
-               t.is_founder_account,
-               COALESCE(sp.plan_code, 'ENTERPRISE') as plan_code,
-               tm.id as membership_id,
-               tm.full_name as owner_full_name,
-               COALESCE(r.role_code, 'TENANT_OWNER') as role
-             FROM auth.users au
-             LEFT JOIN tenant_memberships tm ON tm.auth_user_id = au.id
-             LEFT JOIN tenants t ON t.id = tm.tenant_id
-             LEFT JOIN user_roles ur ON ur.tenant_membership_id = tm.id
-             LEFT JOIN roles r ON r.id = ur.role_id
-             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
-             WHERE LOWER(au.email) = LOWER($1)
-             ORDER BY tm.created_at ASC
-             LIMIT 1;`,
-            [identifier, password || '']
-          );
-
-          if (authRes.rows.length > 0) {
-            const row = authRes.rows[0];
-
-            if (!row.is_password_valid) {
-              const failStatus = recordFailedLogin(identifier);
-              if (failStatus.locked) {
-                return res.status(423).json(
-                  createProblemDetails(
-                    423,
-                    'Account Locked',
-                    'Akun telah dikunci selama 15 menit karena 5 kali percobaan gagal berturut-turut.',
-                    req.originalUrl,
-                    'AUTH_ACCOUNT_LOCKED'
-                  )
-                );
-              }
-              return res.status(401).json(
-                createProblemDetails(
-                  401,
-                  'Authentication Failed',
-                  `Kata sandi yang Anda masukkan tidak valid. Sisa percobaan: ${failStatus.remainingAttempts}`,
-                  req.originalUrl,
-                  'AUTH_INVALID_CREDENTIALS'
-                )
-              );
-            }
-
-            resetLoginAttempts(identifier);
-            return res.json({
-              success: true,
-              tenant_id: row.tenant_id,
-              legal_name: row.legal_name,
-              display_name: row.display_name,
-              membership_id: row.membership_id || crypto.randomUUID(),
-              owner_full_name: row.owner_full_name || row.email,
-              plan_code: row.plan_code || 'ENTERPRISE',
-              role: row.role || 'TENANT_OWNER',
-              token: `auth_token_${row.tenant_id}`,
-              is_founder_account: Boolean(row.is_founder_account),
-            });
-          }
-        }
-
-        // 2. Query tenant by name/identifier (Quick Select / Switcher)
-        let queryRes;
-        if (identifier) {
-          queryRes = await client.query(
-            `SELECT t.id as tenant_id, t.legal_name, t.display_name, t.status, sp.plan_code,
-                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id,
-                    t.is_founder_account
-             FROM tenants t
-             LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
-             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
-             WHERE LOWER(tm.full_name) = LOWER($1)
-                OR LOWER(t.display_name) = LOWER($1)
-                OR LOWER(t.legal_name) = LOWER($1)
-                OR tm.auth_user_id::text = $1
-             ORDER BY t.created_at DESC
-             LIMIT 1;`,
-            [identifier]
-          );
-        }
-
-        if (queryRes && queryRes.rows.length > 0) {
-          const row = queryRes.rows[0];
-          resetLoginAttempts(identifier);
-          return res.json({
-            success: true,
-            tenant_id: row.tenant_id,
-            legal_name: row.legal_name,
-            display_name: row.display_name,
-            membership_id: row.membership_id || crypto.randomUUID(),
-            owner_full_name: row.owner_full_name || 'Direktur / Pimpinan',
-            plan_code: row.plan_code || 'ENTERPRISE',
-            role: 'TENANT_OWNER',
-            token: `auth_token_${row.tenant_id}`,
-            is_founder_account: Boolean(row.is_founder_account),
-          });
-        }
-      } finally {
-        client.release();
-      }
-    } catch (e: any) {
-      console.error('Error saat login db:', e);
-    }
-  }
-
-  const failStatus = recordFailedLogin(identifier);
-  if (failStatus.locked) {
-    return res.status(423).json(
-      createProblemDetails(
-        423,
-        'Account Locked',
-        'Akun telah dikunci selama 15 menit karena 5 kali percobaan gagal berturut-turut.',
-        req.originalUrl,
-        'AUTH_ACCOUNT_LOCKED'
-      )
-    );
-  }
-
-  return res.status(401).json(
-    createProblemDetails(
-      401,
-      'Authentication Failed',
-      `Kredensial atau identitas tidak ditemukan. Sisa percobaan: ${failStatus.remainingAttempts}`,
-      req.originalUrl,
-      'AUTH_INVALID_CREDENTIALS'
-    )
-  );
-});
-
 // 2. Onboarding: Register Tenant Baru (Self-Service)
 app.post(['/api/v1/onboarding/tenants', '/api/v1/onboarding/register-tenant'], async (req, res) => {
   const { legal_name, display_name, owner_auth_user_id, owner_full_name, plan_code = 'FREE_TRIAL' } = req.body;
@@ -3025,16 +2772,16 @@ app.get('/api/v1/admin/hub-overview', async (req, res) => {
       pool.query(`
         SELECT 
           COUNT(*) as total_tenants,
-          COUNT(*) FILTER (WHERE status = 'ACTIVE') as active_tenants,
-          COUNT(*) FILTER (WHERE status = 'TRIAL') as trial_tenants
+          COUNT(*) FILTER (WHERE LOWER(status) = 'active') as active_tenants,
+          COUNT(*) FILTER (WHERE LOWER(status) = 'trial') as trial_tenants
         FROM tenants;
       `),
       pool.query(`
         SELECT 
           COUNT(*) as total_prospects,
-          COUNT(*) FILTER (WHERE trial_status = 'SELECTED') as selected_prospects,
-          COUNT(*) FILTER (WHERE trial_status = 'ACTIVE') as active_trials,
-          COUNT(*) FILTER (WHERE meeting_status = 'SCHEDULED') as scheduled_meetings
+          COUNT(*) FILTER (WHERE LOWER(trial_status) = 'selected') as selected_prospects,
+          COUNT(*) FILTER (WHERE LOWER(trial_status) = 'active') as active_trials,
+          COUNT(*) FILTER (WHERE LOWER(meeting_status) = 'scheduled') as scheduled_meetings
         FROM prospects;
       `),
       trialAllocationService.getSlotsStatus().catch(() => ({ counts: {}, capacity: 36, availableCount: 36 })),
@@ -7570,6 +7317,19 @@ app.get('/api/v1/tenants/:tenantId/marketing/marketplaces', async (req, res) => 
   }
 });
 
+
+// 404 Fallback for Unmatched API Endpoints
+app.all('/api/*', (req, res) => {
+  return res.status(404).json(
+    createProblemDetails(
+      404,
+      'Not Found',
+      `Endpoint API ${req.method} ${req.originalUrl} tidak ditemukan pada server sistem.`,
+      req.originalUrl,
+      'NOT_FOUND'
+    )
+  );
+});
 
 // 9. Vite Middleware Setup
 async function startServer() {

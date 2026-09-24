@@ -108,6 +108,20 @@ function runContentGate() {
         return;
       }
 
+      // CI Guard (Bagian B.5 & D.4): Dilarang query langsung tabel Supabase (.from) di frontend apps/client dan apps/admin
+      const relPath = path.relative(rootDir, filePath).replace(/\\/g, '/');
+      const isFrontend = relPath.startsWith('apps/client/') || relPath.startsWith('apps/admin/');
+      if (isFrontend && (line.includes('.from(') || line.includes('.from("') || line.includes(".from('"))) {
+        if (!line.includes('Array.from') && !line.includes('Buffer.from')) {
+          violations.push({
+            file: relPath,
+            line: index + 1,
+            term: 'direct Supabase .from() in frontend',
+            snippet: line.trim()
+          });
+        }
+      }
+
       for (const { pattern, name } of FORBIDDEN_PATTERNS) {
         if (pattern.test(line)) {
           violations.push({

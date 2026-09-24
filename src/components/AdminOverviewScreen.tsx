@@ -65,15 +65,24 @@ export function AdminOverviewScreen({
     latency_ms?: number;
     health?: string;
   }>>([]);
+  const [systemHealthy, setSystemHealthy] = useState<boolean | null>(null);
 
   const fetchData = async () => {
     setError(null);
     try {
-      const [hubRes, finRes, provRes] = await Promise.all([
+      const [hubRes, finRes, provRes, healthRes] = await Promise.all([
         fetch('/api/v1/admin/hub-overview'),
         fetch('/api/v1/financial-command-center'),
-        fetch('/api/v1/admin/llm-providers')
+        fetch('/api/v1/admin/llm-providers'),
+        fetch('/api/v1/health/startup')
       ]);
+
+      if (healthRes.ok) {
+        const healthJson = await healthRes.json();
+        setSystemHealthy(Boolean(healthJson.database_connected && healthJson.status === 'ready'));
+      } else {
+        setSystemHealthy(false);
+      }
 
       if (hubRes.ok) {
         const hubJson = await hubRes.json();
@@ -92,6 +101,7 @@ export function AdminOverviewScreen({
         }
       }
     } catch (err: any) {
+      setSystemHealthy(false);
       setError(err?.message || 'Gagal memuat data konsol kendali platform');
     } finally {
       setLoading(false);
@@ -136,9 +146,21 @@ export function AdminOverviewScreen({
               <h1 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight break-words">
                 Konsol Kendali Super Admin
               </h1>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                <CheckCircle2 className="w-3 h-3" /> Sistem Terkoneksi
-              </span>
+              {systemHealthy === true && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                  <CheckCircle2 className="w-3 h-3" /> Sistem Terkoneksi
+                </span>
+              )}
+              {systemHealthy === false && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0">
+                  <AlertCircle className="w-3 h-3" /> Sistem Terputus
+                </span>
+              )}
+              {systemHealthy === null && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-900 text-slate-500 border border-slate-300/30 shrink-0">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Memeriksa Sistem...
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               Pemantauan terpusat kesehatan platform, ekosistem organisasi, dan perutean model
