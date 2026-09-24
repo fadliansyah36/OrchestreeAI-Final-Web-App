@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useMemo } from 'react';
 import { PWAInstallButton } from '../feedback/PWAInstallButton';
 import { useLocaleContext } from '../i18n';

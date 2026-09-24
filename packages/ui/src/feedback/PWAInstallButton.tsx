@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Download, Smartphone, X } from 'lucide-react';
 import { usePWAInstall } from './usePWAInstall';

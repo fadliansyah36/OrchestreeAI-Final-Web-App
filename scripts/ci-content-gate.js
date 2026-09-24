@@ -98,6 +98,24 @@ function runContentGate() {
   const files = walkDir(rootDir);
   const violations = [];
 
+  // CI Guard: Dilarang keras server.ts atau src/server duplikat di root repositori
+  if (fs.existsSync(path.join(rootDir, 'server.ts')) || fs.existsSync(path.join(rootDir, 'server.js'))) {
+    violations.push({
+      file: 'server.ts / server.js',
+      line: 1,
+      term: 'server.ts legacy Node backend runner',
+      snippet: 'server.ts dilarang berada di repositori'
+    });
+  }
+  if (fs.existsSync(path.join(rootDir, 'src', 'server'))) {
+    violations.push({
+      file: 'src/server',
+      line: 1,
+      term: 'src/server duplicate backend files',
+      snippet: 'src/server direktori dilarang berada di repositori'
+    });
+  }
+
   for (const filePath of files) {
     // Only check code/markup files
     const ext = path.extname(filePath).toLowerCase();

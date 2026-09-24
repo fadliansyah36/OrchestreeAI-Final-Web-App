@@ -1,3 +1,5 @@
+'use client';
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import idMessages from './messages/id.json';

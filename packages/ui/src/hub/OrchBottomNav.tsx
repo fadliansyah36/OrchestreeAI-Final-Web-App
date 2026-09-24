@@ -1,3 +1,5 @@
+'use client';
+
 import React from 'react';
 import { useLocaleContext } from '../i18n';
 import {

@@ -231,11 +231,21 @@ class StartupGate:
         )
 
     def check_step_17_runtime_security(self) -> StartupCheckResult:
+        from pathlib import Path
+        rogue_files = ["server.ts", "server.js", "src/server"]
+        found = [f for f in rogue_files if Path(f).exists()]
+        if found:
+            return StartupCheckResult(
+                step_number=17,
+                name="Keamanan Runtime & Header HTTP",
+                status="failed",
+                detail=f"Ditemukan backend server kedua terlarang: {', '.join(found)}"
+            )
         return StartupCheckResult(
             step_number=17,
             name="Keamanan Runtime & Header HTTP",
             status="passed",
-            detail="Pengaturan runtime aman aktif."
+            detail="Pengaturan runtime aman aktif (FastAPI Python tunggal, zero rogue server)."
         )
 
     def check_step_18_platform_admin(self) -> StartupCheckResult:
