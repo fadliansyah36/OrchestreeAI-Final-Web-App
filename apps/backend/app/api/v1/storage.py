@@ -28,7 +28,7 @@ STORAGE_BASE_DIR = Path("apps/backend/storage_data")
 STORAGE_BASE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(require_capability("storage.upload"))])
 async def upload_file(
     file: UploadFile = File(...),
     bucket: str = Form("documents"),

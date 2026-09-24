@@ -50,9 +50,14 @@ class ToolRegistry:
     def __init__(self):
         self._tools: Dict[str, MCPToolMetadata] = {}
 
-    def register(self, metadata: MCPToolMetadata):
+    def register(self, metadata: Any):
+        if hasattr(metadata, "metadata"):
+            metadata = metadata.metadata
+        if not hasattr(metadata, "name"):
+            logger.warning(f"Cannot register tool without name: {metadata}")
+            return
         self._tools[metadata.name] = metadata
-        logger.info(f"Registered MCP tool: {metadata.name} (risk: {metadata.risk_tier})")
+        logger.info(f"Registered MCP tool: {metadata.name} (risk: {getattr(metadata, 'risk_tier', 'unknown')})")
 
     def get_tool(self, name: str) -> Optional[MCPToolMetadata]:
         return self._tools.get(name)
@@ -293,6 +298,7 @@ class ToolRegistry:
 
 
 _global_registry = ToolRegistry()
+global_tool_registry = _global_registry
 
 
 def get_tool_registry() -> ToolRegistry:

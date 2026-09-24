@@ -6,3 +6,40 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Test & linter cache
+.pytest_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Frontend builds
+.next/
+out/
+.turbo/
+
+# Supabase CLI temp
+.temp/
+
+# Ephemeral scratch & debug artifacts (AGENTS.md Section 10)
+.scratch/
+debug_*
+temp_*
+tmp_*
+test_manual*
+*_scratch*
+check_*.py
+

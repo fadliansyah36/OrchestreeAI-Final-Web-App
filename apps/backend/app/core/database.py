@@ -99,6 +99,8 @@ def get_engine() -> HybridEngine:
             async_url = async_url.replace("postgres://", "postgresql+asyncpg://", 1)
         elif "+psycopg2" in async_url:
             async_url = async_url.replace("+psycopg2", "+asyncpg")
+        if "sslmode=" in async_url:
+            async_url = async_url.replace("sslmode=", "ssl=")
         async_eng = create_async_engine(
             async_url,
             pool_pre_ping=True,
@@ -347,6 +349,8 @@ async def get_async_pool():
             dsn = dsn.replace("+psycopg2", "")
         if "+asyncpg" in dsn:
             dsn = dsn.replace("+asyncpg", "")
+        if "sslmode=" in dsn:
+            dsn = dsn.replace("sslmode=", "ssl=")
         _async_pool = await asyncpg.create_pool(dsn=dsn, min_size=1, max_size=10)
     return _async_pool
 
