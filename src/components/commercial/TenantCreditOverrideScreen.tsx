@@ -32,6 +32,7 @@ interface TenantSubscriptionItem {
   reserved_balance: number;
   available_balance: number;
   currency: string;
+  is_founder_account?: boolean;
 }
 
 export function TenantCreditOverrideScreen() {
@@ -309,6 +310,12 @@ export function TenantCreditOverrideScreen() {
                       <div className="font-bold text-white flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-slate-400" />
                         <span>{t.tenant_name}</span>
+                        {t.is_founder_account && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-amber-950/80 text-amber-300 border border-amber-600/60 shadow-xs">
+                            <Crown className="w-2.5 h-2.5 text-amber-400" />
+                            FOUNDER ACCOUNT
+                          </span>
+                        )}
                       </div>
                       <div className="font-mono text-[10px] text-slate-500 mt-0.5">{t.tenant_id}</div>
                     </td>

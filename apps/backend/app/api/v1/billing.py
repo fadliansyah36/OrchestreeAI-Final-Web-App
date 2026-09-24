@@ -1311,7 +1311,7 @@ async def admin_list_tenant_subscriptions():
         res = await conn.execute(sa.text("""
             SELECT
                 t.id as tenant_id,
-                t.name as tenant_name,
+                coalesce(t.display_name, t.legal_name) as tenant_name,
                 coalesce(p.plan_code, 'NONE') as plan_code,
                 coalesce(p.display_name, 'Belum Berlangganan') as plan_name,
                 coalesce(s.status, 'inactive') as subscription_status,
@@ -1320,12 +1320,13 @@ async def admin_list_tenant_subscriptions():
                 coalesce(w.balance, 0) as balance,
                 coalesce(w.reserved_balance, 0) as reserved_balance,
                 coalesce(w.balance - w.reserved_balance, 0) as available_balance,
-                w.updated_at
+                w.updated_at,
+                coalesce(t.is_founder_account, false) as is_founder_account
             FROM tenants t
             LEFT JOIN tenant_subscriptions s ON s.tenant_id = t.id AND s.status IN ('active', 'trialing')
             LEFT JOIN subscription_plans p ON s.plan_id = p.id
             LEFT JOIN tenant_credit_wallet w ON w.tenant_id = t.id
-            ORDER BY w.balance DESC, t.name ASC;
+            ORDER BY w.balance DESC, t.display_name ASC;
         """))
         rows = res.fetchall()
 
@@ -1342,6 +1343,7 @@ async def admin_list_tenant_subscriptions():
             "reserved_balance": float(r[8]),
             "available_balance": float(r[9]),
             "updated_at": r[10].isoformat() if r[10] else None,
+            "is_founder_account": bool(r[11]),
         }
         for r in rows
     ]

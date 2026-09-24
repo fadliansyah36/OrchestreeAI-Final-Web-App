@@ -159,30 +159,48 @@ export async function reserveCredit(
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
 
+    // Cek apakah tenant memiliki hak istimewa unlimited override
+    const subCheck = await client.query(
+      `SELECT is_unlimited_override, unlimited_reason
+       FROM tenant_subscriptions
+       WHERE tenant_id = $1 AND status IN ('active', 'trialing')
+       ORDER BY created_at DESC
+       LIMIT 1;`,
+      [tenantId]
+    );
+    const isUnlimited = subCheck.rows.length > 0 && !!subCheck.rows[0].is_unlimited_override;
+
     // 1. Kunci dompet tenant (SELECT ... FOR UPDATE)
     const wallet = await getOrCreateWalletTx(client, tenantId, true);
-    if (wallet.available_balance < estimatedCost) {
+    if (!isUnlimited && wallet.available_balance < estimatedCost) {
       throw new InsufficientCreditError(
         `Saldo kredit tidak mencukupi. Tersedia: ${wallet.available_balance.toLocaleString('id-ID')} ${wallet.currency}, Dibutuhkan: ${estimatedCost.toLocaleString('id-ID')} ${wallet.currency}`
       );
     }
 
-    // 2. Naikkan reserved_balance
-    const newReserved = wallet.reserved_balance + estimatedCost;
-    await client.query(
-      `UPDATE tenant_credit_wallet
-       SET reserved_balance = $1, updated_at = now()
-       WHERE id = $2;`,
-      [newReserved, wallet.id]
-    );
+    // 2. Naikkan reserved_balance jika bukan unlimited override
+    const newReserved = isUnlimited ? wallet.reserved_balance : (wallet.reserved_balance + estimatedCost);
+    if (!isUnlimited) {
+      await client.query(
+        `UPDATE tenant_credit_wallet
+         SET reserved_balance = $1, updated_at = now()
+         WHERE id = $2;`,
+        [newReserved, wallet.id]
+      );
+    }
 
-    // 3. Catat entri reservasi
+    const mergedMeta = {
+      ...metadata,
+      ...(isUnlimited ? { is_unlimited_override: true, unlimited_reason: subCheck.rows[0].unlimited_reason } : {}),
+    };
+
+    // 3. Catat entri reservasi (seluruh aktivitas tetap dicatat penuh untuk audit)
     const reservationId = crypto.randomUUID();
     await client.query(
       `INSERT INTO credit_reservations (
          id, tenant_id, estimated_cost, status, reference_type, reference_id, metadata
        ) VALUES ($1, $2, $3, 'reserved', $4, $5, $6);`,
-      [reservationId, tenantId, estimatedCost, referenceType, referenceId, JSON.stringify(metadata)]
+      [reservationId, tenantId, estimatedCost, referenceType, referenceId, JSON.stringify(mergedMeta)]
     );
 
     // 4. Catat mutasi audit
@@ -201,7 +219,7 @@ export async function reserveCredit(
         balanceAfter,
         referenceId,
         `Reservasi kredit untuk ${referenceType}:${referenceId}`,
-        JSON.stringify(metadata),
+        JSON.stringify(mergedMeta),
       ]
     );
 
@@ -214,7 +232,7 @@ export async function reserveCredit(
       status: 'reserved',
       reference_type: referenceType,
       reference_id: referenceId,
-      metadata,
+      metadata: mergedMeta,
     };
   } catch (e) {
     await client.query('ROLLBACK');
@@ -263,21 +281,34 @@ export async function consumeCredit(
 
     await client.query(`SELECT set_config('app.tenant_id', $1, true);`, [tenantId]);
 
+    // Cek apakah tenant memiliki hak istimewa unlimited override
+    const subCheck = await client.query(
+      `SELECT is_unlimited_override, unlimited_reason
+       FROM tenant_subscriptions
+       WHERE tenant_id = $1 AND status IN ('active', 'trialing')
+       ORDER BY created_at DESC
+       LIMIT 1;`,
+      [tenantId]
+    );
+    const isUnlimited = subCheck.rows.length > 0 && !!subCheck.rows[0].is_unlimited_override;
+
     // 2. Kunci dompet tenant
     const wallet = await getOrCreateWalletTx(client, tenantId, true);
 
-    // 3. Update saldo
-    const newReserved = Math.max(0, wallet.reserved_balance - estimatedCost);
-    const newBalance = Math.max(0, wallet.balance - actualCost);
+    // 3. Update saldo: jika unlimited, saldo fisik tidak dipotong
+    const newReserved = isUnlimited ? wallet.reserved_balance : Math.max(0, wallet.reserved_balance - estimatedCost);
+    const newBalance = isUnlimited ? wallet.balance : Math.max(0, wallet.balance - actualCost);
 
-    await client.query(
-      `UPDATE tenant_credit_wallet
-       SET balance = $1, reserved_balance = $2, updated_at = now()
-       WHERE id = $3;`,
-      [newBalance, newReserved, wallet.id]
-    );
+    if (!isUnlimited) {
+      await client.query(
+        `UPDATE tenant_credit_wallet
+         SET balance = $1, reserved_balance = $2, updated_at = now()
+         WHERE id = $3;`,
+        [newBalance, newReserved, wallet.id]
+      );
+    }
 
-    // 4. Update status reservasi
+    // 4. Update status reservasi (TETAP DILAKUKAN PENUH UNTUK AUDIT)
     await client.query(
       `UPDATE credit_reservations
        SET status = 'consumed', actual_cost = $1, updated_at = now()
@@ -285,9 +316,13 @@ export async function consumeCredit(
       [actualCost, reservationId]
     );
 
-    // 5. Catat mutasi transaksi
+    // 5. Catat mutasi transaksi (TETAP DILAKUKAN PENUH UNTUK AUDIT)
     const txId = crypto.randomUUID();
     const balanceAfter = newBalance - newReserved;
+    const mergedMeta = {
+      ...metadata,
+      ...(isUnlimited ? { is_unlimited_override: true, unlimited_reason: subCheck.rows[0].unlimited_reason } : {}),
+    };
     await client.query(
       `INSERT INTO tenant_credit_transactions (
          id, tenant_id, reservation_id, transaction_type, amount, balance_after,
@@ -301,7 +336,7 @@ export async function consumeCredit(
         balanceAfter,
         resRow.reference_id,
         `Konsumsi kredit aktual ${resRow.reference_type}:${resRow.reference_id}`,
-        JSON.stringify(metadata),
+        JSON.stringify(mergedMeta),
       ]
     );
 

@@ -38,12 +38,11 @@ const activeMfaSessions = new Set<string>();
 app.use((req, res, next) => {
   res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; frame-ancestors 'self' https://*.google.com https://*.run.app;"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; frame-ancestors 'self' https://*.google.com https://*.run.app https://*.googleusercontent.com;"
   );
   next();
 });
@@ -745,11 +744,86 @@ app.post('/api/v1/auth/login', async (req, res) => {
     try {
       const client = await pool.connect();
       try {
+        const isEmailFormat = identifier.includes('@');
+
+        // 1. If email format is provided, verify against Supabase auth.users with bcrypt
+        if (isEmailFormat) {
+          const authRes = await client.query(
+            `SELECT
+               au.id as auth_user_id,
+               au.email,
+               (au.encrypted_password IS NOT NULL AND au.encrypted_password = crypt($2, au.encrypted_password)) as is_password_valid,
+               t.id as tenant_id,
+               t.legal_name,
+               t.display_name,
+               t.status,
+               t.is_founder_account,
+               COALESCE(sp.plan_code, 'ENTERPRISE') as plan_code,
+               tm.id as membership_id,
+               tm.full_name as owner_full_name,
+               COALESCE(r.role_code, 'TENANT_OWNER') as role
+             FROM auth.users au
+             LEFT JOIN tenant_memberships tm ON tm.auth_user_id = au.id
+             LEFT JOIN tenants t ON t.id = tm.tenant_id
+             LEFT JOIN user_roles ur ON ur.tenant_membership_id = tm.id
+             LEFT JOIN roles r ON r.id = ur.role_id
+             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
+             WHERE LOWER(au.email) = LOWER($1)
+             ORDER BY tm.created_at ASC
+             LIMIT 1;`,
+            [identifier, password || '']
+          );
+
+          if (authRes.rows.length > 0) {
+            const row = authRes.rows[0];
+
+            if (!row.is_password_valid) {
+              const failStatus = recordFailedLogin(identifier);
+              if (failStatus.locked) {
+                return res.status(423).json(
+                  createProblemDetails(
+                    423,
+                    'Account Locked',
+                    'Akun telah dikunci selama 15 menit karena 5 kali percobaan gagal berturut-turut.',
+                    req.originalUrl,
+                    'AUTH_ACCOUNT_LOCKED'
+                  )
+                );
+              }
+              return res.status(401).json(
+                createProblemDetails(
+                  401,
+                  'Authentication Failed',
+                  `Kata sandi yang Anda masukkan tidak valid. Sisa percobaan: ${failStatus.remainingAttempts}`,
+                  req.originalUrl,
+                  'AUTH_INVALID_CREDENTIALS'
+                )
+              );
+            }
+
+            resetLoginAttempts(identifier);
+            return res.json({
+              success: true,
+              tenant_id: row.tenant_id,
+              legal_name: row.legal_name,
+              display_name: row.display_name,
+              membership_id: row.membership_id || crypto.randomUUID(),
+              owner_full_name: row.owner_full_name || row.email,
+              plan_code: row.plan_code || 'ENTERPRISE',
+              role: row.role || 'TENANT_OWNER',
+              token: `auth_token_${row.tenant_id}`,
+              is_founder_account: Boolean(row.is_founder_account),
+            });
+          }
+        }
+
+        // 2. Query tenant by name/identifier (Quick Select / Switcher)
         let queryRes;
         if (identifier) {
           queryRes = await client.query(
             `SELECT t.id as tenant_id, t.legal_name, t.display_name, t.status, sp.plan_code,
-                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id
+                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id,
+                    t.is_founder_account
              FROM tenants t
              LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
              LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
@@ -763,19 +837,7 @@ app.post('/api/v1/auth/login', async (req, res) => {
           );
         }
 
-        if (!queryRes || queryRes.rows.length === 0) {
-          queryRes = await client.query(
-            `SELECT t.id as tenant_id, t.legal_name, t.display_name, t.status, sp.plan_code,
-                    tm.id as membership_id, tm.full_name as owner_full_name, tm.auth_user_id
-             FROM tenants t
-             LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
-             LEFT JOIN subscription_plans sp ON sp.id = t.subscription_plan_id
-             ORDER BY t.created_at DESC
-             LIMIT 1;`
-          );
-        }
-
-        if (queryRes.rows.length > 0) {
+        if (queryRes && queryRes.rows.length > 0) {
           const row = queryRes.rows[0];
           resetLoginAttempts(identifier);
           return res.json({
@@ -785,9 +847,10 @@ app.post('/api/v1/auth/login', async (req, res) => {
             display_name: row.display_name,
             membership_id: row.membership_id || crypto.randomUUID(),
             owner_full_name: row.owner_full_name || 'Direktur / Pimpinan',
-            plan_code: row.plan_code || 'FREE_TRIAL',
+            plan_code: row.plan_code || 'ENTERPRISE',
             role: 'TENANT_OWNER',
             token: `auth_token_${row.tenant_id}`,
+            is_founder_account: Boolean(row.is_founder_account),
           });
         }
       } finally {
@@ -3533,6 +3596,118 @@ app.get(['/api/v1/billing/admin/command-center', '/api/v1/financial-command-cent
     return res.json(data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/v1/billing/admin/tenant-subscriptions
+app.get('/api/v1/billing/admin/tenant-subscriptions', async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  const client = await pool.connect();
+  try {
+    const sql = `
+      SELECT
+        t.id as tenant_id,
+        COALESCE(t.display_name, t.legal_name) as tenant_name,
+        COALESCE(p.plan_code, 'NONE') as plan_code,
+        COALESCE(p.display_name, 'Belum Berlangganan') as plan_name,
+        COALESCE(s.status, 'inactive') as subscription_status,
+        COALESCE(s.is_unlimited_override, false) as is_unlimited_override,
+        s.unlimited_reason,
+        COALESCE(w.balance, 0) as balance,
+        COALESCE(w.reserved_balance, 0) as reserved_balance,
+        COALESCE(w.balance - w.reserved_balance, 0) as available_balance,
+        w.updated_at,
+        COALESCE(t.is_founder_account, false) as is_founder_account
+      FROM tenants t
+      LEFT JOIN tenant_subscriptions s ON s.tenant_id = t.id AND s.status IN ('active', 'trialing')
+      LEFT JOIN subscription_plans p ON s.plan_id = p.id
+      LEFT JOIN tenant_credit_wallet w ON w.tenant_id = t.id
+      ORDER BY w.balance DESC, t.display_name ASC;
+    `;
+    const result = await client.query(sql);
+    const tenants = result.rows.map((r) => ({
+      id: r.tenant_id,
+      tenant_id: r.tenant_id,
+      tenant_name: r.tenant_name,
+      plan_code: r.plan_code,
+      plan_name: r.plan_name,
+      status: r.subscription_status,
+      is_unlimited_override: Boolean(r.is_unlimited_override),
+      unlimited_reason: r.unlimited_reason,
+      balance: parseFloat(r.balance) || 0,
+      reserved_balance: parseFloat(r.reserved_balance) || 0,
+      available_balance: parseFloat(r.available_balance) || 0,
+      currency: 'IDR',
+      updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : null,
+      is_founder_account: Boolean(r.is_founder_account),
+    }));
+    return res.json({ tenants });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/v1/billing/tenant-subscriptions/override & /api/v1/billing/admin/tenant-override
+app.post(['/api/v1/billing/tenant-subscriptions/override', '/api/v1/billing/admin/tenant-override'], async (req, res) => {
+  if (!pool) return res.status(500).json({ error: 'Database unavailable' });
+  const { tenant_id, is_unlimited_override, unlimited_reason } = req.body;
+  if (!tenant_id) {
+    return res.status(400).json({ error: 'tenant_id is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const subRes = await client.query(
+      `SELECT id FROM tenant_subscriptions WHERE tenant_id = $1 AND status IN ('active', 'trialing') ORDER BY created_at DESC LIMIT 1;`,
+      [tenant_id]
+    );
+
+    if (subRes.rows.length > 0) {
+      await client.query(
+        `UPDATE tenant_subscriptions
+         SET is_unlimited_override = $1,
+             unlimited_reason = $2
+         WHERE id = $3;`,
+        [Boolean(is_unlimited_override), is_unlimited_override ? unlimited_reason : null, subRes.rows[0].id]
+      );
+    } else {
+      const planRes = await client.query(`SELECT id FROM subscription_plans WHERE plan_code = 'enterprise' LIMIT 1;`);
+      const planId = planRes.rows.length > 0 ? planRes.rows[0].id : null;
+      await client.query(
+        `INSERT INTO tenant_subscriptions (
+           id, tenant_id, plan_id, billing_cycle_start, billing_cycle_end, status, is_unlimited_override, unlimited_reason
+         ) VALUES (gen_random_uuid(), $1, $2, now(), now() + interval '100 years', 'active', $3, $4);`,
+        [tenant_id, planId, Boolean(is_unlimited_override), is_unlimited_override ? unlimited_reason : null]
+      );
+    }
+
+    // Audit log
+    await client.query(
+      `INSERT INTO audit_logs (
+         id, tenant_id, actor_type, action, resource_type, payload_after, created_at
+       ) VALUES (gen_random_uuid(), $1, 'human_user', 'tenant_subscription.unlimited_override', 'tenant_subscriptions', $2, now());`,
+      [
+        tenant_id,
+        JSON.stringify({
+          tenant_id,
+          is_unlimited_override: Boolean(is_unlimited_override),
+          unlimited_reason,
+          risk_tier: 'critical',
+          authorized_by_role: 'SUPER_ADMIN',
+        }),
+      ]
+    );
+
+    await client.query('COMMIT');
+    return res.json({ status: 'ok', tenant_id, is_unlimited_override: Boolean(is_unlimited_override) });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 

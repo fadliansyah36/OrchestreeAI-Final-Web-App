@@ -253,7 +253,10 @@ async def generate_subscription_renewal_invoices() -> int:
                 SELECT ts.id, ts.tenant_id, ts.plan_id, sp.monthly_price_idr, sp.plan_code, sp.display_name
                 FROM tenant_subscriptions ts
                 JOIN subscription_plans sp ON sp.id = ts.plan_id
+                JOIN tenants t ON t.id = ts.tenant_id
                 WHERE ts.status = 'active'
+                  AND COALESCE(t.is_founder_account, false) = false
+                  AND COALESCE(ts.is_unlimited_override, false) = false
                   AND ts.billing_cycle_end <= :cutoff
                   AND sp.is_trial = false
                   AND sp.is_custom_quote = false
@@ -321,12 +324,16 @@ async def expire_stale_topup_credits() -> int:
     expired_count = 0
 
     async with engine.begin() as conn:
-        # Cari alokasi topup yang sudah kadaluarsa
+        # Cari alokasi topup yang sudah kadaluarsa (kecuali akun founder / unlimited override)
         res = await conn.execute(
             sa.text("""
                 SELECT ca.id, ca.tenant_id, ca.credit_amount, ca.expires_at
                 FROM credit_allocations ca
+                JOIN tenants t ON t.id = ca.tenant_id
+                LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = ca.tenant_id AND ts.status IN ('active', 'trialing')
                 WHERE ca.source_type = 'topup_purchase'
+                  AND COALESCE(t.is_founder_account, false) = false
+                  AND COALESCE(ts.is_unlimited_override, false) = false
                   AND ca.expires_at IS NOT NULL
                   AND ca.expires_at <= :now
                   AND NOT EXISTS (
