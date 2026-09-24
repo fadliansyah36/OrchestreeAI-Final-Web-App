@@ -4,7 +4,10 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
+try:
+    from orchestree.domains.generative.image_router import ImageRouterService
+except ImportError:
+    from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
 from app.domains.billing.credits import InsufficientCreditError
 from app.authz.pdp import require_capability
 

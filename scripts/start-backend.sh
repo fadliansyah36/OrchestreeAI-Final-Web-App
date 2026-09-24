@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -e
+
+# If backend is already running on port 8001 and responding, keep alive
+if curl -s http://127.0.0.1:8001/health/live >/dev/null 2>&1; then
+  echo "Backend already running and healthy on port 8001."
+  while curl -s http://127.0.0.1:8001/health/live >/dev/null 2>&1; do
+    sleep 5
+  done
+fi
+
+# If .venv/bin/uvicorn exists, use it
+if [ -f ".venv/bin/uvicorn" ]; then
+  export PYTHONPATH=apps/backend
+  exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+fi
+
+# If python3 -m uvicorn is available directly
+if python3 -m uvicorn --version >/dev/null 2>&1; then
+  export PYTHONPATH=apps/backend
+  exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+fi
+
+# Fallback: install uv and build venv
+if ! command -v uv >/dev/null 2>&1 && [ -f "/root/.local/bin/uv" ]; then
+  export PATH="/root/.local/bin:$PATH"
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="/root/.local/bin:$PATH"
+fi
+
+uv venv .venv
+uv pip install -r apps/backend/requirements.txt
+
+export PYTHONPATH=apps/backend
+exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001

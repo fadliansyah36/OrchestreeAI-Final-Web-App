@@ -15,7 +15,7 @@ import json
 import logging
 import uuid
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import sqlalchemy as sa
 from app.core.database import get_database_engine
 from app.authz.abac import (
@@ -44,9 +44,20 @@ class SubjectContext(BaseModel):
 class ResourceContext(BaseModel):
     resource_type: str
     resource_id: Optional[str] = None
-    owner_tenant_id: str
+    owner_tenant_id: Optional[str] = None
+    tenant_id: Optional[str] = None
     data_classification: str = "internal"  # "public", "internal", "confidential", "restricted"
     attributes: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def set_owner_tenant_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("owner_tenant_id") and data.get("tenant_id"):
+                data["owner_tenant_id"] = data["tenant_id"]
+            if not data.get("tenant_id") and data.get("owner_tenant_id"):
+                data["tenant_id"] = data["owner_tenant_id"]
+        return data
 
 
 class AuthorizationDecision(BaseModel):
@@ -54,6 +65,10 @@ class AuthorizationDecision(BaseModel):
     decision: str  # "ALLOW" | "DENIED_NO_POLICY" | "DENY_CROSS_TENANT" | "DENY_MFA_REQUIRED" | "DENY_INSUFFICIENT_ROLE" | "DENY_NO_CAPABILITY" | "DENY_TIER_RESTRICTION" | "DENY_DEPARTMENT_BUDGET_CAP"
     reason: str
     audit_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def allowed(self) -> bool:
+        return self.is_authorized
 
 
 def log_decision_to_audit(
@@ -406,8 +421,10 @@ def authorize(
         if action in allowed_manager_actions or action.startswith("department."):
             rbac_passed = True
             rbac_rule_matched = "dept_manager_rbac"
-    elif "STAFF_HUMAN" in roles_upper:
+    elif "STAFF_HUMAN" in roles_upper or "MEMBER" in roles_upper or "TENANT_MEMBER" in roles_upper:
         allowed_staff_actions = {
+            "tenant.context.view",
+            "tenant.settings.view",
             "tenant.members.view",
             "tasks.assigned.view",
             "tasks.assigned.update",

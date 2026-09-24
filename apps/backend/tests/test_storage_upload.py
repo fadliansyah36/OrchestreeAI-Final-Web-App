@@ -35,10 +35,15 @@ def test_storage_upload_and_retrieval():
     # end
     body.extend(f"--{boundary}--\r\n".encode())
 
+    headers = {
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+        "Authorization": "Bearer jwt.user-admin-01.10e75d63-15f8-42e8-a6ce-24fece12cd04.TENANT_OWNER.sig_valid_hash",
+    }
+
     req = urllib.request.Request(
         "http://localhost:8001/api/v1/storage/upload",
         data=bytes(body),
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        headers=headers,
     )
 
     with urllib.request.urlopen(req, timeout=5) as resp:
