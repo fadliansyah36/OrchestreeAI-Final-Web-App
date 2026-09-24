@@ -97,22 +97,24 @@ class AdminTenantItem(BaseModel):
     include_in_schema=False,
 )
 async def get_admin_hub_overview(
-    x_user_roles: Optional[str] = Header("PLATFORM_SUPERADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("platform.admin.manage,admin.hub.view", alias="X-User-Capabilities"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
 ):
     """
     Mengembalikan statistik ringkasan operasional platform global untuk Konsol Super Admin.
-    Penegakan izin via Unified PDP (authorize) dan perbaikan bug casing pada kolom status tenant:
-    LOWER(status) = 'active' & LOWER(status) = 'trial'.
+    Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
     """
     roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
     capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
 
     subject = SubjectContext(
         roles=roles,
         capabilities=capabilities,
         tenant_id="global",
         actor_type="user",
+        is_mfa_verified=is_mfa,
     )
     resource = ResourceContext(
         resource_type="admin_hub_overview",
@@ -223,20 +225,23 @@ async def get_admin_hub_overview(
     include_in_schema=False,
 )
 async def get_financial_command_center_overview(
-    x_user_roles: Optional[str] = Header("PLATFORM_SUPERADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("admin.financial.view", alias="X-User-Capabilities"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
 ):
     """
-    Mengembalikan ringkasan saldo ledger dan total revenue platform untuk Super Admin.
+    Mengembalikan ringkasan saldo ledger dan total revenue platform untuk Super Admin (Wajib MFA).
     """
     roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
     capabilities = [c.strip() for c in (x_user_capabilities or "admin.financial.view").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
 
     subject = SubjectContext(
         roles=roles,
         capabilities=capabilities,
         tenant_id="global",
         actor_type="user",
+        is_mfa_verified=is_mfa,
     )
     resource = ResourceContext(
         resource_type="financial_command_center",
@@ -311,20 +316,23 @@ async def get_financial_command_center_overview(
     include_in_schema=False,
 )
 async def list_admin_tenants(
-    x_user_roles: Optional[str] = Header("PLATFORM_SUPERADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("platform.admin.manage", alias="X-User-Capabilities"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
 ):
     """
-    Mengembalikan daftar seluruh organisasi tenant untuk Super Admin Hub.
+    Mengembalikan daftar seluruh organisasi tenant untuk Super Admin Hub (Wajib MFA).
     """
     roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
     capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
 
     subject = SubjectContext(
         roles=roles,
         capabilities=capabilities,
         tenant_id="global",
         actor_type="user",
+        is_mfa_verified=is_mfa,
     )
     resource = ResourceContext(
         resource_type="tenants",

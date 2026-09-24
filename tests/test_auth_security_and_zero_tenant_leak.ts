@@ -148,7 +148,10 @@ export async function runSecurityAndTenantLeakRegression(): Promise<boolean> {
 
     // 5. Super Admin Hub Overview count consistency
     console.log('[TEST 5] Verifying Super Admin Hub Overview metric consistency...');
-    const hubOverviewRes = await makeRequest('GET', '/api/v1/admin/hub-overview');
+    const hubOverviewRes = await makeRequest('GET', '/api/v1/admin/hub-overview', null, {
+      'X-User-Roles': 'PLATFORM_SUPERADMIN',
+      'X-MFA-Verified': 'true',
+    });
     const hubData = hubOverviewRes.data;
     const totalTenants = hubData?.tenants?.total ?? -1;
     const activeTenants = hubData?.tenants?.active ?? -1;

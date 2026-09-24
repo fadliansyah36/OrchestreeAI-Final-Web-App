@@ -83,14 +83,21 @@ async def get_or_create_wallet_tx(conn, tenant_id: str, for_update: bool = False
     Mengambil atau menginisialisasi dompet kredit tenant di dalam transaksi yang sama.
     Jika for_update=True, menerapkan SELECT ... FOR UPDATE.
     """
-    for_update_clause = "FOR UPDATE" if for_update else ""
-    query = sa.text(f"""
-        SELECT id, tenant_id, balance, reserved_balance, low_balance_threshold, currency,
-               auto_topup_enabled, auto_topup_amount
-        FROM tenant_credit_wallet
-        WHERE tenant_id = :tenant_id
-        {for_update_clause};
-    """)
+    if for_update:
+        query = sa.text("""
+            SELECT id, tenant_id, balance, reserved_balance, low_balance_threshold, currency,
+                   auto_topup_enabled, auto_topup_amount
+            FROM tenant_credit_wallet
+            WHERE tenant_id = :tenant_id
+            FOR UPDATE;
+        """)
+    else:
+        query = sa.text("""
+            SELECT id, tenant_id, balance, reserved_balance, low_balance_threshold, currency,
+                   auto_topup_enabled, auto_topup_amount
+            FROM tenant_credit_wallet
+            WHERE tenant_id = :tenant_id;
+        """)
     result = await conn.execute(query, {"tenant_id": tenant_id})
     row = result.fetchone()
 

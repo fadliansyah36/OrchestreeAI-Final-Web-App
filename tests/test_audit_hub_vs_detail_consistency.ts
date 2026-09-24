@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const connectionString =
+  process.env.DATABASE_URL_MIGRATOR ||
+  process.env.DATABASE_DIRECT_URL ||
   process.env.DATABASE_URL ||
   'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
 

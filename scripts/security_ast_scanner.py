@@ -99,9 +99,47 @@ def analyze_file(filepath: str) -> Tuple[int, List[Dict[str, Any]]]:
     return total_endpoints, unprotected
 
 
+def analyze_mcp_tools(skills_dir: str) -> Tuple[int, List[str]]:
+    """Memeriksa bahwa seluruh tool MCP didekorasi dengan @mcp_tool yang memanggil authorize()."""
+    total_tools = 0
+    missing_protection = []
+    for root, _, files in os.walk(skills_dir):
+        for f in files:
+            if f.endswith("tools.py"):
+                filepath = os.path.join(root, f)
+                with open(filepath, "r", encoding="utf-8") as file_obj:
+                    content = file_obj.read()
+                try:
+                    tree = ast.parse(content, filename=filepath)
+                except Exception:
+                    continue
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        if node.name.startswith("tool_"):
+                            total_tools += 1
+                            has_mcp_dec = False
+                            for dec in node.decorator_list:
+                                dec_str = ast.unparse(dec) if hasattr(ast, "unparse") else ""
+                                if "mcp_tool" in dec_str:
+                                    has_mcp_dec = True
+                                    break
+                            if not has_mcp_dec:
+                                missing_protection.append(f"{f}:{node.lineno} in {node.name}()")
+    return total_tools, missing_protection
+
+
+def analyze_workflow_engine(engine_file: str) -> bool:
+    """Memeriksa bahwa engine alur kerja mengevaluasi authorize() pada setiap eksekusi node."""
+    if not os.path.exists(engine_file):
+        return False
+    with open(engine_file, "r", encoding="utf-8") as f:
+        content = f.read()
+    return "authz_decision = authorize(" in content and "workflow.node." in content
+
+
 def main():
     print("=" * 80)
-    print("ORCHESTREE AI — AST SECURITY & PDP CAPABILITY SCANNER")
+    print("ORCHESTREE AI — AST SECURITY & PDP CAPABILITY SCANNER (PRD v2.2 Bagian 3.5)")
     print(f"Scanning directory: {API_DIR}")
     print("=" * 80)
 
@@ -124,14 +162,32 @@ def main():
     print(f"Unprotected endpoints        : {len(unprotected_all)}")
     print("-" * 80)
 
-    if unprotected_all:
-        print("\n[CRITICAL FAILURE] The following endpoints lack PDP authorize() or require_capability():")
+    # Titik Evaluasi 2: Workflow Nodes
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    engine_file = os.path.join(repo_root, "apps", "backend", "app", "core", "orchestration", "engine.py")
+    wf_ok = analyze_workflow_engine(engine_file)
+    wf_status = "✓ PASS (Evaluasi Titik 2 Aktif)" if wf_ok else "✗ FAIL"
+    print(f"  Workflow Node Graph Engine   [Node Execution] -> {wf_status}")
+
+    # Titik Evaluasi 3: MCP Tools
+    skills_dir = os.path.join(repo_root, "apps", "backend", "app", "skills")
+    mcp_count, mcp_missing = analyze_mcp_tools(skills_dir)
+    mcp_status = "✓ PASS (Evaluasi Titik 3 Aktif)" if len(mcp_missing) == 0 else f"✗ FAIL ({len(mcp_missing)} missing)"
+    print(f"  MCP Tools Registry           [{mcp_count:2} tools]     -> {mcp_status}")
+    print("-" * 80)
+
+    if unprotected_all or not wf_ok or mcp_missing:
+        print("\n[CRITICAL FAILURE] Security violations detected in PDP coverage:")
         for u in unprotected_all:
-            print(f"  - {u['file']}:{u['line']} in {u['function']}(): {u['decorator']}")
+            print(f"  - Endpoint: {u['file']}:{u['line']} in {u['function']}(): {u['decorator']}")
+        if not wf_ok:
+            print("  - Workflow engine lacks PDP authorize() before node execution.")
+        for m in mcp_missing:
+            print(f"  - MCP Tool lacking @mcp_tool decorator: {m}")
         print("\nBuild rejected by Security Gate (PRD v2.2 Bagian 3.5).")
         sys.exit(1)
 
-    print("\n[SUCCESS] 100% of REST endpoints are verified and protected by PDP authorize().")
+    print("\n[SUCCESS] 100% of REST endpoints, Workflow Nodes, and MCP Tools verified & protected by PDP authorize().")
     sys.exit(0)
 
 

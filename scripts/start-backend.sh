@@ -24,13 +24,13 @@ fi
 # If .venv/bin/uvicorn exists, use it
 if [ -f ".venv/bin/uvicorn" ]; then
   export PYTHONPATH=apps/backend
-  exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+  exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 fi
 
 # If python3 -m uvicorn is available directly
 if python3 -m uvicorn --version >/dev/null 2>&1; then
   export PYTHONPATH=apps/backend
-  exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+  exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 fi
 
 # Fallback: install uv and build venv

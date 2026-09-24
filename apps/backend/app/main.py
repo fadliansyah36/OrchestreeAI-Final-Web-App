@@ -81,16 +81,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Centralized Security Headers Middleware (OWASP Secure Headers)
+from app.core.security.rate_limiter import limiter
+
+# Centralized Security Headers & Rate Limiting Middleware (OWASP Secure Headers & Token Bucket)
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def security_and_rate_limit_middleware(request: Request, call_next):
+    # 1. Rate limiting check for sensitive endpoints
+    path = request.url.path
+    category = None
+    if "/otp" in path:
+        category = "auth_otp"
+    elif "/auth" in path or "/login" in path:
+        category = "auth_login"
+    elif "/storage/upload" in path:
+        category = "upload"
+    elif "/chat" in path:
+        category = "ask_ai"
+    elif "/webhooks" in path:
+        category = "public_webhook"
+
+    if category:
+        allowed, retry_after = limiter.check_rate_limit(request, category)
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                headers={
+                    "Retry-After": str(retry_after),
+                    "Content-Type": "application/problem+json",
+                },
+                content={
+                    "type": "https://orchestree.ai/errors/429",
+                    "title": "Too Many Requests",
+                    "status": 429,
+                    "detail": f"Terlalu banyak permintaan pada endpoint sensitif ('{category}'). Coba lagi dalam {retry_after} detik.",
+                    "instance": path,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
     response = await call_next(request)
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none';"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'; frame-ancestors 'none';"
     return response
 
 # Centralized RFC 7807 Problem Details Handlers

@@ -34,13 +34,16 @@ async def get_current_tenant_context(
     yang terikat pada sesi/token otentikasi. Manipulasi lintas tenant langsung ditolak (403 Forbidden).
     """
     # 1. Periksa token otentikasi
+    header_caps = []
     if not authorization or not authorization.startswith("Bearer "):
         if settings.APP_ENV == "local" and x_tenant_id:
             user_id = request.headers.get("x-user-id") or "usr_default_admin"
             user_role = request.headers.get("x-user-role") or request.headers.get("x-user-roles") or "TENANT_OWNER"
             roles = [r.strip().upper() for r in user_role.split(",") if r.strip()]
+            raw_caps = request.headers.get("x-user-capabilities") or ""
+            header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
             token_tenant_id = x_tenant_id
-            is_mfa = True
+            is_mfa = request.headers.get("x-mfa-verified", "true").lower() in ("true", "1")
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,6 +54,8 @@ async def get_current_tenant_context(
 
         # Ekstraksi klaim token (mendukung JWT Supabase & token terstruktur harness)
         user_id, token_tenant_id, roles, is_mfa = _extract_claims_from_token(token)
+        raw_caps = request.headers.get("x-user-capabilities") or ""
+        header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
 
         # 2. Penegakan Anti-Spoofing: X-Tenant-Id tidak boleh memalsukan identitas tenant
         if x_tenant_id and x_tenant_id != token_tenant_id:
@@ -63,7 +68,7 @@ async def get_current_tenant_context(
             )
 
     # 3. Muat peran nyata dari database jika tersedia
-    capabilities: List[str] = []
+    capabilities: List[str] = list(header_caps)
     try:
         engine = get_database_engine()
         with engine.connect() as conn:
@@ -308,7 +313,9 @@ def sanitize_ai_output(raw_text: str) -> str:
     import re
     cleaned = re.sub(r"<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>", "[REMOVED_SCRIPT]", raw_text, flags=re.IGNORECASE)
     cleaned = re.sub(r"<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>", "[REMOVED_IFRAME]", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"javascript:", "blocked-javascript:", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"javascript:", "blocked-scheme:", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"data:text/html", "blocked-data-html:", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"vbscript:", "blocked-scheme:", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\son\w+=\"[^\"]*\"", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\son\w+='[^']*'", "", cleaned, flags=re.IGNORECASE)
     return cleaned

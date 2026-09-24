@@ -347,8 +347,9 @@ def authorize(
     # =========================================================================
 
     # 1.1 Aturan Mutlak: Isolasi Tenant
+    is_super_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles_upper)
     if resource.owner_tenant_id and subject.tenant_id != resource.owner_tenant_id:
-        if "SUPER_ADMIN" in roles_upper or "PLATFORM_SUPER_ADMIN" in roles_upper:
+        if is_super_admin:
             if not subject.is_mfa_verified:
                 decision = AuthorizationDecision(
                     is_authorized=False,
@@ -377,7 +378,7 @@ def authorize(
             return decision
 
     # 1.2 Aturan Platform Super Admin (Wajib MFA untuk operasi administratif)
-    if "SUPER_ADMIN" in roles_upper or "PLATFORM_SUPER_ADMIN" in roles_upper:
+    if is_super_admin:
         if not subject.is_mfa_verified:
             decision = AuthorizationDecision(
                 is_authorized=False,
