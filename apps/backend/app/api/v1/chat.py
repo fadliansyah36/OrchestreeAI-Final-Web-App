@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from app.authz.pdp import authorize, SubjectContext, ResourceContext
 from app.core.model_router.router import get_model_router, ModelRouterRequest
 from app.domains.billing.credits import reserve_credit, consume_credit, refund_credit
+from app.domains.billing.credit_engine import estimate_credit_cost
 
 logger = logging.getLogger("orchestree.api.chat")
 
@@ -66,9 +67,21 @@ async def stream_chat_message(
     if not decision.is_authorized:
         raise HTTPException(status_code=403, detail=f"Otorisasi ditolak: {decision.reason}")
 
-    # 2. Reservasi Kredit di Dompet Tenant
+    # 2. Estimasi & Reservasi Kredit di Dompet Tenant via Credit Engine
     session_id = payload.session_id or str(uuid.uuid4())
-    estimated_cost = Decimal("15.0000")
+    try:
+        estimate = await estimate_credit_cost(
+            activity_code="simple_chat",
+            complexity_code="medium",
+            llm_model_id=payload.preferred_model or "default",
+            tool_risk_tier=None,
+            execution_mode="single_step",
+        )
+        estimated_cost = Decimal(str(estimate.final_estimate))
+    except Exception as est_err:
+        logger.warning(f"Gagal kalkulasi estimasi kredit kustom, fallback ke default: {est_err}")
+        estimated_cost = Decimal("15.0000")
+
     reservation = None
     try:
         reservation = await reserve_credit(
@@ -76,7 +89,12 @@ async def stream_chat_message(
             estimated_cost=estimated_cost,
             reference_type="chat_message",
             reference_id=session_id,
-            metadata={"user_id": user_id, "provider": payload.preferred_provider},
+            metadata={
+                "user_id": user_id,
+                "provider": payload.preferred_provider,
+                "activity_code": "simple_chat",
+                "estimated_cost": float(estimated_cost),
+            },
         )
     except Exception as e:
         logger.error(f"Gagal melakukan reservasi kredit untuk chat: {e}")

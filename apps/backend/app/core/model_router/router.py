@@ -595,17 +595,28 @@ class ModelRouter:
             except Exception as opt_err:
                 logger.warning(f"F.01-TOKENOPT intercept gagal: {opt_err}")
 
-        # Reservasi kredit sebelum memanggil provider
+        # Siklus Kredit AI 5 Tahap: Tahap 1 (Estimasi) & Tahap 2 (Reservasi) (PRD v2.2 Bagian 14)
         reservation = None
+        est = None
         if request.tenant_id:
             try:
-                from app.domains.billing.credits import reserve_credit
-                estimated = Decimal("50.0000") if request.task_type == "image_generation" else Decimal("15.0000")
+                from app.domains.billing.credit_engine import estimate_credit_cost, reserve_credit
+                act_code = "data_processing" if request.task_type == "image_generation" else "simple_chat"
+                comp_code = "high" if request.task_type == "image_generation" else "medium"
+                est = await estimate_credit_cost(
+                    activity_code=act_code,
+                    complexity_code=comp_code,
+                    llm_model_id=request.preferred_model or "default",
+                    tool_risk_tier=None,
+                    execution_mode="single_step",
+                )
                 reservation = await reserve_credit(
                     tenant_id=request.tenant_id,
-                    estimated_cost=estimated,
+                    estimate=est,
+                    activity_type_id=act_code,
                     reference_type="model_router",
                     reference_id=f"llm-{uuid.uuid4().hex[:12]}",
+                    execution_ref=request.workflow_execution_id,
                     metadata={"task_type": request.task_type, "preferred_model": request.preferred_model},
                 )
             except Exception as e:
@@ -636,22 +647,18 @@ class ModelRouter:
             try:
                 response = await adapter.generate(request)
                 if response.status == "success" and response.content:
-                    # Konsumsi kredit aktual
+                    # Konsumsi kredit aktual (Tahap 4)
                     if reservation:
                         try:
-                            from app.domains.billing.credits import consume_credit
+                            from app.domains.billing.credit_engine import consume_credit
                             if request.task_type == "image_generation":
-                                actual_cost = Decimal("40.0000")
+                                actual_cost = float(est.final_estimate if est else 40.0)
                             else:
-                                actual_cost = max(Decimal("1.0000"), Decimal(str(response.total_tokens or 100)) * Decimal("0.0050"))
+                                actual_cost = max(1.0, float(response.total_tokens or 100) * 0.005)
                             await consume_credit(
-                                reservation_id=reservation.id,
+                                reservation=reservation,
                                 actual_cost=actual_cost,
-                                metadata={
-                                    "provider_id": response.provider_id,
-                                    "model_id": response.model_id,
-                                    "total_tokens": response.total_tokens,
-                                },
+                                execution_ref=f"{response.provider_id}:{response.model_id}:{request.workflow_execution_id or 'direct'}",
                             )
                         except Exception as cred_err:
                             logger.warning(f"Gagal mencatat konsumsi kredit: {cred_err}")
@@ -685,15 +692,11 @@ class ModelRouter:
                 last_error = str(e)
                 logger.error(f"Error calling adapter {prov_id}: {e}")
 
-        # Jika semua provider gagal, refund kredit yang direservasi
+        # Jika semua provider gagal, refund kredit yang direservasi (Tahap 5)
         if reservation:
             try:
-                from app.domains.billing.credits import refund_credit
-                await refund_credit(
-                    reservation_id=reservation.id,
-                    reason=f"Semua provider LLM gagal: {last_error}",
-                    metadata={"error": str(last_error)},
-                )
+                from app.domains.billing.credit_engine import refund_credit
+                await refund_credit(reservation)
             except Exception as ref_err:
                 logger.warning(f"Gagal melakukan refund kredit reservasi {reservation.id}: {ref_err}")
 

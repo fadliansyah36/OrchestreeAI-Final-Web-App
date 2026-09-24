@@ -17,7 +17,7 @@ from app.api.v1.workforce import router as workforce_router
 from app.api.v1.kanban_and_attendance import router as kanban_and_attendance_router
 from app.api.v1.orchestration import router as orchestration_router
 from app.api.v1.learning import router as learning_router
-from app.api.v1.billing import router as billing_router
+from app.api.v1.billing import router as billing_router, tenant_summary_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.proactive import router as proactive_router
 from app.api.v1.chat import router as chat_router
@@ -134,6 +134,7 @@ app.include_router(kanban_and_attendance_router)
 app.include_router(orchestration_router)
 app.include_router(learning_router)
 app.include_router(billing_router)
+app.include_router(tenant_summary_router)
 app.include_router(webhooks_router)
 app.include_router(proactive_router)
 app.include_router(chat_router)

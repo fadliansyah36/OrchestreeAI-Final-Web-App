@@ -1,7 +1,7 @@
 from .credits import (
-    reserve_credit,
-    consume_credit,
-    refund_credit,
+    reserve_credit as legacy_reserve_credit,
+    consume_credit as legacy_consume_credit,
+    refund_credit as legacy_refund_credit,
     topup_credit,
     get_wallet,
     get_transactions,
@@ -12,11 +12,29 @@ from .credits import (
     CreditTransaction,
     TenantWallet,
 )
+from .credit_engine import (
+    estimate_credit_cost,
+    reserve_credit,
+    consume_credit,
+    refund_credit,
+    get_tenant_credit_wallet_summary,
+    CreditEstimate,
+    ReservationToken,
+    InsufficientCreditException,
+)
 
 __all__ = [
+    "estimate_credit_cost",
     "reserve_credit",
     "consume_credit",
     "refund_credit",
+    "get_tenant_credit_wallet_summary",
+    "CreditEstimate",
+    "ReservationToken",
+    "InsufficientCreditException",
+    "legacy_reserve_credit",
+    "legacy_consume_credit",
+    "legacy_refund_credit",
     "topup_credit",
     "get_wallet",
     "get_transactions",

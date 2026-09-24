@@ -124,23 +124,27 @@ class ToolRegistry:
             except Exception as e:
                 raise ValueError(f"Validasi input schema gagal untuk tool '{name}': {e}")
 
-        # Reservasi kredit untuk pemanggilan MCP Tool berbayar
-        cost_map = {
-            "low": Decimal("5.0000"),
-            "medium": Decimal("10.0000"),
-            "high": Decimal("25.0000"),
-            "critical": Decimal("50.0000"),
-        }
-        tool_cost = cost_map.get(tool.risk_tier, Decimal("5.0000"))
+        # Reservasi kredit untuk pemanggilan MCP Tool berbayar via 5-Stage Credit Engine
         reservation = None
+        est = None
         if context.tenant_id:
             try:
-                from app.domains.billing.credits import reserve_credit
+                from app.domains.billing.credit_engine import estimate_credit_cost, reserve_credit
+                tier = tool.risk_tier if tool.risk_tier in ("low", "medium", "high") else "low"
+                est = await estimate_credit_cost(
+                    activity_code="tool_operation",
+                    complexity_code="medium",
+                    llm_model_id="default",
+                    tool_risk_tier=tier,
+                    execution_mode="single_step",
+                )
                 reservation = await reserve_credit(
                     tenant_id=context.tenant_id,
-                    estimated_cost=tool_cost,
+                    estimate=est,
+                    activity_type_id="act-tool_operation",
                     reference_type="mcp_tool",
                     reference_id=f"tool-{uuid.uuid4().hex[:12]}",
+                    execution_ref=context.workflow_execution_id or name,
                     metadata={"tool_name": name, "risk_tier": tool.risk_tier},
                 )
             except Exception as cred_err:
@@ -170,14 +174,14 @@ class ToolRegistry:
 
             duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-            # Konsumsi kredit sukses
+            # Konsumsi kredit sukses (Tahap 4)
             if reservation:
                 try:
-                    from app.domains.billing.credits import consume_credit
+                    from app.domains.billing.credit_engine import consume_credit
                     await consume_credit(
-                        reservation_id=reservation.id,
-                        actual_cost=tool_cost,
-                        metadata={"tool_name": name, "risk_tier": tool.risk_tier},
+                        reservation=reservation,
+                        actual_cost=float(est.final_estimate if est else 5.0),
+                        execution_ref=f"mcp_tool:{name}:{context.workflow_execution_id or 'direct'}",
                     )
                 except Exception as cons_err:
                     logger.warning(f"Gagal konsumsi kredit MCP tool {name}: {cons_err}")
@@ -196,15 +200,11 @@ class ToolRegistry:
         except Exception as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-            # Refund kredit jika eksekusi gagal
+            # Refund kredit jika eksekusi gagal (Tahap 5)
             if reservation:
                 try:
-                    from app.domains.billing.credits import refund_credit
-                    await refund_credit(
-                        reservation_id=reservation.id,
-                        reason=f"Eksekusi MCP tool gagal: {str(e)}",
-                        metadata={"tool_name": name, "error": str(e)},
-                    )
+                    from app.domains.billing.credit_engine import refund_credit
+                    await refund_credit(reservation)
                 except Exception as ref_err:
                     logger.warning(f"Gagal refund kredit MCP tool {name}: {ref_err}")
 

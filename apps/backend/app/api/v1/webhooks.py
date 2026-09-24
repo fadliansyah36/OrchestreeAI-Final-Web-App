@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.core.database import get_engine
 from app.authz.pdp import webhook_endpoint
 from app.domains.billing.credits import topup_credit
+from app.domains.billing.lifecycle import process_invoice_settlement
 from app.domains.proactive.service import (
     handle_opt_out,
     handle_opt_in,
@@ -178,17 +179,16 @@ async def handle_midtrans_webhook(request: Request):
                 "raw_payload": json.dumps(payload),
             })
 
-    # Jika lunas dan belum diproses sebelumnya, tambahkan kredit ke dompet tenant
+    # Jika lunas dan belum diproses sebelumnya, jalankan siklus Entitlement + Credit Allocation
     if is_paid and inv_status != "paid":
-        tx = await topup_credit(
-            tenant_id=tenant_id,
-            amount=inv_amount,
-            reference_id=order_id,
-            description=f"Top up via Midtrans ({order_id})",
-            metadata={"transaction_id": transaction_id, "gateway": "midtrans"},
+        settle_res = await process_invoice_settlement(
+            invoice_number=order_id,
+            payment_reference=transaction_id or order_id,
+            payment_gateway="midtrans",
+            raw_payload=payload,
         )
         logger.info(
-            f"Faktur Midtrans {order_id} lunas! Saldo tenant {tenant_id} bertambah {inv_amount} (TxID: {tx.id})"
+            f"Faktur Midtrans {order_id} lunas! Hasil settlement: {settle_res}"
         )
 
     return {"status": "ok", "order_id": order_id, "transaction_status": transaction_status}
@@ -308,15 +308,14 @@ async def handle_xendit_webhook(
             })
 
     if is_paid and inv_status != "paid":
-        tx = await topup_credit(
-            tenant_id=tenant_id,
-            amount=inv_amount,
-            reference_id=external_id,
-            description=f"Top up via Xendit ({external_id})",
-            metadata={"payment_id": payment_id, "gateway": "xendit"},
+        settle_res = await process_invoice_settlement(
+            invoice_number=external_id,
+            payment_reference=payment_id or external_id,
+            payment_gateway="xendit",
+            raw_payload=payload,
         )
         logger.info(
-            f"Faktur Xendit {external_id} lunas! Saldo tenant {tenant_id} bertambah {inv_amount} (TxID: {tx.id})"
+            f"Faktur Xendit {external_id} lunas! Hasil settlement: {settle_res}"
         )
 
     return {"status": "ok", "external_id": external_id, "status": status}

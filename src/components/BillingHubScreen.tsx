@@ -17,6 +17,13 @@ import {
   ExternalLink,
   PlusCircle,
   HelpCircle,
+  Calculator,
+  Layers,
+  Sparkles,
+  Info,
+  Check,
+  X,
+  Crown,
 } from 'lucide-react';
 
 interface WalletData {
@@ -30,6 +37,15 @@ interface WalletData {
   auto_topup_enabled: boolean;
   auto_topup_amount: number;
   is_low_balance: boolean;
+}
+
+interface WalletSummary {
+  available: number;
+  reserved: number;
+  used_this_cycle: number;
+  total_allocated_this_cycle: number;
+  is_unlimited: boolean;
+  low_balance_warning: boolean;
 }
 
 interface TransactionItem {
@@ -56,6 +72,49 @@ interface InvoiceItem {
   paid_at?: string;
 }
 
+interface SubscriptionPlan {
+  id: string;
+  plan_code: string;
+  tier_level: number;
+  display_name: string;
+  monthly_price_idr: number | null;
+  ai_credit_allowance: number | null;
+  human_staff_limit: number | null;
+  ai_agent_limit: number | null;
+  is_trial: boolean;
+  trial_duration_days: number | null;
+  is_custom_quote: boolean;
+  display_order: number;
+  facilities: Record<string, string>;
+}
+
+interface TopUpPackage {
+  id: string;
+  name: string;
+  credit_amount: number;
+  price_idr: number;
+  validity_days: number;
+  is_active: boolean;
+}
+
+interface ActivityType {
+  id: string;
+  activity_code: string;
+  display_name: string;
+  base_work_unit_min: number;
+  base_work_unit_max: number;
+}
+
+interface CreditEstimateResult {
+  activity_code: string;
+  base_work_units: number;
+  complexity_multiplier: number;
+  model_multiplier: number;
+  tool_multiplier: number;
+  execution_multiplier: number;
+  final_estimate: number;
+}
+
 interface BillingHubScreenProps {
   tenantId: string;
   tenantName?: string;
@@ -68,14 +127,19 @@ export function BillingHubScreen({
   userRole = 'TENANT_ADMIN',
 }: BillingHubScreenProps) {
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [summary, setSummary] = useState<WalletSummary | null>(null);
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [topupPackages, setTopupPackages] = useState<TopUpPackage[]>([]);
+  const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'invoices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'calculator' | 'transactions' | 'invoices'>('overview');
 
   // Top-Up Modal State
   const [isTopUpOpen, setIsTopUpOpen] = useState<boolean>(false);
-  const [selectedPackage, setSelectedPackage] = useState<number>(500000);
+  const [selectedPackageId, setSelectedPackageId] = useState<string>('');
+  const [selectedPackageAmount, setSelectedPackageAmount] = useState<number>(500000);
   const [customAmount, setCustomAmount] = useState<string>('');
   const [selectedGateway, setSelectedGateway] = useState<'midtrans' | 'xendit'>('midtrans');
   const [topUpLoading, setTopUpLoading] = useState<boolean>(false);
@@ -85,6 +149,15 @@ export function BillingHubScreen({
   // Settlement Testing State
   const [settlingInvoiceNumber, setSettlingInvoiceNumber] = useState<string | null>(null);
   const [settleFeedback, setSettleFeedback] = useState<string | null>(null);
+
+  // Calculator State
+  const [calcActivity, setCalcActivity] = useState<string>('simple_chat');
+  const [calcComplexity, setCalcComplexity] = useState<string>('medium');
+  const [calcModel, setCalcModel] = useState<string>('default');
+  const [calcToolRisk, setCalcToolRisk] = useState<string>('none');
+  const [calcExecution, setCalcExecution] = useState<string>('single_step');
+  const [calcResult, setCalcResult] = useState<CreditEstimateResult | null>(null);
+  const [calcLoading, setCalcLoading] = useState<boolean>(false);
 
   const fetchBillingData = async () => {
     if (!tenantId) return;
@@ -96,15 +169,23 @@ export function BillingHubScreen({
         'X-User-Roles': userRole,
       };
 
-      const [wRes, tRes, iRes] = await Promise.all([
+      const [wRes, sRes, tRes, iRes, pRes, pkgRes, actRes] = await Promise.all([
         fetch('/api/v1/billing/wallet', { headers }),
+        fetch(`/api/v1/tenants/${tenantId}/credit-wallet/summary`, { headers }),
         fetch('/api/v1/billing/transactions', { headers }),
         fetch('/api/v1/billing/invoices', { headers }),
+        fetch('/api/v1/billing/plans'),
+        fetch('/api/v1/billing/topup-packages'),
+        fetch('/api/v1/billing/activity-types'),
       ]);
 
       if (wRes.ok) {
         const wData = await wRes.json();
         setWallet(wData);
+      }
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setSummary(sData);
       }
       if (tRes.ok) {
         const tData = await tRes.json();
@@ -113,6 +194,25 @@ export function BillingHubScreen({
       if (iRes.ok) {
         const iData = await iRes.json();
         setInvoices(iData);
+      }
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setPlans(pData);
+      }
+      if (pkgRes.ok) {
+        const pkgData = await pkgRes.json();
+        setTopupPackages(pkgData);
+        if (pkgData.length > 0 && !selectedPackageId) {
+          setSelectedPackageId(pkgData[0].id);
+          setSelectedPackageAmount(pkgData[0].price_idr);
+        }
+      }
+      if (actRes.ok) {
+        const actData = await actRes.json();
+        setActivityTypes(actData);
+        if (actData.length > 0) {
+          setCalcActivity(actData[0].activity_code);
+        }
       }
     } catch (err: any) {
       console.error('Error fetching billing data:', err);
@@ -131,7 +231,7 @@ export function BillingHubScreen({
     setErrorMessage(null);
     setTopUpSuccess(null);
 
-    const amount = customAmount ? parseFloat(customAmount) : selectedPackage;
+    const amount = customAmount ? parseFloat(customAmount) : selectedPackageAmount;
     if (isNaN(amount) || amount <= 0) {
       setErrorMessage('Nominal top-up harus lebih besar dari 0.');
       setTopUpLoading(false);
@@ -150,6 +250,7 @@ export function BillingHubScreen({
           tenant_id: tenantId,
           amount,
           payment_gateway: selectedGateway,
+          package_id: selectedPackageId || undefined,
           package_name: `Top Up Kredit ${amount.toLocaleString('id-ID')} IDR`,
         }),
       });
@@ -160,7 +261,6 @@ export function BillingHubScreen({
       }
 
       setTopUpSuccess(data);
-      // Refresh billing data
       fetchBillingData();
     } catch (err: any) {
       setErrorMessage(err.message || 'Gagal memproses tagihan.');
@@ -191,12 +291,41 @@ export function BillingHubScreen({
         throw new Error(data.detail || data.error || 'Gagal menyelesaikan pelunasan faktur.');
       }
 
-      setSettleFeedback(`Faktur ${invoiceNumber} berhasil dilunasi. Saldo kredit telah ditambahkan ke dompet organisasi.`);
+      setSettleFeedback(`Faktur ${invoiceNumber} berhasil dilunasi. Entitlement paket & saldo kredit langsung aktif.`);
       fetchBillingData();
     } catch (err: any) {
       setSettleFeedback(`Gagal pelunasan: ${err.message}`);
     } finally {
       setSettlingInvoiceNumber(null);
+    }
+  };
+
+  const handleRunEstimation = async () => {
+    setCalcLoading(true);
+    try {
+      const res = await fetch('/api/v1/billing/estimate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': tenantId,
+          'X-User-Roles': userRole,
+        },
+        body: JSON.stringify({
+          activity_code: calcActivity,
+          complexity_code: calcComplexity,
+          llm_model_id: calcModel,
+          tool_risk_tier: calcToolRisk === 'none' ? null : calcToolRisk,
+          execution_mode: calcExecution,
+        }),
+      });
+      if (res.ok) {
+        const estData = await res.json();
+        setCalcResult(estData);
+      }
+    } catch (err: any) {
+      console.error('Estimation error:', err);
+    } finally {
+      setCalcLoading(false);
     }
   };
 
@@ -294,11 +423,18 @@ export function BillingHubScreen({
               <Wallet className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Pusat Kredit & Keuangan Organisasi
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Pusat Langganan & Dompet Kredit AI
+                </h1>
+                {summary?.is_unlimited && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    <Crown className="w-3 h-3" /> Unlimited Override
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Pengelolaan saldo pemakaian model cerdas, perkakas otomatisasi, dan faktur resmi {tenantName}
+                Pengelolaan kuota siklus berjalan, paket komersial, estimasi kredit AI, dan faktur resmi {tenantName}
               </p>
             </div>
           </div>
@@ -323,7 +459,7 @@ export function BillingHubScreen({
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-sm transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
-            Top Up Saldo Kredit
+            Beli Paket Top-Up
           </button>
         </div>
       </div>
@@ -350,86 +486,137 @@ export function BillingHubScreen({
         </div>
       )}
 
-      {/* Wallet Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Available Balance Card */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      {/* 4 Metrik Siklus Berjalan (BAGIAN C Kontrak Spesifik) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Available Balance */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold mb-2">
             <span>Saldo Kredit Tersedia</span>
             <span className="p-1 rounded-lg bg-emerald-500/10 text-emerald-400">
               <DollarSign className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {wallet ? formatCurrency(wallet.available_balance) : 'Rp 0'}
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            {summary ? Number(summary.available).toLocaleString('id-ID') : '0'} CR
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs">
-            {wallet?.is_low_balance ? (
-              <span className="flex items-center gap-1 text-amber-400 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" /> Saldo mendekati batas minimum
+          <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+            {summary?.low_balance_warning ? (
+              <span className="text-amber-400 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Peringatan: Saldo menipis
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5" /> Kapasitas pemakaian optimal
+              <span className="text-emerald-400 flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" /> Siap digunakan
               </span>
             )}
           </div>
         </div>
 
-        {/* Reserved Balance Card */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        {/* Reserved Balance */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold mb-2">
-            <span>Kredit Sedang Direservasi</span>
+            <span>Sedang Direservasi</span>
             <span className="p-1 rounded-lg bg-amber-500/10 text-amber-400">
               <Clock className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {wallet ? formatCurrency(wallet.reserved_balance) : 'Rp 0'}
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            {summary ? Number(summary.reserved).toLocaleString('id-ID') : '0'} CR
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-            <span>Total Saldo: {wallet ? formatCurrency(wallet.balance) : 'Rp 0'}</span>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500">Dalam proses eksekusi</span>
-          </div>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Terkunci selama eksekusi tugas AI
+          </p>
         </div>
 
-        {/* Auto Top-Up & SLA Policy Card */}
-        <div className="p-6 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        {/* Used This Cycle */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold mb-2">
-            <span>Kebijakan Batas Minimum</span>
+            <span>Terpakai Siklus Ini</span>
             <span className="p-1 rounded-lg bg-blue-500/10 text-blue-400">
               <Zap className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-lg font-bold text-slate-900 dark:text-white">
-            {wallet ? formatCurrency(wallet.low_balance_threshold) : 'Rp 50.000'}
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            {summary ? Number(summary.used_this_cycle).toLocaleString('id-ID') : '0'} CR
           </div>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Notifikasi peringatan akan dikirimkan otomatis ketika saldo mencapai ambang batas minimum.
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Akumulasi konsumsi kredit
           </p>
-          <div className="mt-3 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Proteksi saldo negatif aktif (Row-Level Locking)
+        </div>
+
+        {/* Total Allocated This Cycle */}
+        <div className="p-5 rounded-2xl bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold mb-2">
+            <span>Total Kuota Siklus Ini</span>
+            <span className="p-1 rounded-lg bg-purple-500/10 text-purple-400">
+              <Layers className="w-4 h-4" />
+            </span>
           </div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            {summary ? Number(summary.total_allocated_this_cycle).toLocaleString('id-ID') : '0'} CR
+          </div>
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Jatah langganan & top-up aktif
+          </p>
         </div>
       </div>
 
+      {summary?.is_unlimited && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-600/10 to-transparent border border-amber-500/30 flex items-center gap-3">
+          <Crown className="w-6 h-6 text-amber-400 shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-amber-300">Akun Enterprise Unlimited (Override Aktif)</h4>
+            <p className="text-xs text-amber-200/80">
+              Organisasi memiliki hak eksekusi beban kerja AI tanpa batas saldo. Seluruh mutasi pemakaian tetap dicatat 100% pada buku besar audit.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'overview'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
               : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           <TrendingUp className="w-4 h-4" />
-          Ringkasan Mutasi Terkini
+          Ringkasan Mutasi
+        </button>
+
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'plans'
+              ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Crown className="w-4 h-4" />
+          Katalog Paket & Fasilitas ({plans.length})
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('calculator');
+            if (!calcResult) handleRunEstimation();
+          }}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'calculator'
+              ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
+              : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          Kalkulator Estimasi Kredit AI
         </button>
 
         <button
           onClick={() => setActiveTab('transactions')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'transactions'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
               : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -441,7 +628,7 @@ export function BillingHubScreen({
 
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'invoices'
               ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20'
               : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'
@@ -451,6 +638,255 @@ export function BillingHubScreen({
           Riwayat Tagihan & Faktur ({invoices.length})
         </button>
       </div>
+
+      {/* Tab Content: KATALOG PAKET RESMI (BAGIAN A) */}
+      {activeTab === 'plans' && (
+        <div className="space-y-6">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              Paket Komersial & Hak Akses Platform
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              5 Tingkatan Paket Resmi OrchestreeAI dengan alokasi AI credit allowance, plafon staf & agen AI, serta matriks akses 21 fasilitas terpadu.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {plans.map((p) => {
+              const isHighlight = p.plan_code === 'PROFESSIONAL';
+              return (
+                <div
+                  key={p.id}
+                  className={`p-5 rounded-2xl bg-white dark:bg-[#0E1726] border flex flex-col justify-between transition-all ${
+                    isHighlight
+                      ? 'border-emerald-500 dark:border-emerald-500/80 shadow-lg ring-1 ring-emerald-500/30'
+                      : 'border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div>
+                    {isHighlight && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full inline-block mb-2">
+                        Paling Populer
+                      </span>
+                    )}
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {p.display_name}
+                    </h3>
+                    <div className="mt-3">
+                      {p.is_custom_quote ? (
+                        <div className="text-xl font-extrabold text-slate-900 dark:text-white">Kustom</div>
+                      ) : (
+                        <div className="text-xl font-extrabold text-slate-900 dark:text-white">
+                          {p.monthly_price_idr ? formatCurrency(p.monthly_price_idr) : 'Gratis'}
+                          <span className="text-xs font-normal text-slate-500"> /bln</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span>Jatah AI Credit:</span>
+                        <span className="font-bold text-emerald-400">
+                          {p.ai_credit_allowance ? `${p.ai_credit_allowance.toLocaleString('id-ID')} CR` : 'Kustom'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span>Batas Human Staff:</span>
+                        <span className="font-semibold">{p.human_staff_limit || 'Tak Terbatas'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span>Batas AI Agent:</span>
+                        <span className="font-semibold">{p.ai_agent_limit || 'Tak Terbatas'}</span>
+                      </div>
+                      {p.is_trial && (
+                        <div className="text-[11px] text-amber-400 font-medium">
+                          Masa percobaan: {p.trial_duration_days} hari
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                    <span className="text-[11px] text-slate-500 block mb-2 font-medium">Fasilitas Utama:</span>
+                    <div className="space-y-1 text-[11px] text-slate-400">
+                      {Object.entries(p.facilities || {}).slice(0, 5).map(([fKey, level]) => (
+                        <div key={fKey} className="flex items-center justify-between">
+                          <span className="truncate pr-1">{fKey.replace(/_/g, ' ')}</span>
+                          <span className="font-mono text-emerald-400 uppercase text-[10px]">{level}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tab Content: KALKULATOR ESTIMASI KREDIT AI (BAGIAN B TAHAP 1) */}
+      {activeTab === 'calculator' && (
+        <div className="bg-white dark:bg-[#0E1726] rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6">
+          <div className="flex items-center gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Kalkulator Estimasi Biaya Kredit AI (Tahap 1: estimate_credit_cost)
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Formula transparan: Biaya = Base × Pengali Kompleksitas × Model LLM × Tool Risk × Mode Eksekusi
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Jenis Aktivitas AI (18 Baseline Types)
+                </label>
+                <select
+                  value={calcActivity}
+                  onChange={(e) => setCalcActivity(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                >
+                  {activityTypes.map((act) => (
+                    <option key={act.id} value={act.activity_code}>
+                      {act.display_name} (Base: {act.base_work_unit_min} - {act.base_work_unit_max} WU)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Tingkat Kompleksitas
+                  </label>
+                  <select
+                    value={calcComplexity}
+                    onChange={(e) => setCalcComplexity(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="low">Low (×1.0)</option>
+                    <option value="medium">Medium (×1.5)</option>
+                    <option value="high">High (×2.2)</option>
+                    <option value="very_high">Very High (×3.5)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Model LLM
+                  </label>
+                  <select
+                    value={calcModel}
+                    onChange={(e) => setCalcModel(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="default">Default Provider (×1.0)</option>
+                    <option value="nim-llama3-70b">Llama 3 70B (×1.4)</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (×1.0)</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (×2.5)</option>
+                    <option value="claude-3-7-sonnet">Claude 3.7 Sonnet (×3.0)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Risk Tier MCP Tool
+                  </label>
+                  <select
+                    value={calcToolRisk}
+                    onChange={(e) => setCalcToolRisk(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="none">Tanpa Tool Eksternal (×1.0)</option>
+                    <option value="low">Low Risk - Read-only (×1.2)</option>
+                    <option value="medium">Medium Risk - API Call (×1.5)</option>
+                    <option value="high">High Risk - Write/Payment (×2.0)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Mode Eksekusi
+                  </label>
+                  <select
+                    value={calcExecution}
+                    onChange={(e) => setCalcExecution(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="single_step">Single Step (×1.0)</option>
+                    <option value="multi_step">Multi-Step Directed (×1.5)</option>
+                    <option value="autonomous">Autonomous Agent Loop (×2.5)</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={handleRunEstimation}
+                disabled={calcLoading}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                {calcLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Calculator className="w-3.5 h-3.5" />}
+                Hitung Ulang Estimasi
+              </button>
+            </div>
+
+            {/* Estimation Result Box */}
+            <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Hasil Estimasi Reservasi
+                </span>
+                <div className="text-3xl font-extrabold text-purple-400">
+                  {calcResult ? Number(calcResult.final_estimate).toFixed(2) : '0.00'} CR
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Kredit ini yang akan direservasi (Tahap 2) sebelum eksekusi dimulai.
+                </p>
+
+                {calcResult && (
+                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Base Work Units:</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-white">
+                        {calcResult.base_work_units} WU
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Faktor Kompleksitas:</span>
+                      <span className="font-mono text-purple-400">×{calcResult.complexity_multiplier}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Faktor Model LLM:</span>
+                      <span className="font-mono text-purple-400">×{calcResult.model_multiplier}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Faktor Tool Risk:</span>
+                      <span className="font-mono text-purple-400">×{calcResult.tool_multiplier}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                      <span>Faktor Mode Eksekusi:</span>
+                      <span className="font-mono text-purple-400">×{calcResult.execution_multiplier}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[11px] flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>Bila eksekusi dibatalkan atau gagal, reservasi 100% dikembalikan otomatis (Tahap 5: Refund).</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content: Overview & Transactions Table */}
       {(activeTab === 'overview' || activeTab === 'transactions') && (
@@ -634,7 +1070,7 @@ export function BillingHubScreen({
                     Top Up Saldo Kredit Organisasi
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Kredit langsung aktif untuk eksekusi workflow cerdas
+                    Pilih paket kredit resmi dengan masa aktif otomatis
                   </p>
                 </div>
               </div>
@@ -648,171 +1084,116 @@ export function BillingHubScreen({
 
             {topUpSuccess ? (
               <div className="space-y-4 text-center py-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
-                <div>
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    Faktur Berhasil Dibuat!
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Nomor Faktur: <span className="font-mono font-semibold">{topUpSuccess.invoice_number}</span>
-                  </p>
-                  <p className="text-sm font-extrabold text-emerald-400 mt-2">
-                    {formatCurrency(topUpSuccess.amount)}
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-left space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Gateway:</span>
-                    <span className="font-semibold uppercase text-slate-200">{topUpSuccess.payment_gateway}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Status:</span>
-                    <span className="text-amber-400 font-semibold uppercase">{topUpSuccess.status}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  {topUpSuccess.payment_url && (
-                    <a
-                      href={topUpSuccess.payment_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
-                    >
-                      Buka Halaman Pembayaran Gateway <ExternalLink className="w-4 h-4" />
-                    </a>
-                  )}
-
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                  Faktur Berhasil Dibuat
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Nomor Faktur: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{topUpSuccess.invoice_number}</span>
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-3">
+                  <a
+                    href={topUpSuccess.payment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-2"
+                  >
+                    Buka Halaman Pembayaran <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                   <button
                     onClick={() => {
-                      handleSettleSandboxInvoice(topUpSuccess.invoice_number);
                       setIsTopUpOpen(false);
+                      setTopUpSuccess(null);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                   >
-                    <CheckCircle2 className="w-4 h-4" /> Lunaskan Langsung di Sandbox
-                  </button>
-
-                  <button
-                    onClick={() => setIsTopUpOpen(false)}
-                    className="w-full py-2 rounded-xl text-slate-400 hover:text-white text-xs cursor-pointer"
-                  >
-                    Tutup
+                    Selesai
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-5">
-                {/* Preset Packages */}
+              <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Pilih Paket Nominal Kredit
+                    Pilih Paket Top-Up Resmi
                   </label>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {[
-                      { amount: 250000, label: 'Starter', desc: 'Pemula' },
-                      { amount: 500000, label: 'Bisnis', desc: 'Populer' },
-                      { amount: 1500000, label: 'Pertumbuhan', desc: 'Optimal' },
-                      { amount: 5000000, label: 'Enterprise', desc: 'Skala Besar' },
-                    ].map((pkg) => (
+                  <div className="grid grid-cols-2 gap-3">
+                    {topupPackages.map((pkg) => (
                       <button
-                        key={pkg.amount}
+                        key={pkg.id}
                         type="button"
                         onClick={() => {
-                          setSelectedPackage(pkg.amount);
+                          setSelectedPackageId(pkg.id);
+                          setSelectedPackageAmount(pkg.price_idr);
                           setCustomAmount('');
                         }}
                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          selectedPackage === pkg.amount && !customAmount
-                            ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/30 text-emerald-400 shadow-sm'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                          selectedPackageId === pkg.id && !customAmount
+                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-400 ring-1 ring-emerald-500'
+                            : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
-                        <div className="text-xs font-bold">{pkg.label}</div>
-                        <div className="text-sm font-extrabold mt-0.5">{formatCurrency(pkg.amount)}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">{pkg.desc}</div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">{pkg.name}</div>
+                        <div className="text-sm font-extrabold text-emerald-500 mt-1">
+                          {formatCurrency(pkg.price_idr)}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          +{Number(pkg.credit_amount).toLocaleString('id-ID')} CR • Berlaku {pkg.validity_days} hari
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Custom Amount */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Atau Masukkan Nominal Kustom (IDR)
-                  </label>
-                  <input
-                    type="number"
-                    value={customAmount}
-                    onChange={(e) => setCustomAmount(e.target.value)}
-                    placeholder="Contoh: 750000" // allowlist: atribut input HTML
-                    min="50000"
-                    step="10000"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                {/* Gateway Selection */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                    Metode Gateway Pembayaran
+                    Pilihan Saluran Pembayaran
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedGateway('midtrans')}
-                      className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         selectedGateway === 'midtrans'
-                          ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/30 text-emerald-400 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 text-slate-400'
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-400 ring-1 ring-emerald-500'
+                          : 'border-slate-200 dark:border-slate-800'
                       }`}
                     >
-                      <div>
-                        <div className="text-xs font-bold">Midtrans Snap</div>
-                        <div className="text-[10px] text-slate-500">QRIS, VA, Kartu Kredit</div>
-                      </div>
-                      {selectedGateway === 'midtrans' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Midtrans Snap</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">QRIS, GoPay, VA BCA/Mandiri/BNI</div>
                     </button>
-
                     <button
                       type="button"
                       onClick={() => setSelectedGateway('xendit')}
-                      className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         selectedGateway === 'xendit'
-                          ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/30 text-emerald-400 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 text-slate-400'
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-400 ring-1 ring-emerald-500'
+                          : 'border-slate-200 dark:border-slate-800'
                       }`}
                     >
-                      <div>
-                        <div className="text-xs font-bold">Xendit Invoice</div>
-                        <div className="text-[10px] text-slate-500">Virtual Account & e-Wallet</div>
-                      </div>
-                      {selectedGateway === 'xendit' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Xendit Invoice</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">VA, OVO, Dana, Kartu Kredit</div>
                     </button>
                   </div>
                 </div>
 
-                {/* Submit Action */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleInitiateTopUp}
-                    disabled={topUpLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {topUpLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" /> Memproses Pembuatan Faktur...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" /> Terbitkan Faktur & Lanjutkan Pembayaran
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={handleInitiateTopUp}
+                  disabled={topUpLoading}
+                  className="w-full py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                >
+                  {topUpLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Menerbitkan Tagihan...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-4 h-4" /> Terbitkan Faktur Pembayaran
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>

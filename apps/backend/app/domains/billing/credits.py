@@ -191,7 +191,17 @@ async def reserve_credit(
         reserved = wallet["reserved_balance"]
         available = balance - reserved
 
-        if available < estimated_cost:
+        # Periksa override akun tanpa batas (is_unlimited_override)
+        sub_check = await conn.execute(sa.text("""
+            SELECT is_unlimited_override, unlimited_reason
+            FROM tenant_subscriptions
+            WHERE tenant_id = :tid AND status IN ('active', 'trialing')
+            ORDER BY created_at DESC LIMIT 1;
+        """), {"tid": tenant_id})
+        sub_row = sub_check.fetchone()
+        is_unlimited = bool(sub_row[0]) if sub_row else False
+
+        if not is_unlimited and available < estimated_cost:
             logger.warning(
                 f"Gagal reservasi kredit tenant {tenant_id}: Saldo tersedia {available} < kebutuhan {estimated_cost}"
             )
@@ -200,17 +210,23 @@ async def reserve_credit(
                 f"Kebutuhan estimasi: {estimated_cost:.2f} {wallet['currency']}."
             )
 
-        # 2. Update reserved_balance di dompet
-        new_reserved = reserved + estimated_cost
-        await conn.execute(sa.text("""
-            UPDATE tenant_credit_wallet
-            SET reserved_balance = :new_reserved,
-                updated_at = now()
-            WHERE id = :wallet_id;
-        """), {
-            "new_reserved": new_reserved,
-            "wallet_id": wallet["id"],
-        })
+        # 2. Update reserved_balance di dompet (hanya jika bukan akun unlimited override)
+        new_reserved = reserved + (Decimal("0.0000") if is_unlimited else estimated_cost)
+        if not is_unlimited:
+            await conn.execute(sa.text("""
+                UPDATE tenant_credit_wallet
+                SET reserved_balance = :new_reserved,
+                    updated_at = now()
+                WHERE id = :wallet_id;
+            """), {
+                "new_reserved": new_reserved,
+                "wallet_id": wallet["id"],
+            })
+
+        if is_unlimited:
+            metadata["is_unlimited_override"] = True
+            if sub_row and sub_row[1]:
+                metadata["unlimited_reason"] = sub_row[1]
 
         # 3. Buat entri reservasi di credit_reservations
         reservation_id = str(uuid.uuid4())
@@ -320,22 +336,36 @@ async def consume_credit(
         current_balance = wallet["balance"]
         current_reserved = wallet["reserved_balance"]
 
-        # 3. Hitung saldo baru
-        new_reserved = max(Decimal("0"), current_reserved - estimated_cost)
-        new_balance = max(Decimal("0"), current_balance - actual_cost)
+        # Periksa override akun tanpa batas (is_unlimited_override)
+        sub_check = await conn.execute(sa.text("""
+            SELECT is_unlimited_override, unlimited_reason
+            FROM tenant_subscriptions
+            WHERE tenant_id = :tid AND status IN ('active', 'trialing')
+            ORDER BY created_at DESC LIMIT 1;
+        """), {"tid": tenant_id})
+        sub_row = sub_check.fetchone()
+        is_unlimited = bool(sub_row[0]) if sub_row else False
 
-        # Update dompet
-        await conn.execute(sa.text("""
-            UPDATE tenant_credit_wallet
-            SET balance = :new_balance,
-                reserved_balance = :new_reserved,
-                updated_at = now()
-            WHERE id = :wallet_id;
-        """), {
-            "new_balance": new_balance,
-            "new_reserved": new_reserved,
-            "wallet_id": wallet["id"],
-        })
+        # 3. Hitung saldo baru
+        if not is_unlimited:
+            new_reserved = max(Decimal("0"), current_reserved - estimated_cost)
+            new_balance = max(Decimal("0"), current_balance - actual_cost)
+
+            # Update dompet
+            await conn.execute(sa.text("""
+                UPDATE tenant_credit_wallet
+                SET balance = :new_balance,
+                    reserved_balance = :new_reserved,
+                    updated_at = now()
+                WHERE id = :wallet_id;
+            """), {
+                "new_balance": new_balance,
+                "new_reserved": new_reserved,
+                "wallet_id": wallet["id"],
+            })
+            balance_after = new_balance - new_reserved
+        else:
+            balance_after = current_balance - current_reserved
 
         # 4. Update status reservasi
         await conn.execute(sa.text("""

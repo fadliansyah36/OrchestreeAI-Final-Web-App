@@ -26,6 +26,7 @@ import { WebAuthnAttendanceScreen } from './components/WebAuthnAttendanceScreen'
 import { BillingHubScreen } from './components/BillingHubScreen';
 import { AdminConsoleMfa } from './components/AdminConsoleMfa';
 import { FinancialCommandCenter } from './components/FinancialCommandCenter';
+import { CommercialManagementHub } from './components/commercial/CommercialManagementHub';
 import { StartupGateReport } from './components/StartupGateReport';
 import { ProactiveChannelsScreen } from './components/ProactiveChannelsScreen';
 import { IntelligenceHubScreen } from './components/IntelligenceHubScreen';
@@ -634,7 +635,7 @@ export default function App() {
             )}
 
             {(adminSubView === 'admin_commercial') && (
-              <FinancialCommandCenter />
+              <CommercialManagementHub />
             )}
 
             {(adminSubView === 'admin_security') && (
