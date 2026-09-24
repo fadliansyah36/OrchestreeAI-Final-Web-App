@@ -1,14 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AgentCreationScreen } from '../../../../components/workforce/AgentCreationScreen';
-import { ArrowLeft, Bot } from 'lucide-react';
+import { ArrowLeft, Bot, ShieldAlert } from 'lucide-react';
+import { EmptyState } from '@orchestree/ui';
 
 export default function AgentCreationPage() {
-  const activeTenant = {
-    tenant_id: 'a01aef1c-8274-4de9-a7bc-1618631a4961',
-    role: 'TENANT_OWNER',
-  };
+  const [activeTenant, setActiveTenant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('orchestree_active_tenant');
+      if (stored) {
+        setActiveTenant(JSON.parse(stored));
+      }
+    } catch (e) {
+      // Ignored
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0B1220] pb-16 text-slate-900 dark:text-white">
@@ -31,16 +43,33 @@ export default function AgentCreationPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 pt-8">
-        <AgentCreationScreen
-          tenantId={activeTenant.tenant_id}
-          userRole={activeTenant.role}
-          onSuccess={(_agent: any) => {
-            window.location.href = '/workforce';
-          }}
-          onCancel={() => {
-            window.location.href = '/workforce';
-          }}
-        />
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 text-sm">Memverifikasi sesi aman...</div>
+        ) : activeTenant ? (
+          <AgentCreationScreen
+            tenantId={activeTenant.tenant_id}
+            userRole={activeTenant.role || 'TENANT_OWNER'}
+            onSuccess={(_agent: any) => {
+              window.location.href = '/workforce';
+            }}
+            onCancel={() => {
+              window.location.href = '/workforce';
+            }}
+          />
+        ) : (
+          <div className="max-w-xl mx-auto pt-12">
+            <EmptyState
+              id="auth-required-agent-new"
+              icon={ShieldAlert}
+              title="Sesi Terautentikasi Diperlukan"
+              description="Pendaftaran agen tenaga kerja otonom memerlukan sesi administratif aktif."
+              actionLabel="Masuk ke Portal Resmi"
+              onAction={() => {
+                window.location.href = '/';
+              }}
+            />
+          </div>
+        )}
       </div>
     </main>
   );

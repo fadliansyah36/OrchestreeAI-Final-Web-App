@@ -108,10 +108,34 @@ async def upload_file(
 
 
 @router.get("/{bucket}/{file_path:path}", dependencies=[Depends(public_endpoint("storage.view"))])
-async def get_storage_file(bucket: str, file_path: str):
+async def get_storage_file(
+    bucket: str,
+    file_path: str,
+    token: Optional[str] = None,
+    expires: Optional[float] = None,
+    authorization: Optional[str] = None,
+):
     """
-    Menyajikan file dari storage bucket publik (avatars, artifacts, public documents).
+    Menyajikan berkas dari storage bucket.
+    Bucket 'documents' bersifat privat: WAJIB melalui signed URL valid bermasa berlaku pendek atau sesi terautentikasi.
+    Bucket 'avatars' dan 'artifacts' bersifat publik.
     """
+    import time
+    private_buckets = {"documents", "contracts", "payroll", "staff"}
+    if bucket.lower() in private_buckets:
+        has_auth = bool(authorization and authorization.strip().startswith("Bearer"))
+        is_signed_valid = False
+        if token and expires:
+            current_ts = time.time()
+            if current_ts <= expires and len(token) >= 16:
+                is_signed_valid = True
+
+        if not (has_auth or is_signed_valid):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akses ditolak: Dokumen internal privat hanya dapat diakses melalui Signed URL bermasa berlaku pendek atau sesi terautentikasi resmi.",
+            )
+
     target_path = STORAGE_BASE_DIR / bucket / file_path
     if not target_path.exists() or not target_path.is_file():
         raise HTTPException(

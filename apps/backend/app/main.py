@@ -27,6 +27,7 @@ from app.api.v1.integrations import router as integrations_router
 from app.api.v1.prospects import router as prospects_router
 from app.api.v1.omnichannel import router as omnichannel_router, webhook_router as omnichannel_webhook_router
 from app.api.v1.commerce import router as commerce_router, webhook_router as commerce_webhook_router
+from app.api.v1.crm import router as crm_router
 from app.api.v1.marketing import router as marketing_router, webhook_router as social_webhook_router
 from app.api.v1.service import router as service_router
 from app.api.v1.sales import router as sales_router
@@ -41,13 +42,15 @@ from app.api.v1.admin_overview import router as admin_overview_router, root_alia
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
+is_production = getattr(settings, "APP_ENV", "local").lower() in ("production", "prod")
+
 app = FastAPI(
     title="OrchestreeAI API",
     version="2.2.0",
     description="Autonomous AI Workforce Operating System API",
-    openapi_url="/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    openapi_url=None if is_production else "/openapi.json",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
 )
 
 # Startup event: register builtin skills & tools
@@ -187,6 +190,7 @@ app.include_router(omnichannel_router, prefix="/api/v1")
 app.include_router(omnichannel_webhook_router, prefix="/api/v1")
 app.include_router(commerce_router, prefix="/api/v1")
 app.include_router(commerce_webhook_router, prefix="/api/v1")
+app.include_router(crm_router)
 app.include_router(marketing_router, prefix="/api/v1")
 app.include_router(social_webhook_router, prefix="/api/v1")
 app.include_router(service_router, prefix="/api/v1")

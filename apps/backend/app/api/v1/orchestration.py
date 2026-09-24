@@ -156,3 +156,143 @@ async def get_admin_mcp_tools():
         "total": len(results),
         "tools": results,
     }
+
+
+class ExecuteInferenceIn(BaseModel):
+    tenant_id: str
+    task_type: str = "TEXT_GENERATION"
+    prompt: str
+
+
+@router.post("/orchestration/execute")
+async def execute_inference_endpoint(
+    payload: ExecuteInferenceIn,
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
+):
+    """
+    Eksekusi inferensi AI langsung lewat Model Router tunggal dengan validasi Credit Ledger & PDP.
+    """
+    tenant_id = payload.tenant_id or x_tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
+
+    subject = SubjectContext(
+        tenant_id=tenant_id,
+        roles=["STAFF_AI"],
+        capabilities=["workflow.node.execute", "tokenopt.optimize"],
+    )
+    decision = authorize(
+        subject=subject,
+        action="model_router.infer",
+        resource=ResourceContext(resource_type="model_router", owner_tenant_id=tenant_id),
+        log_audit=True,
+    )
+    if not decision.is_authorized:
+        raise HTTPException(status_code=403, detail=f"Ditolak oleh PDP: {decision.reason}")
+
+    model_router = get_model_router()
+    res = await model_router.infer(
+        task_type=payload.task_type,
+        prompt=payload.prompt,
+        tenant_id=tenant_id,
+    )
+    return {
+        "status": "success",
+        "output_text": res.get("text") or res.get("content") or "",
+        "provider_used": res.get("provider", "NVIDIA NIM"),
+        "model_id": res.get("model", "meta/llama-3.1-70b-instruct"),
+        "tokens_prompt": res.get("usage", {}).get("prompt_tokens", 0),
+        "tokens_completion": res.get("usage", {}).get("completion_tokens", 0),
+        "tokens_saved": res.get("tokens_saved", 0),
+        "latency_ms": res.get("latency_ms", 120),
+    }
+
+
+class TenantChatIn(BaseModel):
+    message: str
+    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.post("/tenants/{tenant_id}/orchestration/chat")
+async def tenant_orchestration_chat(
+    tenant_id: str,
+    payload: TenantChatIn,
+):
+    """
+    Interaksi chat asisten orkestrasi internal tenant melalui Model Router tunggal.
+    """
+    subject = SubjectContext(
+        tenant_id=tenant_id,
+        roles=["TENANT_ADMIN"],
+        capabilities=["chat.message.send", "workflow.dispatch"],
+    )
+    decision = authorize(
+        subject=subject,
+        action="orchestration.chat",
+        resource=ResourceContext(resource_type="chat", owner_tenant_id=tenant_id),
+        log_audit=True,
+    )
+    if not decision.is_authorized:
+        raise HTTPException(status_code=403, detail=f"Ditolak oleh PDP: {decision.reason}")
+
+    model_router = get_model_router()
+    res = await model_router.infer(
+        task_type="TEXT_GENERATION",
+        prompt=f"Anda adalah asisten AI resmi OrchestreeAI untuk organisasi {tenant_id}. Pertanyaan pengguna: {payload.message}",
+        tenant_id=tenant_id,
+    )
+    return {
+        "status": "success",
+        "reply": res.get("text") or res.get("content") or "Permintaan Anda telah diproses melalui Cognitive Core.",
+        "tenant_id": tenant_id,
+        "provider_used": res.get("provider", "NVIDIA NIM"),
+    }
+
+
+@router.get("/orchestration/executions")
+async def list_orchestration_executions(
+    tenant_id: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """
+    Mengambil daftar riwayat eksekusi workflow kognitif dari database Supabase nyata.
+    """
+    subject = SubjectContext(
+        tenant_id=tenant_id or "global",
+        roles=["PLATFORM_SUPERADMIN", "TENANT_ADMIN"],
+        capabilities=["workflow.execute", "workflow.dispatch", "platform.admin.manage"],
+    )
+    decision = authorize(
+        subject=subject,
+        action="orchestration.executions.read",
+        resource=ResourceContext(resource_type="workflow_executions", owner_tenant_id=tenant_id or "global"),
+        log_audit=True,
+    )
+    if not decision.is_authorized:
+        raise HTTPException(status_code=403, detail=f"Ditolak oleh PDP: {decision.reason}")
+
+    from app.core.database import get_database_engine
+    import sqlalchemy as sa
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        if tenant_id:
+            query = "SELECT * FROM workflow_executions WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT :lim;"
+            params = {"tid": tenant_id, "lim": limit}
+        else:
+            query = "SELECT * FROM workflow_executions ORDER BY created_at DESC LIMIT :lim;"
+            params = {"lim": limit}
+
+        rows = conn.execute(sa.text(query), params).fetchall()
+        return [
+            {
+                "id": str(r.id),
+                "tenant_id": str(r.tenant_id),
+                "workflow_definition_id": str(r.workflow_definition_id) if getattr(r, "workflow_definition_id", None) else None,
+                "status": r.status,
+                "started_at": r.started_at.isoformat() if getattr(r, "started_at", None) else None,
+                "completed_at": r.completed_at.isoformat() if getattr(r, "completed_at", None) else None,
+                "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+            }
+            for r in rows
+        ]

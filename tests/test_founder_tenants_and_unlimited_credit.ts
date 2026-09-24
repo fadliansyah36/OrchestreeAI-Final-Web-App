@@ -6,7 +6,7 @@ dotenv.config();
 
 const connectionString =
   process.env.DATABASE_URL ||
-  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+  (process.env.DATABASE_URL || '');
 
 const ORCHESTREE_TENANT_ID = '10e75d63-15f8-42e8-a6ce-24fece12cd04';
 const TREXIO_TENANT_ID = '88f0e51b-6e90-4797-b7ef-b127dceb40c3';

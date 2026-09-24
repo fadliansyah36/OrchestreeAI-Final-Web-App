@@ -773,18 +773,23 @@ async def checkout_cart(
 # --- Endpoint Manajemen Pesanan ---
 
 @router.get("/orders")
+@router.get("/tenants/{tenant_id}/commerce/orders")
 async def get_orders(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     status: Optional[str] = Query(None),
     payment_status: Optional[str] = Query(None),
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ):
     """Mengambil daftar pesanan pelanggan resmi dari database nyata."""
+    eff_tenant = tenant_id or x_tenant_id
+    if not eff_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tenant_id}
+            {"tenant_id": eff_tenant}
         )
         sql = """
             SELECT o.id, o.tenant_id, o.order_number, o.customer_id, o.conversation_id,
@@ -795,7 +800,7 @@ async def get_orders(
             LEFT JOIN customers c ON c.id = o.customer_id
             WHERE o.tenant_id = :tenant_id
         """
-        params = {"tenant_id": tenant_id}
+        params = {"tenant_id": eff_tenant}
         if status:
             sql += " AND o.status = :status"
             params["status"] = status
@@ -831,12 +836,17 @@ async def get_orders(
 
 
 @router.post("/orders/{order_id}/waybill")
+@router.post("/tenants/{tenant_id}/commerce/orders/{order_id}/waybill")
 async def create_waybill(
     order_id: str = Path(...),
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: CreateWaybillRequest = None,
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ):
     """Menerbitkan resi pengiriman (AWB) dari ekspedisi resmi."""
+    eff_tenant = tenant_id or x_tenant_id
+    if not eff_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
     if not payload:
         raise HTTPException(status_code=400, detail="Payload waybill harus disertakan.")
     courier_svc = CourierAggregatorService()
@@ -854,7 +864,7 @@ async def create_waybill(
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-                {"tenant_id": tenant_id}
+                {"tenant_id": eff_tenant}
             )
             shipment_id = str(uuid.uuid4())
             conn.execute(
@@ -905,20 +915,25 @@ async def get_shipping_rates(
 
 
 @router.get("/shipping/tracking")
+@router.get("/tenants/{tenant_id}/commerce/shipping/tracking")
 async def get_shipping_tracking(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     order_number: Optional[str] = Query(None),
     tracking_number: Optional[str] = Query(None),
     conversation_id: Optional[str] = Query(None),
     customer_id: Optional[str] = Query(None),
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ):
     """Menjawab pertanyaan pelacakan 'sudah sampai mana' HANYA berbasis event tracking nyata."""
+    eff_tenant = tenant_id or x_tenant_id
+    if not eff_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tenant_id}
+            {"tenant_id": eff_tenant}
         )
         sql = """
             SELECT s.id, s.order_id, s.tracking_number, s.courier_code, s.service_type,
@@ -928,7 +943,7 @@ async def get_shipping_tracking(
             JOIN orders o ON o.id = s.order_id
             WHERE s.tenant_id = :tenant_id
         """
-        params = {"tenant_id": tenant_id}
+        params = {"tenant_id": eff_tenant}
         if tracking_number:
             sql += " AND s.tracking_number = :tn"
             params["tn"] = tracking_number
@@ -958,16 +973,37 @@ async def get_shipping_tracking(
 # --- Endpoint Penegakan Grounding AI Commerce ---
 
 @router.post("/grounding/validate")
+@router.post("/tenants/{tenant_id}/commerce/validate-grounding")
 async def validate_grounding(
-    tenant_id: str = Query(...),
+    tenant_id: Optional[str] = None,
     payload: GroundingValidateRequest = None,
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ):
     """Penegakan Grounding Output Validator harga & stok sebelum AI mengirim jawaban."""
+    eff_tenant = tenant_id or x_tenant_id
+    if not eff_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
     if not payload:
         raise HTTPException(status_code=400, detail="Payload validasi harus disertakan.")
-    validator = CommerceGroundingValidator(tenant_id)
+    validator = CommerceGroundingValidator(eff_tenant)
     validation = await validator.validate_response(payload.text, payload.conversation_id)
     return {"status": "ok", "grounding": validation}
+
+
+class WebhookSignatureIn(BaseModel):
+    order_id: Optional[str] = None
+    status_code: Optional[str] = "200"
+    gross_amount: Optional[str] = "0"
+    server_key: Optional[str] = None
+
+
+@router.post("/commerce/webhook-signature")
+async def generate_webhook_signature_endpoint(payload: WebhookSignatureIn):
+    """Menghasilkan signature SHA512 untuk verifikasi webhook payment gateway."""
+    import hashlib
+    raw = f"{payload.order_id or ''}{payload.status_code or '200'}{payload.gross_amount or '0'}{payload.server_key or ''}"
+    sig = hashlib.sha512(raw.encode("utf-8")).hexdigest()
+    return {"status": "ok", "signature_key": sig}
 
 
 @router.put("/conversations/sales-stage")

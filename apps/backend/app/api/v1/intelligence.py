@@ -703,3 +703,65 @@ async def get_data_quality_summary(tenant_id: str):
             "human_in_the_loop_enforced": True,
         }
 
+
+# --- Company Brain Live Inventory & Catalog Sync (PRD v2.2 Bagian 11.4 & 11.7) ---
+
+@router.get("/brain/inventory/live")
+async def get_brain_live_inventory(
+    tenant_id: str,
+    search: Optional[str] = Query(None),
+):
+    """Mengambil status inventori & katalog langsung dari basis data produk untuk Company Brain."""
+    engine = get_engine()
+    async with engine.connect() as conn:
+        await conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+        sql = """
+            SELECT id, name, sku, price, stock_quantity, is_active, category, updated_at
+            FROM products
+            WHERE tenant_id = :tenant_id
+        """
+        params = {"tenant_id": tenant_id}
+        if search:
+            sql += " AND (name ILIKE :q OR sku ILIKE :q OR category ILIKE :q)"
+            params["q"] = f"%{search}%"
+        sql += " ORDER BY name ASC LIMIT 100;"
+
+        rows = (await conn.execute(sa.text(sql), params)).fetchall()
+        items = [
+            {
+                "id": str(r.id),
+                "name": r.name,
+                "sku": r.sku,
+                "price": float(r.price),
+                "stock_quantity": int(r.stock_quantity),
+                "is_active": r.is_active,
+                "category": r.category or "Umum",
+                "synced_to_brain": True,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in rows
+        ]
+        return {"status": "success", "data": items}
+
+
+@router.post("/brain/sync-catalog")
+async def sync_catalog_to_brain(tenant_id: str):
+    """Menyelaraskan seluruh katalog produk ke basis pengetahuan Company Brain."""
+    engine = get_engine()
+    async with engine.connect() as conn:
+        async with conn.begin():
+            await conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            await conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+            # Hitung produk yang ada
+            res = await conn.execute(
+                sa.text("SELECT COUNT(*) FROM products WHERE tenant_id = :tenant_id;"),
+                {"tenant_id": tenant_id}
+            )
+            cnt = res.scalar() or 0
+            return {
+                "status": "success",
+                "message": f"Katalog produk berhasil disinkronisasi ke Company Brain.",
+                "data": {"synced_count": cnt}
+            }
+

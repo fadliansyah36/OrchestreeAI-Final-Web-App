@@ -470,6 +470,102 @@ async def get_tenant_summary_direct(tenant_id: str):
     return await get_tenant_credit_wallet_summary(tenant_id)
 
 
+@tenant_summary_router.get("/{tenant_id}/subscription/tier", dependencies=[Depends(require_capability("billing.credits.view"))])
+async def get_tenant_subscription_tier(tenant_id: str):
+    """Mengambil status tier langganan tenant dari Supabase Postgres."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("""
+                SELECT t.id, t.name, t.subscription_plan_id, p.plan_code, p.name as plan_name, p.tier_level
+                FROM tenants t
+                LEFT JOIN subscription_plans p ON t.subscription_plan_id = p.id
+                WHERE t.id = :tid;
+            """),
+            {"tid": tenant_id}
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Tenant tidak ditemukan.")
+        tier_level = int(row.tier_level or 1)
+        plan_code = row.plan_code or "STARTER"
+        return {
+            "tenant_id": tenant_id,
+            "tier_level": tier_level,
+            "plan_code": plan_code,
+            "plan_name": row.plan_name or plan_code,
+            "is_enterprise": tier_level >= 3,
+        }
+
+
+@tenant_summary_router.post("/{tenant_id}/subscription/change-tier", dependencies=[Depends(require_capability("billing.credits.manage"))])
+async def change_tenant_subscription_tier(tenant_id: str, payload: Dict[str, Any]):
+    """Mengubah tier langganan tenant."""
+    target_plan_code = payload.get("plan_code", "GROWTH").upper()
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            p_row = conn.execute(
+                sa.text("SELECT id, plan_code, name, tier_level FROM subscription_plans WHERE plan_code = :pcode;"),
+                {"pcode": target_plan_code}
+            ).fetchone()
+            if not p_row:
+                raise HTTPException(status_code=404, detail=f"Paket langganan '{target_plan_code}' tidak ditemukan.")
+
+            conn.execute(
+                sa.text("UPDATE tenants SET subscription_plan_id = :pid, updated_at = now() WHERE id = :tid;"),
+                {"pid": p_row.id, "tid": tenant_id}
+            )
+            return {
+                "status": "success",
+                "message": f"Berhasil beralih ke paket {p_row.name} (Tier {p_row.tier_level}).",
+                "tenant_id": tenant_id,
+                "plan_code": p_row.plan_code,
+                "tier_level": int(p_row.tier_level or 1),
+                "is_enterprise": int(p_row.tier_level or 1) >= 3,
+            }
+
+
+@tenant_summary_router.get("/{tenant_id}/billing/wallet", dependencies=[Depends(require_capability("billing.credits.view"))])
+async def get_tenant_billing_wallet_direct(tenant_id: str):
+    """Mengambil status dompet kredit tenant dari Supabase."""
+    return await get_wallet(tenant_id)
+
+
+@router.get("/reservations", dependencies=[Depends(require_capability("billing.credits.view"))])
+async def list_credit_reservations(
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
+    tenant_id: Optional[str] = Query(None),
+):
+    """Mengambil daftar reservasi kredit organisasi."""
+    effective_tenant = tenant_id or x_tenant_id
+    if not effective_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.text("""
+                SELECT id, tenant_id, estimated_cost, actual_cost, status, reference_type, reference_id, created_at
+                FROM credit_reservations
+                WHERE tenant_id = :tid
+                ORDER BY created_at DESC LIMIT 50;
+            """),
+            {"tid": effective_tenant}
+        ).fetchall()
+        return [
+            {
+                "id": str(r.id),
+                "tenant_id": str(r.tenant_id),
+                "estimated_cost": float(r.estimated_cost),
+                "actual_cost": float(r.actual_cost) if r.actual_cost is not None else None,
+                "status": r.status,
+                "reference_type": r.reference_type,
+                "reference_id": r.reference_id,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ]
+
+
 # =============================================================================
 # DOMPET, TRANSAKSI, DAN FAKTUR (PRD v2.2 Bagian 14)
 # =============================================================================

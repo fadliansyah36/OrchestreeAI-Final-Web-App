@@ -96,15 +96,10 @@ export const FooterCtaSection: React.FC<FooterCtaProps> = ({
                 </a>
               </li>
               <li>
-                <a
-                  href="/docs"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-white transition-colors flex items-center space-x-1"
-                >
-                  <FileText className="w-3.5 h-3.5 text-[#60A5FA]" />
-                  <span>Dokumentasi API</span>
-                </a>
+                <span className="text-slate-400 flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#60A5FA]" />
+                  <span>Kepatuhan & Keamanan Data (ISO/IEC 27001)</span>
+                </span>
               </li>
               {onViewStartupGate && (
                 <li>

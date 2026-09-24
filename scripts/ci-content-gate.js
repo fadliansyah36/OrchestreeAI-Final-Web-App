@@ -35,6 +35,11 @@ const FORBIDDEN_PATTERNS = [
   // CI Guard: Dilarang keras email test/dummy/pentest hardcode
   { pattern: /\b(test|demo|dummy|pentest)@/i, name: 'test email literal' },
   { pattern: /admin@admin/i, name: 'admin@admin literal' },
+  { pattern: /\b(password123|admin\/admin|admin:admin)\b/i, name: 'default test credentials' },
+  // CI Guard: Dilarang hardcoded JWT token atau Secret Key
+  { pattern: /eyJhbGciOi[A-Za-z0-9-_=]{15,}\.[A-Za-z0-9-_=]{15,}\.[A-Za-z0-9-_=]{15,}/, name: 'hardcoded JWT token literal' },
+  { pattern: /postgres:[^@\s]{6,}@db\.[a-z0-9]+\.supabase\.co/i, name: 'hardcoded Supabase DB password' },
+  { pattern: /\b(sk-[A-Za-z0-9]{25,}|nvapi-[A-Za-z0-9_-]{25,})\b/, name: 'hardcoded provider API key' },
   // CI Guard: Dilarang arsitektur Room / SQLite lokal di luar stack Supabase Postgres
   { pattern: /\b(RoomDatabase|androidx\.room)\b/i, name: 'Android Room SQLite architecture' },
   { pattern: /\bsqlite3\b/i, name: 'sqlite3 local database' },
@@ -189,6 +194,17 @@ function runContentGate() {
             snippet: line.trim()
           });
         }
+      }
+
+      // CI Guard: Dilarang console.log/console.debug di halaman produksi apps/client/app dan apps/admin/app
+      if ((relPath.startsWith('apps/client/app/') || relPath.startsWith('apps/admin/app/')) &&
+          (/\bconsole\.(log|debug)\s*\(/.test(line))) {
+        violations.push({
+          file: relPath,
+          line: index + 1,
+          term: 'production console.log/debug',
+          snippet: line.trim()
+        });
       }
 
       for (const { pattern, name } of FORBIDDEN_PATTERNS) {

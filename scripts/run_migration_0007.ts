@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+const databaseUrl = process.env.DATABASE_URL || (process.env.DATABASE_URL || '');
 
 async function runMigration() {
   console.log('🔄 Memulai eksekusi migrasi DDL 0007_boards_tasks_and_webauthn...');

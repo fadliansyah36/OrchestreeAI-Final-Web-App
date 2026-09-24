@@ -2,7 +2,7 @@ import pg from 'pg';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ||
-  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+  (process.env.DATABASE_URL || '');
 
 const FOUNDER_ACCOUNTS = [
   {

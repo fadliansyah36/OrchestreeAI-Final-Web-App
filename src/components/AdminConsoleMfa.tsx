@@ -201,7 +201,7 @@ export function AdminConsoleMfa() {
   const fetchTenants = async () => {
     setLoadingTenants(true);
     try {
-      const res = await fetch('/api/v1/tenants');
+      const res = await fetch('/api/v1/admin/tenants');
       const data = await res.json();
       if (Array.isArray(data)) {
         setTenants(data);

@@ -123,7 +123,11 @@ export default function ClientHomePage() {
             description="Umpan rekomendasi kecerdasan buatan akan aktif menganalisis peluang dan notifikasi prioritas tinggi saat aktivitas berjalan."
           />
         }
-        onNavigate={(route) => console.log('Navigating to', route)}
+        onNavigate={(route) => {
+          if (typeof window !== 'undefined') {
+            window.location.href = route;
+          }
+        }}
       />
     </main>
   );

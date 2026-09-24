@@ -13,93 +13,30 @@ import re
 import json
 
 def scan_backend_routes():
-    # 1. Parse include_router prefixes from apps/backend/app/main.py
-    main_mounts = {}
-    import_aliases = {}
-    if os.path.exists('apps/backend/app/main.py'):
-        with open('apps/backend/app/main.py', 'r', encoding='utf-8', errors='ignore') as fp:
-            main_content = fp.read()
-            # Map imports: from app.api.v1.omnichannel import router as omnichannel_router
-            import_pattern = re.compile(r'from\s+app\.api\.v1\.([a-zA-Z0-9_]+)\s+import\s+([a-zA-Z0-9_]+)(?:\s+as\s+([a-zA-Z0-9_]+))?')
-            for m in import_pattern.finditer(main_content):
-                mod, orig, alias = m.groups()
-                var_name = alias if alias else orig
-                import_aliases[var_name] = (mod, orig)
-
-            # Map app.include_router(router_var, prefix="...")
-            include_pattern = re.compile(r'app\.include_router\(\s*([a-zA-Z0-9_]+)(?:,\s*prefix\s*=\s*["\']([^"\']+)["\'])?')
-            for m in include_pattern.finditer(main_content):
-                r_var, pfx = m.groups()
-                pfx = pfx or ""
-                if r_var in import_aliases:
-                    mod, orig = import_aliases[r_var]
-                    main_mounts[(mod, orig)] = pfx
-                else:
-                    main_mounts[r_var] = pfx
-
-    routes = []
-    router_prefix_pattern = re.compile(r'([a-zA-Z0-9_]+)\s*=\s*APIRouter\([^)]*prefix\s*=\s*["\']([^"\']+)["\']')
-    default_router_pattern = re.compile(r'([a-zA-Z0-9_]+)\s*=\s*APIRouter\(')
-    endpoint_pattern = re.compile(r'@([a-zA-Z0-9_]+)\.(get|post|put|patch|delete)\(\s*["\']([^"\']+)["\']')
-
-    for root, _, files in os.walk('apps/backend/app/api/v1'):
-        for f in files:
-            if f.endswith('.py'):
-                mod_name = f[:-3]
-                path = os.path.join(root, f)
-                with open(path, 'r', encoding='utf-8', errors='ignore') as fp:
-                    content = fp.read()
-
-                    router_prefixes = {}
-                    for m in default_router_pattern.finditer(content):
-                        router_prefixes[m.group(1)] = ""
-                    for m in router_prefix_pattern.finditer(content):
-                        router_prefixes[m.group(1)] = m.group(2)
-
-                    for match in endpoint_pattern.finditer(content):
-                        r_var, method, ep = match.groups()
-                        internal_pfx = router_prefixes.get(r_var, "")
-                        # Check if main.py adds a mount prefix
-                        main_pfx = main_mounts.get((mod_name, r_var), "") or main_mounts.get(r_var, "")
-                        full_ep = f"{main_pfx.rstrip('/')}/{internal_pfx.lstrip('/')}".rstrip('/')
-                        full_ep = f"{full_ep.rstrip('/')}/{ep.lstrip('/')}"
-                        if not full_ep.startswith('/'):
-                            full_ep = '/' + full_ep
-                        # normalize double slashes
-                        full_ep = re.sub(r'/+', '/', full_ep)
-                        routes.append({
-                            'method': method.upper(),
-                            'path': full_ep,
-                            'file': path
-                        })
-    return routes
-
-def scan_server_routes():
-    routes = []
-    pattern = re.compile(r'app\.(get|post|put|patch|delete)\(\s*(\[[^\]]+\]|["\'][^"\']+["\'])')
-    if os.path.exists('server.ts'):
-        with open('server.ts', 'r', encoding='utf-8', errors='ignore') as fp:
-            content = fp.read()
-            for match in pattern.finditer(content):
-                method, raw_ep = match.groups()
-                # could be array of routes or single string
-                if raw_ep.startswith('['):
-                    eps = [e.strip(' "\'[]') for e in raw_ep.split(',') if e.strip(' "\'[]')]
-                else:
-                    eps = [raw_ep.strip(' "\'')]
-                for ep in eps:
+    try:
+        from app.main import app
+        openapi = app.openapi()
+        paths = openapi.get('paths', {})
+        routes = []
+        for path, methods in paths.items():
+            for m in methods:
+                if m.lower() in ['get', 'post', 'put', 'patch', 'delete']:
                     routes.append({
-                        'method': method.upper(),
-                        'path': ep,
-                        'file': 'server.ts'
+                        'method': m.upper(),
+                        'path': path,
+                        'file': 'fastapi_openapi'
                     })
-    return routes
+        return routes
+    except Exception as e:
+        print(f"Warning: Could not load app.openapi(): {e}")
+        routes = []
+        return routes
 
 def scan_frontend_calls():
     calls = []
     # Pattern to match /api/v1/ or template literals
     api_pattern = re.compile(r'[`\'"](/api/v1/[^`\'"\s\?#]+)[`\'"?#]')
-    search_dirs = ['src', 'apps/client', 'apps/admin']
+    search_dirs = ['src', 'apps/client', 'apps/admin', 'packages/ui']
     for d in search_dirs:
         for root, _, files in os.walk(d):
             for f in files:
@@ -139,22 +76,16 @@ def main():
     print("=" * 80)
 
     backend_routes = scan_backend_routes()
-    server_routes = scan_server_routes()
     frontend_calls = scan_frontend_calls()
 
     print(f"[*] Total FastAPI Backend Endpoints : {len(backend_routes)}")
-    print(f"[*] Total Server.ts Endpoints       : {len(server_routes)}")
     print(f"[*] Total Frontend API Calls Found  : {len(frontend_calls)}")
 
-    # Normalized sets
-    server_normalized = {normalize_path(r['path']): r for r in server_routes}
+    # Normalized backend routes
     backend_normalized = {normalize_path(r['path']): r for r in backend_routes}
-
-    # Combined known endpoints
-    all_known_paths = set(server_normalized.keys()) | set(backend_normalized.keys())
+    all_known_paths = set(backend_normalized.keys())
 
     # Check frontend calls against known paths
-    # Convert known paths into regex patterns
     route_regexes = []
     for kp in all_known_paths:
         parts = kp.strip('/').split('/')
@@ -169,26 +100,28 @@ def main():
 
     unmatched_calls = []
     matched_calls = []
+    matched_backend_paths = set()
+
     for call in frontend_calls:
         norm_call = normalize_path(call['raw_url'])
         matched = False
         if norm_call in all_known_paths:
             matched = True
+            matched_backend_paths.add(norm_call)
         else:
-            # Check if norm_call matches any regex
-            # Also allow norm_call with :param to match endpoints with action suffixes
             for regex, kp in route_regexes:
                 if regex.match(norm_call):
                     matched = True
+                    matched_backend_paths.add(kp)
                     break
             if not matched:
-                # Also check reverse in case norm_call has :param where route has literal (e.g. approve/reject)
                 norm_parts = norm_call.strip('/').split('/')
                 for kp in all_known_paths:
                     kp_parts = kp.strip('/').split('/')
                     if len(norm_parts) == len(kp_parts):
                         if all(np == ':param' or kp == ':param' or np == kp for np, kp in zip(norm_parts, kp_parts)):
                             matched = True
+                            matched_backend_paths.add(kp)
                             break
 
         if matched:
@@ -208,16 +141,17 @@ def main():
                 seen_unmatched.add(key)
                 print(f"  Line {call['line']} of {call['file']}: {call['raw_url']} -> Normalized: {norm}")
 
-    # Check for endpoints never called by frontend
-    frontend_normalized_set = {normalize_path(c['raw_url']) for c in frontend_calls}
-    uncalled_server = []
-    for norm_p, r in server_normalized.items():
-        if norm_p not in frontend_normalized_set and not norm_p.startswith('/api/v1/webhooks'):
-            uncalled_server.append((norm_p, r))
+    # Check for backend endpoints not directly called by frontend (e.g. system webhooks, background tasks, or unused endpoints)
+    uncalled_backend = []
+    for norm_p, r in backend_normalized.items():
+        if norm_p not in matched_backend_paths:
+            uncalled_backend.append((norm_p, r))
 
-    print(f"\n[*] Server.ts endpoints without direct frontend calls: {len(uncalled_server)}")
-    for norm_p, r in sorted(uncalled_server, key=lambda x: x[0]):
+    print(f"\n[*] Backend endpoints without direct frontend UI calls: {len(uncalled_backend)}")
+    for norm_p, r in sorted(uncalled_backend, key=lambda x: x[0])[:30]:
         print(f"  {r['method']} {norm_p}")
+    if len(uncalled_backend) > 30:
+        print(f"  ... and {len(uncalled_backend) - 30} more backend operations.")
 
 if __name__ == '__main__':
     main()

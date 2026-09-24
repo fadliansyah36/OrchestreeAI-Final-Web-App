@@ -3,7 +3,7 @@ import crypto from 'crypto';
 
 const DATABASE_URL =
   process.env.DATABASE_URL ||
-  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+  (process.env.DATABASE_URL || '');
 
 const ENTERPRISE_PLAN_ID = 'faddcd18-9e75-4dd3-9ccd-6f11e05e0cde';
 const TENANT_OWNER_ROLE_ID = 'dd9066c0-3300-4926-8ec6-96d9b4f36524';

@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+const databaseUrl = process.env.DATABASE_URL || (process.env.DATABASE_URL || '');
 
 async function runMigration0017() {
   console.log('🔄 Memulai eksekusi migrasi DDL 0017_prospects_trial_slots_and_web_integrity...');

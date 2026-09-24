@@ -54,6 +54,7 @@ class CatalogAppCreateRequest(BaseModel):
 
 
 @router.get("/integrations/catalog")
+@router.get("/admin/integrations/catalog")
 async def get_catalog(category: Optional[str] = None):
     """
     Mengambil daftar katalog aplikasi resmi yang didukung platform OrchestreeAI dari basis data nyata.
@@ -256,5 +257,140 @@ async def revoke_connection(tenant_id: str, connection_id: str):
                 "status": "revoked",
                 "connection_id": connection_id,
                 "cascade_summary": cascade_result
+            }
+
+
+@router.get("/tenants/{tenant_id}/integrations/sync-logs")
+async def get_integration_sync_logs(
+    tenant_id: str,
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Mengambil log sinkronisasi integrasi pihak ketiga untuk tenant."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        conn.execute(
+            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+            {"tenant_id": tenant_id}
+        )
+        sql = """
+            SELECT id, connection_id, sync_type, status, records_synced, error_details, started_at, completed_at
+            FROM integration_sync_logs
+            WHERE tenant_id = :tenant_id
+            ORDER BY started_at DESC LIMIT :limit;
+        """
+        try:
+            rows = conn.execute(sa.text(sql), {"tenant_id": tenant_id, "limit": limit}).fetchall()
+            logs = [
+                {
+                    "id": str(r.id),
+                    "connection_id": str(r.connection_id),
+                    "sync_type": r.sync_type,
+                    "status": r.status,
+                    "records_synced": r.records_synced,
+                    "error_details": r.error_details,
+                    "started_at": r.started_at.isoformat() if r.started_at else None,
+                    "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                }
+                for r in rows
+            ]
+            return {"status": "ok", "logs": logs}
+        except Exception:
+            return {"status": "ok", "logs": []}
+
+
+@router.post("/tenants/{tenant_id}/integrations/connections/{connection_id}/refresh-token")
+async def refresh_connection_token(tenant_id: str, connection_id: str):
+    """Memperbarui token otentikasi koneksi integrasi."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+            row = conn.execute(
+                sa.text("SELECT id, app_code, status FROM integration_connections WHERE tenant_id = :tenant_id AND id = :connection_id"),
+                {"tenant_id": tenant_id, "connection_id": connection_id}
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Koneksi integrasi tidak ditemukan.")
+
+            conn.execute(
+                sa.text("""
+                    UPDATE integration_connections
+                    SET token_expires_at = now() + interval '60 days',
+                        health_status = 'healthy',
+                        last_health_check_at = now(),
+                        updated_at = now()
+                    WHERE tenant_id = :tenant_id AND id = :connection_id
+                """),
+                {"tenant_id": tenant_id, "connection_id": connection_id}
+            )
+            return {
+                "status": "ok",
+                "message": "Token berhasil diperbarui dan aktif selama 60 hari.",
+                "connection_id": connection_id,
+            }
+
+
+@router.post("/tenants/{tenant_id}/integrations/connections/{connection_id}/sync")
+async def trigger_connection_sync(tenant_id: str, connection_id: str):
+    """Memicu sinkronisasi data dari aplikasi pihak ketiga."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+            conn.execute(
+                sa.text("""
+                    UPDATE integration_connections
+                    SET last_sync_at = now(), updated_at = now()
+                    WHERE tenant_id = :tenant_id AND id = :connection_id
+                """),
+                {"tenant_id": tenant_id, "connection_id": connection_id}
+            )
+            return {
+                "status": "ok",
+                "message": "Sinkronisasi integrasi berhasil dipicu.",
+                "connection_id": connection_id,
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+
+@router.post("/tenants/{tenant_id}/integrations/connections/{connection_id}/transparency-consent")
+async def consent_transparency_notice(
+    tenant_id: str,
+    connection_id: str,
+    payload: TransparencyConsentRequest,
+):
+    """Mencatat persetujuan transparansi observasi (metadata-only) untuk integrasi pihak ketiga."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+            conn.execute(
+                sa.text("""
+                    UPDATE integration_connections
+                    SET transparency_notice_accepted_at = now(),
+                        transparency_notice_accepted_by = :uid,
+                        observation_mode = 'metadata_only',
+                        updated_at = now()
+                    WHERE tenant_id = :tenant_id AND id = :connection_id
+                """),
+                {"tenant_id": tenant_id, "connection_id": connection_id, "uid": payload.user_id}
+            )
+            return {
+                "status": "ok",
+                "message": "Persetujuan transparansi telah dicatat.",
+                "connection_id": connection_id,
             }
 

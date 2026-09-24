@@ -239,6 +239,49 @@ async def humanize_output_endpoint(
     return res
 
 
+@router.get("/abandoned-carts")
+async def list_abandoned_carts_endpoint(
+    tenant_id: str = Path(...),
+):
+    """Mengambil daftar keranjang belanja yang ditinggalkan untuk tenant."""
+    from app.core.database import get_database_engine
+    import sqlalchemy as sa
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        conn.execute(
+            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+            {"tenant_id": tenant_id}
+        )
+        sql = """
+            SELECT c.id, c.tenant_id, c.customer_id, c.status, c.total_amount, c.updated_at, c.created_at,
+                   cust.primary_name as customer_name, cust.primary_phone as customer_phone
+            FROM carts c
+            LEFT JOIN customers cust ON c.customer_id = cust.id
+            WHERE c.tenant_id = :tenant_id AND c.status = 'ACTIVE' AND c.updated_at < now() - interval '30 minutes'
+            ORDER BY c.updated_at DESC LIMIT 50;
+        """
+        try:
+            rows = conn.execute(sa.text(sql), {"tenant_id": tenant_id}).fetchall()
+            carts = [
+                {
+                    "id": str(r.id),
+                    "cart_id": str(r.id),
+                    "customer_id": str(r.customer_id) if r.customer_id else None,
+                    "customer_name": r.customer_name or "Pelanggan",
+                    "customer_phone": r.customer_phone or "-",
+                    "cart_value": float(r.total_amount or 0.0),
+                    "status": "ABANDONED",
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                }
+                for r in rows
+            ]
+            return {"status": "success", "data": carts}
+        except Exception:
+            return {"status": "success", "data": []}
+
+
 @router.post("/abandoned-carts/schedule")
 async def schedule_abandoned_cart_endpoint(
     tenant_id: str = Path(...),

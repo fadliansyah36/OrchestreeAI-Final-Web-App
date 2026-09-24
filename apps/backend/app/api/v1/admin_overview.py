@@ -315,6 +315,10 @@ async def get_financial_command_center_overview(
     "/api/v1/admin/tenants",
     include_in_schema=False,
 )
+@root_alias_router.get(
+    "/api/v1/tenants",
+    include_in_schema=False,
+)
 async def list_admin_tenants(
     x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
     x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),

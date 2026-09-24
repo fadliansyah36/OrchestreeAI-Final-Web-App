@@ -5,7 +5,7 @@ dotenv.config();
 
 const connectionString =
   process.env.DATABASE_URL ||
-  'postgresql://postgres:2Rup9JXRKGoHVoJx@db.szvbcvmvrucqxfikgjlx.supabase.co:5432/postgres';
+  (process.env.DATABASE_URL || '');
 
 export async function runReconciliation(tenantId?: string): Promise<{
   report_batch_id: string;

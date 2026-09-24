@@ -19,9 +19,9 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { TenantRegistrationResponse } from '../../types';
 
-const SUPABASE_URL = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || 'https://szvbcvmvrucqxfikgjlx.supabase.co';
-const SUPABASE_ANON_KEY = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dmJjdm12cnVjcXhmaWtnamx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MjA5ODcsImV4cCI6MjEwNTQ5Njk4N30.LOypKsnvMNZzp1MWaf3m1fJ4cfUWm2Qd0ZxFqXGtEj0';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : '') || '';
+const SUPABASE_ANON_KEY = (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_ANON_KEY : '') || '';
+const supabase = createClient(SUPABASE_URL || 'https://supabase.co', SUPABASE_ANON_KEY || 'public-anon-key');
 
 export type AuthModalMode = 'login' | 'register_tenant' | 'join_staff';
 

@@ -1,19 +1,28 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { HomeOverviewScreen } from '../../components/workforce/HomeOverviewScreen';
-import { Building2, ArrowLeft } from 'lucide-react';
+import { Building2, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { EmptyState } from '@orchestree/ui';
 
 export default function OverviewPage() {
-  const activeTenant = {
-    tenant_id: 'd1159d6d-0044-42ea-8007-d549a0011402',
-    legal_name: 'PT Nusantara Jaya Digital',
-    display_name: 'Nusantara Digital',
-    slug: 'nusantara-digital',
-    email: 'admin@nusantara.digital',
-    role: 'TENANT_OWNER',
-    token: 'jwt_authenticated_token_orchestree',
-  };
+  const [activeTenant, setActiveTenant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('orchestree_active_tenant');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const token = localStorage.getItem('orchestree_auth_token');
+        setActiveTenant({ ...parsed, token });
+      }
+    } catch (e) {
+      // Ignored
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#0B1220] pb-16 text-white">
@@ -36,15 +45,32 @@ export default function OverviewPage() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
-            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Nusantara Digital</span>
-          </div>
+          {activeTenant && (
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
+              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{activeTenant.display_name || activeTenant.legal_name || 'Organisasi Aktif'}</span>
+            </div>
+          )}
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 pt-6">
-        <HomeOverviewScreen tenant={activeTenant as any} />
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 text-sm">Memverifikasi sesi aman...</div>
+        ) : activeTenant ? (
+          <HomeOverviewScreen tenant={activeTenant} />
+        ) : (
+          <EmptyState
+            id="auth-required-overview"
+            icon={ShieldAlert}
+            title="Sesi Terautentikasi Diperlukan"
+            description="Laman evaluasi kinerja operasional hanya dapat diakses oleh anggota organisasi yang telah terverifikasi melalui portal otentikasi resmi."
+            actionLabel="Masuk ke Portal Resmi"
+            onAction={() => {
+              window.location.href = '/';
+            }}
+          />
+        )}
       </div>
     </main>
   );
