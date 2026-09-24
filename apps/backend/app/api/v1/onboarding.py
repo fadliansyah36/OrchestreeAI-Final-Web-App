@@ -25,6 +25,65 @@ from app.services.company_code import generate_company_code, hash_company_code
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/onboarding", tags=["Onboarding"])
+auth_router = APIRouter(prefix="/api/v1/auth", tags=["Auth & Verification"])
+
+
+@auth_router.get(
+    "/verify-company-code",
+    summary="Verifikasi Validitas Kode Akses Perusahaan",
+    dependencies=[Depends(public_endpoint("auth.verify_code"))]
+)
+async def verify_company_code_endpoint(code: str):
+    """
+    Verifikasi kode perusahaan secara aman tanpa membocorkan data sensitif:
+    - Normalisasi dan hitung SHA-256 hash
+    - Cari kecocokan di tenant_company_codes
+    - Kembalikan nama tampilan perusahaan bila valid
+    """
+    if not code or len(code.strip()) < 4:
+        return {"valid": False, "error": "Format kode tidak valid."}
+
+    code_hash = hash_company_code(code.strip().upper())
+    engine = get_database_engine()
+    now_dt = datetime.now(timezone.utc)
+
+    try:
+        with engine.connect() as conn:
+            code_row = conn.execute(
+                sa.text("""
+                    SELECT c.id, c.tenant_id, c.expires_at, c.max_uses, c.use_count, c.status,
+                           t.display_name, t.legal_name
+                    FROM tenant_company_codes c
+                    JOIN tenants t ON t.id = c.tenant_id
+                    WHERE c.code_hash = :hash
+                    LIMIT 1;
+                """),
+                {"hash": code_hash}
+            ).mappings().first()
+
+        if not code_row:
+            return {"valid": False, "error": "Kode perusahaan tidak ditemukan atau tidak terdaftar."}
+
+        if code_row["status"] != "active":
+            return {"valid": False, "error": "Kode perusahaan sudah tidak aktif atau dicabut."}
+
+        if code_row["expires_at"] and code_row["expires_at"] < now_dt:
+            return {"valid": False, "error": "Kode perusahaan telah kedaluwarsa."}
+
+        if code_row["max_uses"] is not None and code_row["use_count"] >= code_row["max_uses"]:
+            return {"valid": False, "error": "Kode perusahaan telah mencapai batas maksimum penggunaan."}
+
+        return {
+            "valid": True,
+            "tenant_id": str(code_row["tenant_id"]),
+            "display_name": code_row["display_name"] or code_row["legal_name"],
+            "legal_name": code_row["legal_name"],
+            "message": "Kode valid dan terdaftar"
+        }
+    except Exception as e:
+        logger.error(f"Error checking company code: {e}")
+        return {"valid": False, "error": "Gagal memverifikasi kode perusahaan."}
+
 
 
 class RegisterTenantRequest(BaseModel):

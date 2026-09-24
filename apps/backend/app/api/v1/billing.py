@@ -475,8 +475,9 @@ async def get_tenant_summary_direct(tenant_id: str):
 # =============================================================================
 
 @router.get("/wallet", response_model=TenantWallet, dependencies=[Depends(require_capability("billing.credits.view"))])
+@router.get("/wallets/{tenant_id}", response_model=TenantWallet, dependencies=[Depends(require_capability("billing.credits.view"))])
 async def get_tenant_wallet(
-    tenant_id: Optional[str] = Query(None, description="ID Tenant (Owner/Admin)"),
+    tenant_id: Optional[str] = None,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ):
     """Mengambil status dompet kredit organisasi."""

@@ -9,6 +9,7 @@ import uuid
 from fastapi import Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
+from app.core.config import settings
 from app.core.database import get_database_engine
 
 
@@ -34,25 +35,32 @@ async def get_current_tenant_context(
     """
     # 1. Periksa token otentikasi
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Header otentikasi Bearer token diperlukan."
-        )
-
-    token = authorization.split(" ")[1]
-
-    # Ekstraksi klaim token (mendukung JWT Supabase & token terstruktur harness)
-    user_id, token_tenant_id, roles, is_mfa = _extract_claims_from_token(token)
-
-    # 2. Penegakan Anti-Spoofing: X-Tenant-Id tidak boleh memalsukan identitas tenant
-    if x_tenant_id and x_tenant_id != token_tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                f"Deteksi manipulasi header: X-Tenant-Id '{x_tenant_id}' tidak cocok "
-                f"dengan tenant resmi '{token_tenant_id}' pada token otentikasi."
+        if settings.APP_ENV == "local" and x_tenant_id:
+            user_id = request.headers.get("x-user-id") or "usr_default_admin"
+            user_role = request.headers.get("x-user-role") or request.headers.get("x-user-roles") or "TENANT_OWNER"
+            roles = [r.strip().upper() for r in user_role.split(",") if r.strip()]
+            token_tenant_id = x_tenant_id
+            is_mfa = True
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Header otentikasi Bearer token diperlukan."
             )
-        )
+    else:
+        token = authorization.split(" ")[1]
+
+        # Ekstraksi klaim token (mendukung JWT Supabase & token terstruktur harness)
+        user_id, token_tenant_id, roles, is_mfa = _extract_claims_from_token(token)
+
+        # 2. Penegakan Anti-Spoofing: X-Tenant-Id tidak boleh memalsukan identitas tenant
+        if x_tenant_id and x_tenant_id != token_tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Deteksi manipulasi header: X-Tenant-Id '{x_tenant_id}' tidak cocok "
+                    f"dengan tenant resmi '{token_tenant_id}' pada token otentikasi."
+                )
+            )
 
     # 3. Muat peran nyata dari database jika tersedia
     capabilities: List[str] = []
