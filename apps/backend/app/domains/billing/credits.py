@@ -388,7 +388,6 @@ async def consume_credit(
 
         # 5. Catat mutasi transaksi
         tx_id = str(uuid.uuid4())
-        balance_after = new_balance - new_reserved
         await conn.execute(sa.text("""
             INSERT INTO tenant_credit_transactions (
                 id, tenant_id, reservation_id, transaction_type, amount, balance_after,

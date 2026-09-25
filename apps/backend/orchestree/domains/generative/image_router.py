@@ -14,6 +14,7 @@ import datetime
 from typing import Dict, Any, List, Optional
 import sqlalchemy as sa
 
+from app.core.config import settings
 from app.core.database import tenant_tx
 from app.domains.billing.credits import (
     reserve_credit,
@@ -570,3 +571,359 @@ class ImageRouterService:
 
             res = conn.execute(sa.text(query), params)
             return [dict(r._mapping) for r in res.fetchall()]
+
+    @staticmethod
+    def list_prompt_categories() -> List[Dict[str, Any]]:
+        """Mengambil seluruh kategori master data template prompt."""
+        engine = sa.create_engine(settings.DATABASE_URL)
+        with engine.connect() as conn:
+            res = conn.execute(
+                sa.text("""
+                    SELECT id, category_code, display_name, description, icon_key, display_order, created_at
+                    FROM prompt_template_categories
+                    ORDER BY display_order ASC, category_code ASC
+                """)
+            )
+            return [dict(r._mapping) for r in res.fetchall()]
+
+    @staticmethod
+    def list_prompt_library_templates(
+        tenant_id: str,
+        category_code: Optional[str] = None,
+        scope: str = "all",
+        search: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Mengambil pustaka template prompt atomik dengan gambar contoh nyata,
+        diurutkan berdasarkan rekomendasi riwayat penggunaan tenant dan popularitas.
+        """
+        with tenant_tx(tenant_id) as conn:
+            # Identifikasi kategori yang paling sering digunakan oleh tenant ini
+            frequent_categories_res = conn.execute(
+                sa.text("""
+                    SELECT c.category_code, COUNT(u.id) as freq
+                    FROM prompt_template_usage_log u
+                    JOIN prompt_template_library t ON u.template_id = t.id
+                    JOIN prompt_template_categories c ON t.category_id = c.id
+                    WHERE u.tenant_id = :tenant_id
+                    GROUP BY c.category_code
+                    ORDER BY freq DESC
+                    LIMIT 3;
+                """),
+                {"tenant_id": tenant_id},
+            )
+            top_cats = [r[0] for r in frequent_categories_res.fetchall()]
+
+            query = """
+                SELECT t.id, t.category_id, c.category_code, c.display_name as category_name,
+                       c.icon_key as category_icon, t.template_name, t.concept_summary,
+                       t.subject_field, t.scene_context_field, t.lighting_field,
+                       t.material_texture_field, t.composition_layout_field,
+                       t.color_palette_field, t.style_reference_field, t.constraints_field,
+                       t.avoid_terms, t.prefer_terms, t.recommended_aspect_ratio,
+                       t.recommended_platform, t.example_generated_file_artifact_id,
+                       t.is_global, t.tenant_id, t.usage_count, t.created_at, t.updated_at,
+                       a.public_url as example_image_url, a.file_name as example_file_name,
+                       a.width as example_width, a.height as example_height
+                FROM prompt_template_library t
+                JOIN prompt_template_categories c ON t.category_id = c.id
+                LEFT JOIN file_artifacts a ON t.example_generated_file_artifact_id = a.id
+                WHERE (t.is_global = true OR t.tenant_id = :tenant_id)
+            """
+            params: Dict[str, Any] = {"tenant_id": tenant_id}
+
+            if category_code and category_code != "all":
+                query += " AND c.category_code = :cat_code"
+                params["cat_code"] = category_code
+
+            if scope == "private":
+                query += " AND t.is_global = false AND t.tenant_id = :tenant_id"
+            elif scope == "global":
+                query += " AND t.is_global = true"
+
+            if search:
+                query += """ AND (
+                    t.template_name ILIKE :search
+                    OR t.concept_summary ILIKE :search
+                    OR t.subject_field ILIKE :search
+                    OR c.display_name ILIKE :search
+                )"""
+                params["search"] = f"%{search}%"
+
+            # Urutkan: Jika ada kategori sering dipakai tenant, beri prioritas rekomendasi di atas
+            if top_cats and scope != "private":
+                top_cats_sql = ", ".join(f"'{cat}'" for cat in top_cats)
+                query += f"""
+                    ORDER BY 
+                        CASE WHEN c.category_code IN ({top_cats_sql}) THEN 0 ELSE 1 END,
+                        t.usage_count DESC,
+                        t.created_at DESC
+                """
+            else:
+                query += " ORDER BY t.usage_count DESC, t.created_at DESC"
+
+            res = conn.execute(sa.text(query), params)
+            templates = []
+            for row in res.fetchall():
+                d = dict(row._mapping)
+                d["is_recommended"] = bool(d.get("category_code") in top_cats)
+                templates.append(d)
+
+            return templates
+
+    @staticmethod
+    def get_prompt_library_template(tenant_id: str, template_id: str) -> Dict[str, Any]:
+        """Mengambil detail lengkap satu template prompt atomik."""
+        with tenant_tx(tenant_id) as conn:
+            res = conn.execute(
+                sa.text("""
+                    SELECT t.*, c.category_code, c.display_name as category_name,
+                           c.icon_key as category_icon, a.public_url as example_image_url
+                    FROM prompt_template_library t
+                    JOIN prompt_template_categories c ON t.category_id = c.id
+                    LEFT JOIN file_artifacts a ON t.example_generated_file_artifact_id = a.id
+                    WHERE t.id = :tid AND (t.is_global = true OR t.tenant_id = :tenant_id)
+                """),
+                {"tid": template_id, "tenant_id": tenant_id},
+            )
+            row = res.fetchone()
+            if not row:
+                raise ValueError(f"Template prompt {template_id} tidak ditemukan atau akses ditolak.")
+            return dict(row._mapping)
+
+    @staticmethod
+    def create_prompt_library_template(
+        tenant_id: str, payload: Dict[str, Any], is_global: bool = False
+    ) -> Dict[str, Any]:
+        """Menyimpan template prompt atomik baru (privat untuk tenant atau global oleh super admin)."""
+        template_id = str(uuid.uuid4())
+        category_code = payload.get("category_code")
+        category_id = payload.get("category_id")
+
+        with tenant_tx(tenant_id) as conn:
+            if not category_id and category_code:
+                cat_row = conn.execute(
+                    sa.text("SELECT id FROM prompt_template_categories WHERE category_code = :cc"),
+                    {"cc": category_code},
+                ).fetchone()
+                if cat_row:
+                    category_id = str(cat_row[0])
+                else:
+                    raise ValueError(f"Kategori '{category_code}' tidak valid.")
+
+            if not category_id:
+                raise ValueError("category_id atau category_code wajib disediakan.")
+
+            conn.execute(
+                sa.text("""
+                    INSERT INTO prompt_template_library (
+                        id, category_id, template_name, concept_summary,
+                        subject_field, scene_context_field, lighting_field,
+                        material_texture_field, composition_layout_field,
+                        color_palette_field, style_reference_field, constraints_field,
+                        avoid_terms, prefer_terms, recommended_aspect_ratio,
+                        recommended_platform, is_global, tenant_id, usage_count,
+                        created_at, updated_at
+                    ) VALUES (
+                        :id, :category_id, :template_name, :concept_summary,
+                        :subject_field, :scene_context_field, :lighting_field,
+                        :material_texture_field, :composition_layout_field,
+                        :color_palette_field, :style_reference_field, :constraints_field,
+                        :avoid_terms, :prefer_terms, :recommended_aspect_ratio,
+                        :recommended_platform, :is_global, :tenant_id, 0,
+                        now(), now()
+                    )
+                """),
+                {
+                    "id": template_id,
+                    "category_id": category_id,
+                    "template_name": payload["template_name"],
+                    "concept_summary": payload["concept_summary"],
+                    "subject_field": payload["subject_field"],
+                    "scene_context_field": payload.get("scene_context_field"),
+                    "lighting_field": payload.get("lighting_field"),
+                    "material_texture_field": payload.get("material_texture_field"),
+                    "composition_layout_field": payload.get("composition_layout_field"),
+                    "color_palette_field": payload.get("color_palette_field"),
+                    "style_reference_field": payload.get("style_reference_field"),
+                    "constraints_field": payload.get("constraints_field"),
+                    "avoid_terms": payload.get("avoid_terms", []),
+                    "prefer_terms": payload.get("prefer_terms", []),
+                    "recommended_aspect_ratio": payload.get("recommended_aspect_ratio", "1:1"),
+                    "recommended_platform": payload.get("recommended_platform", []),
+                    "is_global": is_global,
+                    "tenant_id": tenant_id if not is_global else None,
+                },
+            )
+
+        return ImageRouterService.get_prompt_library_template(tenant_id, template_id)
+
+    @staticmethod
+    def update_prompt_library_template(
+        tenant_id: str, template_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Memperbarui template prompt privat milik tenant."""
+        with tenant_tx(tenant_id) as conn:
+            # Pastikan template milik tenant
+            tpl_check = conn.execute(
+                sa.text("SELECT id, is_global, tenant_id FROM prompt_template_library WHERE id = :tid"),
+                {"tid": template_id},
+            ).fetchone()
+
+            if not tpl_check:
+                raise ValueError(f"Template {template_id} tidak ditemukan.")
+            if tpl_check[1] and str(tpl_check[2]) != tenant_id:
+                raise ValueError("Template global platform tidak dapat diubah oleh tenant.")
+
+            fields_to_update = []
+            params: Dict[str, Any] = {"id": template_id, "tenant_id": tenant_id}
+
+            allowed_fields = [
+                "template_name", "concept_summary", "subject_field", "scene_context_field",
+                "lighting_field", "material_texture_field", "composition_layout_field",
+                "color_palette_field", "style_reference_field", "constraints_field",
+                "avoid_terms", "prefer_terms", "recommended_aspect_ratio", "recommended_platform"
+            ]
+
+            for field in allowed_fields:
+                if field in payload and payload[field] is not None:
+                    fields_to_update.append(f"{field} = :{field}")
+                    params[field] = payload[field]
+
+            if fields_to_update:
+                fields_to_update.append("updated_at = now()")
+                sql = f"""
+                    UPDATE prompt_template_library
+                    SET {', '.join(fields_to_update)}
+                    WHERE id = :id AND (tenant_id = :tenant_id OR is_global = false)
+                """
+                conn.execute(sa.text(sql), params)
+
+        return ImageRouterService.get_prompt_library_template(tenant_id, template_id)
+
+    @staticmethod
+    def delete_prompt_library_template(tenant_id: str, template_id: str) -> bool:
+        """Menghapus template prompt privat milik tenant."""
+        with tenant_tx(tenant_id) as conn:
+            tpl_check = conn.execute(
+                sa.text("SELECT id, is_global, tenant_id FROM prompt_template_library WHERE id = :tid"),
+                {"tid": template_id},
+            ).fetchone()
+
+            if not tpl_check:
+                raise ValueError(f"Template {template_id} tidak ditemukan.")
+            if tpl_check[1]:
+                raise ValueError("Template global platform tidak dapat dihapus oleh tenant.")
+
+            conn.execute(
+                sa.text("DELETE FROM prompt_template_library WHERE id = :tid AND tenant_id = :tenant_id"),
+                {"tid": template_id, "tenant_id": tenant_id},
+            )
+            return True
+
+    @staticmethod
+    def compose_prompt_from_template(
+        tenant_id: str, template_id: str, overrides: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Merangkai prompt final dan negative prompt dari template atomik
+        dengan integrasi brand lock aktif tenant dan overrides opsional pengguna.
+        """
+        tpl = ImageRouterService.get_prompt_library_template(tenant_id, template_id)
+
+        # Cari brand lock aktif
+        brand_lock = None
+        with tenant_tx(tenant_id) as conn:
+            res = conn.execute(
+                sa.text("SELECT * FROM brand_asset_locks WHERE tenant_id = :tenant_id AND is_active = true LIMIT 1"),
+                {"tenant_id": tenant_id},
+            )
+            b_row = res.fetchone()
+            if b_row:
+                brand_lock = dict(b_row._mapping)
+
+        composed_prompt, clean_negatives = UniversalPromptComposer.compose_from_atomic_template(
+            template_fields=tpl,
+            brand_lock=brand_lock,
+            overrides=overrides,
+        )
+
+        return {
+            "template_id": template_id,
+            "template_name": tpl.get("template_name"),
+            "category_code": tpl.get("category_code"),
+            "composed_prompt": composed_prompt,
+            "negative_prompt": clean_negatives,
+            "avoid_terms": tpl.get("avoid_terms", []),
+            "prefer_terms": tpl.get("prefer_terms", []),
+            "aspect_ratio": (overrides or {}).get("recommended_aspect_ratio") or tpl.get("recommended_aspect_ratio", "1:1"),
+            "brand_lock_applied": bool(brand_lock),
+            "brand_name": brand_lock.get("brand_name") if brand_lock else None,
+        }
+
+    @staticmethod
+    def execute_job_from_template(
+        tenant_id: str,
+        template_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+        brand_lock_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Mengeksekusi generasi visual nyata dari template prompt atomik:
+        1. Rangkai prompt dari skema atomik template + overrides.
+        2. Jalankan siklus generasi visual via Model Router (Credit reserve -> Synthesize -> Validate -> Strip -> Artifact -> Consume).
+        3. Catat jejak pemakaian ke prompt_template_usage_log.
+        4. Tingkatkan penghitung usage_count pada template.
+        """
+        tpl = ImageRouterService.get_prompt_library_template(tenant_id, template_id)
+        overrides = overrides or {}
+
+        # 1. Rangkai prompt
+        composed_data = ImageRouterService.compose_prompt_from_template(tenant_id, template_id, overrides)
+
+        # 2. Siapkan payload eksekusi
+        job_payload = {
+            "job_type": tpl.get("category_code", "IMAGE_GENERATION").upper(),
+            "prompt": composed_data["composed_prompt"],
+            "negative_prompt": composed_data["negative_prompt"],
+            "aspect_ratio": overrides.get("recommended_aspect_ratio") or tpl.get("recommended_aspect_ratio", "1:1"),
+            "style_preset": overrides.get("style_reference_field") or tpl.get("style_reference_field"),
+            "model_used": overrides.get("model_used", "gpt-image-2"),
+            "brand_lock_id": brand_lock_id,
+            "credit_cost": 5.0,
+        }
+
+        # 3. Jalankan pekerjaan generasi
+        result_job = ImageRouterService.create_and_execute_job(tenant_id, job_payload)
+
+        # 4. Catat jejak pemakaian dan perbarui usage_count
+        with tenant_tx(tenant_id) as conn:
+            conn.execute(
+                sa.text("""
+                    INSERT INTO prompt_template_usage_log (
+                        id, template_id, tenant_id, generative_job_id, used_at
+                    ) VALUES (
+                        gen_random_uuid(), :template_id, :tenant_id, :job_id, now()
+                    )
+                """),
+                {
+                    "template_id": template_id,
+                    "tenant_id": tenant_id,
+                    "job_id": result_job["id"],
+                },
+            )
+
+            conn.execute(
+                sa.text("""
+                    UPDATE prompt_template_library
+                    SET usage_count = usage_count + 1,
+                        updated_at = now()
+                    WHERE id = :template_id
+                """),
+                {"template_id": template_id},
+            )
+
+        result_job["template_id"] = template_id
+        result_job["template_name"] = tpl.get("template_name")
+        return result_job
+

@@ -52,7 +52,7 @@ def upgrade() -> None:
     VALUES
         ('tool-knowledge-lookup', 'knowledge.lookup', 'knowledge.lookup', 'low', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Mencari rujukan dokumen SOP dan kebijakan organisasi', true),
         ('tool-task-create', 'task.create_from_intent', 'task.create_from_intent', 'medium', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Membuat kartu tugas baru di papan kerja tim', true),
-        ('tool-crm-contact-verify', 'crm.contact_verify', 'crm.contact_verify', 'low', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Memverifikasi format kontak pelanggan', true),
+        ('tool-crm-verify', 'crm.contact_verify', 'crm.contact_verify', 'low', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Memverifikasi format kontak pelanggan', true),
         ('tool-product-recommend', 'product.recommend', 'product.recommend', 'low', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Rekomendasi katalog produk pelanggan', true),
         ('tool-cart-create', 'cart.create', 'cart.create', 'low', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Membuat keranjang belanja pesanan', true),
         ('tool-sales-discount-apply', 'sales.discount.apply', 'sales.discount.apply', 'high', '{"type":"object"}'::jsonb, '{"type":"object"}'::jsonb, 'Menerapkan diskon penjualan dengan guardrail', true),
@@ -194,7 +194,8 @@ def upgrade() -> None:
                     EXISTS (
                         SELECT 1 FROM tenant_capability_overrides tco
                         WHERE tco.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
-                          AND (tco.capability_overrides->>'beta_program')::boolean IS TRUE
+                          AND tco.capability_key = 'beta_program'
+                          AND tco.enabled_override IS TRUE
                     )
                     OR current_setting('request.jwt.claims', true)::jsonb->>'beta_program' = 'true'
                 )

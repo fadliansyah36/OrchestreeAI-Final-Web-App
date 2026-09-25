@@ -234,7 +234,7 @@ def upgrade() -> None:
         insight_type text NOT NULL,
         related_scoring_result_id uuid REFERENCES selection_scoring_results(id) ON DELETE SET NULL,
         content text NOT NULL,
-        generated_by_model_id uuid REFERENCES llm_models(id) ON DELETE SET NULL,
+        generated_by_model_id text REFERENCES llm_models(id) ON DELETE SET NULL,
         created_at timestamptz NOT NULL DEFAULT now(),
         CONSTRAINT ck_selection_insight_type CHECK (
             insight_type IN ('ranking_reason','strength','weakness','risk','anomaly','opportunity','action_recommendation')

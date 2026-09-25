@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+export PATH="/root/.local/bin:$PATH"
+
 # If backend is already running on port 8001 and responding, keep alive
 if curl -s http://127.0.0.1:8001/health/live >/dev/null 2>&1; then
   echo "Backend already running and healthy on port 8001."

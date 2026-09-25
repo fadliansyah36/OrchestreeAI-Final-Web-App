@@ -95,7 +95,96 @@ class UniversalPromptComposer:
         "SOCIAL_STORY": "vertical social media visual, vibrant dynamic framing, high contrast, mobile optimized visual hooks",
         "ECOMMERCE_CATALOG": "crisp product catalog photo on neutral background, authentic material textures, color accurate, no clutter",
         "BRAND_ASSET": "corporate identity visual, architectural elegance, brand-aligned minimalism, balanced geometry",
+        "SOCIAL_MEDIA_POST": "commercial social media visual, warm studio lighting, rule-of-thirds composition, ample negative space for caption copy, sharp crisp details",
+        "PRODUCT_PHOTO": "pristine e-commerce catalog photography, 5600K balanced daylight, crisp three-quarter angle, soft natural contact shadow, authentic micro-textures",
+        "BRAND_MASCOT": "modern friendly mascot illustration, clean vector linework, approachable posture, clear anatomical proportions, solid corporate palette",
+        "STAFF_AVATAR": "refined digital painted corporate headshot, respectful professional portrait, dignified expression, three-point portrait lighting, non-photorealistic artistic finish",
+        "INFOGRAPHIC_REPORT": "structured executive report visual, modular grid layout, frosted glass card elevation, crisp data hierarchy, minimal decorative noise",
+        "UI_MOCKUP_PITCH": "modern tech flat-lay workstation mockup, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
+        "EVENT_POSTER": "contemporary business conference poster, dynamic abstract 3D ribbons, sophisticated typography space, subsurface glow, high contrast readability",
+        # Lowercase mappings
+        "social_media_post": "commercial social media visual, warm studio lighting, rule-of-thirds composition, ample negative space for caption copy, sharp crisp details",
+        "product_photo": "pristine e-commerce catalog photography, 5600K balanced daylight, crisp three-quarter angle, soft natural contact shadow, authentic micro-textures",
+        "promo_banner": "bold promotional visual, striking visual hierarchy, modern 3d floating graphic elements, subtle neon accents, engaging focal point",
+        "brand_mascot": "modern friendly mascot illustration, clean vector linework, approachable posture, clear anatomical proportions, solid corporate palette",
+        "staff_avatar": "refined digital painted corporate headshot, respectful professional portrait, dignified expression, three-point portrait lighting, non-photorealistic artistic finish",
+        "infographic_report": "structured executive report visual, modular grid layout, frosted glass card elevation, crisp data hierarchy, minimal decorative noise",
+        "ui_mockup_pitch": "modern tech flat-lay workstation mockup, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
+        "event_poster": "contemporary business conference poster, dynamic abstract 3D ribbons, sophisticated typography space, subsurface glow, high contrast readability",
     }
+
+    @staticmethod
+    def compose_from_atomic_template(
+        template_fields: Dict[str, Any],
+        brand_lock: Optional[Dict[str, Any]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[str, str]:
+        """
+        Merangkai prompt final dan negative prompt dari skema atomik 8-pilar:
+        Subjek, Latar/Konteks, Pencahayaan, Material/Tekstur, Tata Letak, Palet Warna,
+        Referensi Gaya, Batasan, prefer_terms, dan avoid_terms.
+        """
+        merged = dict(template_fields)
+        if overrides:
+            for k, v in overrides.items():
+                if v is not None and str(v).strip():
+                    merged[k] = v
+
+        atomic_segments: List[str] = []
+
+        subject = merged.get("subject_field", "").strip()
+        if subject:
+            atomic_segments.append(f"Subjek: {subject}")
+
+        scene = (merged.get("scene_context_field") or "").strip()
+        if scene:
+            atomic_segments.append(f"Latar: {scene}")
+
+        lighting = (merged.get("lighting_field") or "").strip()
+        if lighting:
+            atomic_segments.append(f"Pencahayaan: {lighting}")
+
+        material = (merged.get("material_texture_field") or "").strip()
+        if material:
+            atomic_segments.append(f"Material: {material}")
+
+        layout = (merged.get("composition_layout_field") or "").strip()
+        if layout:
+            atomic_segments.append(f"Komposisi: {layout}")
+
+        palette = (merged.get("color_palette_field") or "").strip()
+        if palette:
+            atomic_segments.append(f"Palet Warna: {palette}")
+
+        style = (merged.get("style_reference_field") or "").strip()
+        if style:
+            atomic_segments.append(f"Gaya: {style}")
+
+        constraints = (merged.get("constraints_field") or "").strip()
+        if constraints:
+            atomic_segments.append(f"Batasan: {constraints}")
+
+        # Tambahkan prefer_terms jika ada
+        prefer_terms = merged.get("prefer_terms") or []
+        if isinstance(prefer_terms, list) and prefer_terms:
+            atomic_segments.append(f"Deskriptor Dianjurkan: {', '.join(prefer_terms[:5])}")
+
+        raw_user_prompt = ", ".join(atomic_segments)
+        cat_code = merged.get("category_code") or merged.get("category") or "social_media_post"
+        aspect_ratio = merged.get("recommended_aspect_ratio") or "1:1"
+
+        # Kumpulkan avoid_terms ke negative prompt
+        avoid_terms = merged.get("avoid_terms") or []
+        extra_neg = ", ".join(avoid_terms) if isinstance(avoid_terms, list) and avoid_terms else None
+
+        return UniversalPromptComposer.compose(
+            user_prompt=raw_user_prompt,
+            category=cat_code,
+            aspect_ratio=aspect_ratio,
+            negative_prompt=extra_neg,
+            style_preset=style,
+            brand_lock=brand_lock,
+        )
 
     @staticmethod
     def compose(
