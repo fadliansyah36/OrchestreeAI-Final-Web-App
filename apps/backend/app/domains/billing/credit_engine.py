@@ -94,6 +94,49 @@ class ActiveSubscriptionRecord(BaseModel):
     unlimited_reason: Optional[str] = None
 
 
+TenantSubscriptionEntity = ActiveSubscriptionRecord
+
+
+class CreditExecutionType(str):
+    AI_AGENT_TASK = "ai_agent_task"
+    MODEL_ROUTER = "model_router"
+    GENERATIVE_IMAGE = "generative_image"
+    MCP_TOOL_CALL = "mcp_tool_call"
+    SINGLE_STEP = "single_step"
+
+
+class CreditEstimateRequest(BaseModel):
+    tenant_id: str
+    execution_type: str = CreditExecutionType.AI_AGENT_TASK
+    model_id: str = "default"
+    input_tokens: int = 0
+    output_tokens: int = 0
+    complexity_tier: str = "medium"
+    activity_code: Optional[str] = None
+
+
+class CreditEngine:
+    """Wrapper class CreditEngine untuk pemanggilan berorientasi objek di suite pengujian & service layer."""
+    async def estimate_credit_cost(self, request_or_code: Any, *args, **kwargs) -> CreditEstimate:
+        if isinstance(request_or_code, CreditEstimateRequest):
+            return await estimate_credit_cost(
+                activity_code=request_or_code.activity_code or "ai_agent_task",
+                complexity_code=request_or_code.complexity_tier,
+                llm_model_id=request_or_code.model_id,
+            )
+        return await estimate_credit_cost(request_or_code, *args, **kwargs)
+
+    async def reserve_credit(self, *args, **kwargs) -> ReservationToken:
+        return await reserve_credit(*args, **kwargs)
+
+    async def consume_credit(self, *args, **kwargs) -> Dict[str, Any]:
+        return await consume_credit(*args, **kwargs)
+
+    async def refund_credit(self, *args, **kwargs) -> Dict[str, Any]:
+        return await refund_credit(*args, **kwargs)
+
+
+
 # ---------------------------------------------------------------------------
 # Repositori Data Faktor & Baseline Metering (Database-Backed with Fallback)
 # ---------------------------------------------------------------------------

@@ -140,11 +140,32 @@ async def get_storage_file(
             )
 
     target_path = STORAGE_BASE_DIR / bucket / file_path
-    if not target_path.exists() or not target_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Berkas '{file_path}' pada bucket '{bucket}' tidak ditemukan.",
-        )
+    if not (target_path.exists() and target_path.is_file()):
+        # Coba periksa di direktori storage_data relatif atau absolute
+        alt_roots = [
+            Path("storage_data"),
+            Path("/app/applet/storage_data"),
+            Path("apps/backend/storage_data"),
+        ]
+        found = False
+        for root in alt_roots:
+            candidate = root / bucket / file_path
+            if candidate.exists() and candidate.is_file():
+                target_path = candidate
+                found = True
+                break
+            # Coba cari dalam subfolder tenant jika hanya nama berkas yang diberikan
+            matches = list((root / bucket).glob(f"**/{Path(file_path).name}"))
+            if matches:
+                target_path = matches[0]
+                found = True
+                break
+
+        if not found:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Berkas '{file_path}' pada bucket '{bucket}' tidak ditemukan.",
+            )
 
     return FileResponse(
         path=str(target_path),

@@ -484,6 +484,37 @@ class ImageRouterService:
                 },
             )
 
+            # Catat jejak pemakaian template jika pekerjaan ini berasal dari template pustaka
+            template_id = payload.get("template_id")
+            if template_id:
+                try:
+                    conn.execute(
+                        sa.text("""
+                            INSERT INTO prompt_template_usage_log (
+                                id, template_id, tenant_id, generative_job_id, used_at
+                            ) VALUES (
+                                gen_random_uuid(), :template_id, :tenant_id, :job_id, now()
+                            )
+                        """),
+                        {
+                            "template_id": template_id,
+                            "tenant_id": tenant_id,
+                            "job_id": job_id,
+                        },
+                    )
+                    conn.execute(
+                        sa.text("""
+                            UPDATE prompt_template_library
+                            SET usage_count = usage_count + 1,
+                                updated_at = now()
+                            WHERE id = :template_id
+                        """),
+                        {"template_id": template_id},
+                    )
+                except Exception as log_err:
+                    import logging
+                    logging.getLogger("uvicorn.error").warning("Gagal mencatat jejak pemakaian template prompt: %s", log_err)
+
         return ImageRouterService.get_job_detail(tenant_id, job_id)
 
     @staticmethod
@@ -573,16 +604,21 @@ class ImageRouterService:
             return [dict(r._mapping) for r in res.fetchall()]
 
     @staticmethod
-    def list_prompt_categories() -> List[Dict[str, Any]]:
-        """Mengambil seluruh kategori master data template prompt."""
-        engine = sa.create_engine(settings.DATABASE_URL)
+    def list_prompt_categories(tenant_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Mengambil seluruh kategori master data template prompt beserta jumlah template aktif."""
+        from app.core.database import get_database_engine
+        engine = get_database_engine()
         with engine.connect() as conn:
             res = conn.execute(
                 sa.text("""
-                    SELECT id, category_code, display_name, description, icon_key, display_order, created_at
-                    FROM prompt_template_categories
-                    ORDER BY display_order ASC, category_code ASC
-                """)
+                    SELECT c.id, c.category_code, c.display_name, c.description, c.icon_key, c.display_order, c.created_at,
+                           COUNT(t.id) as template_count
+                    FROM prompt_template_categories c
+                    LEFT JOIN prompt_template_library t ON c.id = t.category_id AND (t.is_global = true OR (:tid IS NOT NULL AND t.tenant_id = CAST(:tid AS uuid)))
+                    GROUP BY c.id, c.category_code, c.display_name, c.description, c.icon_key, c.display_order, c.created_at
+                    ORDER BY c.display_order ASC, c.category_code ASC
+                """),
+                {"tid": tenant_id}
             )
             return [dict(r._mapping) for r in res.fetchall()]
 

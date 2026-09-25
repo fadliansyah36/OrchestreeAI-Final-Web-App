@@ -23,8 +23,10 @@ import {
   History,
   Copy,
   ExternalLink,
+  BookOpen,
 } from 'lucide-react';
-import { CreditEstimateConfirm } from './billing/CreditEstimateConfirm';
+import { CreditEstimateConfirm } from '../billing/CreditEstimateConfirm';
+import { PromptTemplateLibraryScreen, AtomicPromptTemplate } from './PromptTemplateLibraryScreen';
 
 interface PromptTemplate {
   id: string;
@@ -125,6 +127,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
 
   // Form states
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [activeAtomicTemplate, setActiveAtomicTemplate] = useState<AtomicPromptTemplate | null>(null);
   const [jobType, setJobType] = useState<string>('PRODUCT_SHOWCASE');
   const [prompt, setPrompt] = useState<string>('Foto komersial botol minuman herbal organik premium dengan tetesan embun segar di atas batu sungai hitam');
   const [negativePrompt, setNegativePrompt] = useState<string>('blurry, low quality, artifacts, watermark');
@@ -213,6 +216,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
 
   const handleSelectTemplate = (tpl: PromptTemplate) => {
     setSelectedTemplateId(tpl.id);
+    setActiveAtomicTemplate(null);
     setJobType(tpl.category);
     setPrompt(tpl.template_body);
     if (tpl.default_negative_prompt) {
@@ -222,6 +226,37 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
       setAspectRatio(tpl.recommended_aspect_ratio);
     }
     setSuccessMsg(`Template "${tpl.title}" berhasil dimuat ke editor.`);
+    setTimeout(() => setSuccessMsg(null), 3500);
+  };
+
+  const handleUseAtomicTemplate = (tpl: AtomicPromptTemplate) => {
+    setSelectedTemplateId(tpl.id);
+    setActiveAtomicTemplate(tpl);
+    const catUpper = (tpl.category_code || 'PRODUCT_SHOWCASE').toUpperCase();
+    setJobType(catUpper);
+    setAspectRatio(tpl.recommended_aspect_ratio || '1:1');
+    if (tpl.style_reference_field) {
+      setStylePreset(tpl.style_reference_field);
+    }
+    if (tpl.avoid_terms && tpl.avoid_terms.length > 0) {
+      setNegativePrompt(tpl.avoid_terms.join(', '));
+    }
+
+    const parts = [
+      `Subjek: ${tpl.subject_field}`,
+      tpl.scene_context_field ? `Latar: ${tpl.scene_context_field}` : null,
+      tpl.lighting_field ? `Pencahayaan: ${tpl.lighting_field}` : null,
+      tpl.material_texture_field ? `Material: ${tpl.material_texture_field}` : null,
+      tpl.composition_layout_field ? `Komposisi: ${tpl.composition_layout_field}` : null,
+      tpl.color_palette_field ? `Palet Warna: ${tpl.color_palette_field}` : null,
+      tpl.style_reference_field ? `Gaya: ${tpl.style_reference_field}` : null,
+      tpl.constraints_field ? `Batasan: ${tpl.constraints_field}` : null,
+      tpl.prefer_terms && tpl.prefer_terms.length > 0 ? `Deskriptor Dianjurkan: ${tpl.prefer_terms.join(', ')}` : null,
+    ].filter(Boolean);
+
+    setPrompt(parts.join(', '));
+    setActiveTab('create');
+    setSuccessMsg(`Template "${tpl.template_name}" berhasil dimuat dengan field ter-prefill.`);
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
@@ -247,6 +282,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
           style_preset: stylePreset,
           model_used: modelUsed,
           brand_lock_id: selectedBrandLockId || undefined,
+          template_id: selectedTemplateId || undefined,
           credit_cost: 5.0,
           reservation_id: reservationId,
           force_fail_for_test: forceFailForTest,
@@ -1005,68 +1041,13 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
         </div>
       )}
 
-      {/* TAB 4: TEMPLATES LIBRARY */}
+      {/* TAB 4: TEMPLATES LIBRARY — PUSTAKA TEMPLATE PROMPT ATOMIK */}
       {activeTab === 'templates' && (
-        <div className="space-y-6">
-          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-white">Pustaka Template Prompt Siap Pakai</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Template prompt multi-kategori dengan variabel yang dioptimalkan untuk standar komersial tinggi.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {templates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  className="bg-slate-950/70 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 space-y-3.5 flex flex-col justify-between shadow-lg transition"
-                >
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold">
-                        {tpl.category}
-                      </span>
-                      <span className="text-slate-400 text-xs flex items-center gap-1 font-mono">
-                        Rasio: {tpl.recommended_aspect_ratio}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-white text-sm">{tpl.title}</h3>
-                    <p className="text-slate-300 text-xs leading-relaxed line-clamp-3 bg-slate-900/60 p-2.5 rounded-xl font-mono text-[11px]">
-                      {tpl.template_body}
-                    </p>
-
-                    {tpl.style_tags && tpl.style_tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {tpl.style_tags.map((tag, i) => (
-                          <span key={i} className="px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Estimasi: {tpl.credit_estimate} Kredit</span>
-                    <button
-                      onClick={() => {
-                        handleSelectTemplate(tpl);
-                        setActiveTab('create');
-                      }}
-                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer transition shadow"
-                    >
-                      Gunakan Template
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <PromptTemplateLibraryScreen
+          tenantId={tenantId}
+          onUseTemplate={handleUseAtomicTemplate}
+          onSaveNewTemplateRequested={() => setActiveTab('create')}
+        />
       )}
 
       {/* MODAL DETAIL JOB & SCRUB LOG AUDIT */}
