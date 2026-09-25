@@ -184,7 +184,7 @@ function runContentGate() {
 
       // CI Guard (Bagian B.5 & D.4): Dilarang query langsung tabel Supabase (.from) di frontend apps/client dan apps/admin
       const relPath = path.relative(rootDir, filePath).replace(/\\/g, '/');
-      const isFrontend = relPath.startsWith('apps/client/') || relPath.startsWith('apps/admin/');
+      const isFrontend = relPath.startsWith('apps/client/') || relPath.startsWith('apps/admin/') || relPath.startsWith('src/') || relPath.startsWith('packages/');
       if (isFrontend && (line.includes('.from(') || line.includes('.from("') || line.includes(".from('"))) {
         if (!line.includes('Array.from') && !line.includes('Buffer.from')) {
           violations.push({
@@ -196,13 +196,32 @@ function runContentGate() {
         }
       }
 
-      // CI Guard: Dilarang console.log/console.debug di halaman produksi apps/client/app dan apps/admin/app
-      if ((relPath.startsWith('apps/client/app/') || relPath.startsWith('apps/admin/app/')) &&
-          (/\bconsole\.(log|debug)\s*\(/.test(line))) {
+      // CI Guard: Dilarang console.log/console.debug di seluruh frontend produksi (apps/client, apps/admin, src, packages)
+      if (isFrontend && (/\bconsole\.(log|debug)\s*\(/.test(line))) {
         violations.push({
           file: relPath,
           line: index + 1,
           term: 'production console.log/debug',
+          snippet: line.trim()
+        });
+      }
+
+      // CI Guard: Dilarang print() di backend produksi apps/backend/app (wajib structured logger / logging.getLogger)
+      if (relPath.startsWith('apps/backend/app/') && (/\bprint\s*\(/.test(line))) {
+        violations.push({
+          file: relPath,
+          line: index + 1,
+          term: 'unstructured print() in backend production',
+          snippet: line.trim()
+        });
+      }
+
+      // CI Guard: Dilarang konfigurasi bucket publik untuk kategori data sensitif
+      if (/(?:bucket|bucket_id)\s*[:=]\s*["'](?:documents|contracts|payroll|staff)["'].*?(?:public\s*[:=]\s*true|is_public\s*[:=]\s*true)/i.test(line)) {
+        violations.push({
+          file: relPath,
+          line: index + 1,
+          term: 'public bucket declared for sensitive data category',
           snippet: line.trim()
         });
       }

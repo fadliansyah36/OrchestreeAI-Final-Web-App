@@ -220,8 +220,39 @@ def validate_safe_external_url(url: str, allow_http_for_testing: bool = False) -
 
 
 # ============================================================================
-# MAGIC-BYTE FILE UPLOAD VALIDATOR
+# MAGIC-BYTE FILE UPLOAD VALIDATOR & HMAC SIGNED URLS
 # ============================================================================
+
+import hashlib
+import hmac
+import time
+
+
+def get_storage_signing_secret() -> str:
+    return (
+        getattr(settings, "JWT_SECRET_KEY", None)
+        or getattr(settings, "SUPABASE_SECRET_KEY", None)
+        or "orchestree-internal-storage-signing-secret-k9"
+    )
+
+
+def generate_signed_storage_token(bucket: str, file_path: str, expires_ts: int) -> str:
+    """Menghasilkan signature HMAC-SHA256 untuk URL berkas privat."""
+    secret = get_storage_signing_secret()
+    payload = f"{bucket.lower()}:{file_path}:{int(expires_ts)}"
+    return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_signed_storage_token(bucket: str, file_path: str, token: str, expires_ts: float) -> bool:
+    """Verifikasi token signed-URL: harus valid HMAC dan belum kedaluwarsa."""
+    if not token or not expires_ts:
+        return False
+    current_ts = time.time()
+    if current_ts > expires_ts:
+        return False
+    expected_token = generate_signed_storage_token(bucket, file_path, int(expires_ts))
+    return hmac.compare_digest(token, expected_token)
+
 
 def validate_uploaded_file(
     content: bytes,
@@ -279,7 +310,9 @@ def validate_uploaded_file(
 
     file_id = str(uuid.uuid4())
     storage_path = f"tenants/{tenant_id}/{category}/{file_id}.{ext}"
-    signed_url = f"/api/v1/storage/signed/{file_id}?token={uuid.uuid4().hex}&expires=900"
+    expires_ts = int(time.time() + 900)
+    sig = generate_signed_storage_token("documents", storage_path, expires_ts)
+    signed_url = f"/api/v1/storage/documents/{storage_path}?token={sig}&expires={expires_ts}"
     return True, mime, storage_path, signed_url
 
 

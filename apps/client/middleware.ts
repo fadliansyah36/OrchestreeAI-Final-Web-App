@@ -12,6 +12,7 @@ export function middleware(request: NextRequest) {
     '/overview',
     '/workforce',
     '/sales',
+    '/sales-marketing',
     '/billing',
     '/inbox',
     '/generative',
@@ -19,14 +20,19 @@ export function middleware(request: NextRequest) {
     '/permissions',
     '/proactive',
     '/omnichannel',
+    '/enterprise',
+    '/intelligence',
+    '/settings',
   ].some(route => pathname.startsWith(route));
 
   if (isProtectedPath) {
-    const token = request.cookies.get('sb-access-token')?.value ||
-                  request.cookies.get('orchestree_auth_token')?.value ||
-                  request.headers.get('authorization');
+    const rawToken = request.cookies.get('sb-access-token')?.value ||
+                     request.cookies.get('orchestree_auth_token')?.value ||
+                     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
-    if (!token) {
+    const hasValidToken = Boolean(rawToken && rawToken.length >= 20);
+
+    if (!hasValidToken) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       url.searchParams.set('auth_required', '1');
@@ -42,6 +48,7 @@ export const config = {
     '/overview/:path*',
     '/workforce/:path*',
     '/sales/:path*',
+    '/sales-marketing/:path*',
     '/billing/:path*',
     '/inbox/:path*',
     '/generative/:path*',
@@ -49,5 +56,8 @@ export const config = {
     '/permissions/:path*',
     '/proactive/:path*',
     '/omnichannel/:path*',
+    '/enterprise/:path*',
+    '/intelligence/:path*',
+    '/settings/:path*',
   ],
 };

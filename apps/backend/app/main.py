@@ -42,11 +42,18 @@ from app.api.v1.admin_overview import router as admin_overview_router, root_alia
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
-is_production = getattr(settings, "APP_ENV", "local").lower() in ("production", "prod")
+import os
+import sqlalchemy as sa
+
+is_production = (
+    getattr(settings, "APP_ENV", "local").lower() in ("production", "prod")
+    or os.getenv("ENVIRONMENT", "").lower() in ("production", "prod")
+    or os.getenv("NODE_ENV", "").lower() in ("production", "prod")
+)
 
 app = FastAPI(
     title="OrchestreeAI API",
-    version="2.2.0",
+    version="2.2.0" if not is_production else "hidden",
     description="Autonomous AI Workforce Operating System API",
     openapi_url=None if is_production else "/openapi.json",
     docs_url=None if is_production else "/docs",
@@ -147,6 +154,41 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         }
     )
 
+@app.exception_handler(RuntimeError)
+async def runtime_error_handler(request: Request, exc: RuntimeError):
+    msg = str(exc)
+    if "DATABASE_URL" in msg:
+        return JSONResponse(
+            status_code=503,
+            headers={"Content-Type": "application/problem+json"},
+            content={
+                "type": "https://orchestree.ai/errors/503",
+                "title": "Database Not Configured",
+                "status": 503,
+                "detail": msg,
+                "instance": str(request.url.path),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
+    return await unhandled_exception_handler(request, exc)
+
+
+@app.exception_handler(sa.exc.OperationalError)
+async def db_operational_error_handler(request: Request, exc: sa.exc.OperationalError):
+    return JSONResponse(
+        status_code=503,
+        headers={"Content-Type": "application/problem+json"},
+        content={
+            "type": "https://orchestree.ai/errors/503",
+            "title": "Database Service Unavailable",
+            "status": 503,
+            "detail": "Koneksi ke basis data Supabase PostgreSQL tidak dapat dijangkau atau belum aktif.",
+            "instance": str(request.url.path),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logging.getLogger("uvicorn.error").error(f"Internal error on {request.url.path}: {exc}", exc_info=True)
@@ -209,6 +251,11 @@ app.include_router(admin_alias_router)
 
 @app.get("/")
 async def root():
+    if is_production:
+        return {
+            "name": "OrchestreeAI API",
+            "status": "operational",
+        }
     return {
         "name": "OrchestreeAI Backend",
         "version": "2.2.0",

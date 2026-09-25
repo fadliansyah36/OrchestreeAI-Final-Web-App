@@ -13,7 +13,24 @@ import sqlalchemy as sa
 from sqlalchemy import text
 from app.core.config import settings
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+
+
+class DatabaseNotConfiguredError(HTTPException, RuntimeError):
+    """
+    Dilemparkan ketika konfigurasi DATABASE_URL tidak ditemukan di environment.
+    Mendukung penanganan HTTPException (status 503 Service Unavailable) dan RuntimeError.
+    """
+    def __init__(self, detail: str = "DATABASE_URL belum dikonfigurasi di environment."):
+        HTTPException.__init__(
+            self,
+            status_code=503,
+            detail=detail,
+            headers={"Content-Type": "application/problem+json"}
+        )
+        RuntimeError.__init__(self, detail)
+
 
 _engine: Optional[sa.Engine] = None
 _async_engine: Optional[AsyncEngine] = None
@@ -25,7 +42,7 @@ def get_database_engine() -> sa.Engine:
     if _engine is None:
         url = get_runtime_database_url()
         if not url:
-            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+            raise DatabaseNotConfiguredError("DATABASE_URL belum dikonfigurasi di environment.")
         _engine = sa.create_engine(
             url,
             pool_pre_ping=True,
@@ -91,7 +108,7 @@ def get_engine() -> HybridEngine:
         sync_eng = get_database_engine()
         raw_url = get_runtime_database_url()
         if not raw_url:
-            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+            raise DatabaseNotConfiguredError("DATABASE_URL belum dikonfigurasi di environment.")
         async_url = raw_url
         if async_url.startswith("postgresql://"):
             async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -342,7 +359,7 @@ async def get_async_pool():
         import asyncpg
         raw_url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
         if not raw_url:
-            raise RuntimeError("DATABASE_URL belum dikonfigurasi di environment.")
+            raise DatabaseNotConfiguredError("DATABASE_URL belum dikonfigurasi di environment.")
         # Ensure pure postgresql:// DSN for asyncpg
         dsn = raw_url
         if "+psycopg2" in dsn:

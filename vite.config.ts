@@ -1,11 +1,81 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, Plugin} from 'vite';
+
+const internalAssetProtectionPlugin = (): Plugin => ({
+  name: 'security-block-internal-assets',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url ? req.url.split('?')[0] : '';
+      const blockedPrefixes = [
+        '/tests',
+        '/scripts',
+        '/docs',
+        '/infra',
+        '/apps/backend',
+        '/.env',
+        '/package.json',
+        '/tsconfig',
+        '/turbo.json',
+        '/metadata.json',
+        '/AGENTS.md',
+        '/CLAUDE.md',
+        '/GEMINI.md',
+        '/nginx.conf',
+      ];
+      if (blockedPrefixes.some(prefix => url === prefix || url.startsWith(prefix + '/'))) {
+        res.statusCode = 403;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          type: 'https://orchestree.ai/errors/403',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Akses ditolak: File internal dan dokumen pengujian tidak dipublikasikan.',
+        }));
+        return;
+      }
+      next();
+    });
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url ? req.url.split('?')[0] : '';
+      const blockedPrefixes = [
+        '/tests',
+        '/scripts',
+        '/docs',
+        '/infra',
+        '/apps/backend',
+        '/.env',
+        '/package.json',
+        '/tsconfig',
+        '/turbo.json',
+        '/metadata.json',
+        '/AGENTS.md',
+        '/CLAUDE.md',
+        '/GEMINI.md',
+        '/nginx.conf',
+      ];
+      if (blockedPrefixes.some(prefix => url === prefix || url.startsWith(prefix + '/'))) {
+        res.statusCode = 403;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          type: 'https://orchestree.ai/errors/403',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Akses ditolak: File internal dan dokumen pengujian tidak dipublikasikan.',
+        }));
+        return;
+      }
+      next();
+    });
+  },
+});
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), internalAssetProtectionPlugin()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

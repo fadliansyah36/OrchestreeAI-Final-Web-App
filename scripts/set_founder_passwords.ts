@@ -7,12 +7,12 @@ const DATABASE_URL =
 const FOUNDER_ACCOUNTS = [
   {
     email: 'orchestree.ai.id@gmail.com',
-    password: 'Orchestree#Founder2026!',
+    password: process.env.FOUNDER_ORCHESTREE_PASSWORD || process.env.ADMIN_PASSWORD || '',
     tenantName: 'OrchestreeAI',
   },
   {
     email: 'trexioadventure@gmail.com',
-    password: 'Trexio#Founder2026!',
+    password: process.env.FOUNDER_TREXIO_PASSWORD || process.env.ADMIN_PASSWORD || '',
     tenantName: 'Trexio Adventure',
   },
 ];
@@ -27,6 +27,11 @@ async function setFounderPasswords() {
   const client = await pool.connect();
   try {
     for (const acc of FOUNDER_ACCOUNTS) {
+      if (!acc.password) {
+        throw new Error(
+          `Password untuk ${acc.email} tidak ditemukan di environment variable (FOUNDER_ORCHESTREE_PASSWORD / FOUNDER_TREXIO_PASSWORD).`
+        );
+      }
       console.log(`Setting password for ${acc.email} (${acc.tenantName})...`);
 
       // 1. Hash password with bcrypt cost 10 and confirm email in auth.users

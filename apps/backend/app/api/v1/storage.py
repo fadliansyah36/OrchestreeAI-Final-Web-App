@@ -19,6 +19,7 @@ from app.core.security import (
     validate_uploaded_file,
     get_current_tenant_context,
     AuthenticatedTenantContext,
+    verify_signed_storage_token,
 )
 from app.authz.pdp import public_endpoint, require_capability
 
@@ -126,14 +127,15 @@ async def get_storage_file(
         has_auth = bool(authorization and authorization.strip().startswith("Bearer"))
         is_signed_valid = False
         if token and expires:
-            current_ts = time.time()
-            if current_ts <= expires and len(token) >= 16:
-                is_signed_valid = True
+            try:
+                is_signed_valid = verify_signed_storage_token(bucket, file_path, token, float(expires))
+            except Exception:
+                is_signed_valid = False
 
         if not (has_auth or is_signed_valid):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Akses ditolak: Dokumen internal privat hanya dapat diakses melalui Signed URL bermasa berlaku pendek atau sesi terautentikasi resmi.",
+                detail="Akses ditolak: Dokumen internal privat hanya dapat diakses melalui Signed URL bermasa berlaku pendek yang sah atau sesi terautentikasi resmi.",
             )
 
     target_path = STORAGE_BASE_DIR / bucket / file_path

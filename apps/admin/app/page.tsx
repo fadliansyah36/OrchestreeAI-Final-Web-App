@@ -1,12 +1,28 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AdminSuperHubScreen,
+  EmptyState,
 } from '@orchestree/ui';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { ShieldCheck, Lock, ShieldAlert } from 'lucide-react';
 
 export default function AdminHomePage() {
+  const [isAdminAuth, setIsAdminAuth] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token');
+      const isMfa = localStorage.getItem('orchestree_mfa_verified') === 'true';
+      setIsAdminAuth(Boolean(token && isMfa));
+    } catch {
+      setIsAdminAuth(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return (
     <main className="min-h-screen pb-16 bg-[#070D18]">
       {/* Super Admin Top Bar */}
@@ -32,8 +48,25 @@ export default function AdminHomePage() {
         </div>
       </header>
 
-      {/* Complete Admin Super Hub Screen */}
-      <AdminSuperHubScreen initialTab="overview" />
+      {/* Complete Admin Super Hub Screen or Authenticated Guard */}
+      {loading ? (
+        <div className="p-12 text-center text-slate-400 text-sm">Memverifikasi protokol keamanan Super Admin...</div>
+      ) : isAdminAuth ? (
+        <AdminSuperHubScreen initialTab="overview" />
+      ) : (
+        <div className="max-w-xl mx-auto pt-16 px-4">
+          <EmptyState
+            id="admin-mfa-required-guard"
+            icon={ShieldAlert}
+            title="Otentikasi Super Admin & MFA Diperlukan"
+            description="Area kendali platform global dilindungi secara ketat. Sesi administratif aktif dan verifikasi dua faktor (MFA) wajib dipenuhi."
+            actionLabel="Masuk Konsol Resmi"
+            onAction={() => {
+              window.location.href = '/login?admin=1';
+            }}
+          />
+        </div>
+      )}
     </main>
   );
 }

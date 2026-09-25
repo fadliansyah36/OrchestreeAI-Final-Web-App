@@ -11,9 +11,11 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     const adminToken = request.cookies.get('sb-access-token')?.value ||
                        request.cookies.get('orchestree_admin_token')?.value ||
-                       request.headers.get('authorization');
+                       request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
-    if (!adminToken) {
+    const hasValidToken = Boolean(adminToken && adminToken.length >= 20);
+
+    if (!hasValidToken) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       url.searchParams.set('mfa_required', '1');
