@@ -1707,3 +1707,266 @@ class SelectionDomainService:
             execution_source="webhook",
         )
 
+    # -----------------------------------------------------------------------
+    # BAGIAN G: Profil Kalibrasi Seleksi (Selection Calibration Profiles)
+    # -----------------------------------------------------------------------
+
+    @classmethod
+    def create_calibration_profile(
+        cls,
+        tenant_id: str,
+        profile_name: str,
+        domain_category: Optional[str] = None,
+        created_by_membership_id: Optional[str] = None,
+        items: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Membuat profil kalibrasi seleksi baru beserta item persentase dinamis."""
+        profile_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc)
+
+        with tenant_tx(tenant_id) as conn:
+            stmt = sa.text("""
+                INSERT INTO selection_calibration_profiles (
+                    id, tenant_id, profile_name, domain_category,
+                    created_by_membership_id, is_active, created_at
+                ) VALUES (
+                    :id, :tenant_id, :name, :domain_cat,
+                    :member_id, true, :created_at
+                );
+            """)
+            conn.execute(
+                stmt,
+                {
+                    "id": profile_id,
+                    "tenant_id": tenant_id,
+                    "name": profile_name,
+                    "domain_cat": domain_category,
+                    "member_id": created_by_membership_id,
+                    "created_at": created_at,
+                },
+            )
+
+            created_items = []
+            total_pct = 0.0
+            if items:
+                for idx, item in enumerate(items):
+                    item_id = str(uuid.uuid4())
+                    field_name = str(item.get("field_type_name", "")).strip()
+                    pct = float(item.get("percentage", 0.0))
+                    order = int(item.get("display_order", idx))
+                    if not field_name:
+                        continue
+                    if pct < 0.0 or pct > 100.0:
+                        raise ValueError(f"Persentase '{field_name}' harus antara 0 dan 100%.")
+
+                    item_stmt = sa.text("""
+                        INSERT INTO selection_calibration_items (
+                            id, calibration_profile_id, field_type_name,
+                            percentage, display_order, created_at
+                        ) VALUES (
+                            :id, :profile_id, :field_name,
+                            :pct, :order, :created_at
+                        );
+                    """)
+                    conn.execute(
+                        item_stmt,
+                        {
+                            "id": item_id,
+                            "profile_id": profile_id,
+                            "field_name": field_name,
+                            "pct": pct,
+                            "order": order,
+                            "created_at": created_at,
+                        },
+                    )
+                    created_items.append({
+                        "id": item_id,
+                        "calibration_profile_id": profile_id,
+                        "field_type_name": field_name,
+                        "percentage": pct,
+                        "display_order": order,
+                        "created_at": created_at.isoformat(),
+                    })
+                    total_pct += pct
+
+        return {
+            "id": profile_id,
+            "tenant_id": tenant_id,
+            "profile_name": profile_name,
+            "domain_category": domain_category,
+            "created_by_membership_id": created_by_membership_id,
+            "is_active": True,
+            "created_at": created_at.isoformat(),
+            "items": created_items,
+            "total_percentage": round(total_pct, 2),
+        }
+
+    @classmethod
+    def list_calibration_profiles(
+        cls,
+        tenant_id: str,
+        domain_category: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Mengambil seluruh profil kalibrasi aktif untuk tenant beserta ringkasan item."""
+        with tenant_tx(tenant_id) as conn:
+            query = """
+                SELECT p.id, p.tenant_id, p.profile_name, p.domain_category,
+                       p.created_by_membership_id, p.is_active, p.created_at,
+                       COALESCE(SUM(i.percentage), 0) as total_percentage,
+                       COUNT(i.id) as items_count
+                FROM selection_calibration_profiles p
+                LEFT JOIN selection_calibration_items i ON i.calibration_profile_id = p.id
+                WHERE p.tenant_id = :tenant_id AND p.is_active = true
+            """
+            params: Dict[str, Any] = {"tenant_id": tenant_id}
+            if domain_category:
+                query += " AND (p.domain_category = :domain_cat OR p.domain_category IS NULL)"
+                params["domain_cat"] = domain_category
+
+            query += " GROUP BY p.id ORDER BY p.created_at DESC;"
+
+            rows = conn.execute(sa.text(query), params).fetchall()
+            return [
+                {
+                    "id": str(r[0]),
+                    "tenant_id": str(r[1]),
+                    "profile_name": r[2],
+                    "domain_category": r[3],
+                    "created_by_membership_id": str(r[4]) if r[4] else None,
+                    "is_active": bool(r[5]),
+                    "created_at": r[6].isoformat() if r[6] else None,
+                    "total_percentage": round(float(r[7]), 2),
+                    "items_count": int(r[8]),
+                }
+                for r in rows
+            ]
+
+    @classmethod
+    def get_calibration_profile(
+        cls,
+        tenant_id: str,
+        profile_id: str,
+    ) -> Dict[str, Any]:
+        """Mengambil rincian profil kalibrasi beserta seluruh itemnya."""
+        with tenant_tx(tenant_id) as conn:
+            p_stmt = sa.text("""
+                SELECT id, tenant_id, profile_name, domain_category,
+                       created_by_membership_id, is_active, created_at
+                FROM selection_calibration_profiles
+                WHERE id = :id AND tenant_id = :tenant_id;
+            """)
+            p_row = conn.execute(p_stmt, {"id": profile_id, "tenant_id": tenant_id}).fetchone()
+            if not p_row:
+                raise ValueError(f"Profil kalibrasi '{profile_id}' tidak ditemukan.")
+
+            items_stmt = sa.text("""
+                SELECT id, calibration_profile_id, field_type_name,
+                       percentage, display_order, created_at
+                FROM selection_calibration_items
+                WHERE calibration_profile_id = :profile_id
+                ORDER BY display_order ASC, created_at ASC;
+            """)
+            i_rows = conn.execute(items_stmt, {"profile_id": profile_id}).fetchall()
+            items = [
+                {
+                    "id": str(r[0]),
+                    "calibration_profile_id": str(r[1]),
+                    "field_type_name": r[2],
+                    "percentage": float(r[3]),
+                    "display_order": int(r[4]),
+                    "created_at": r[5].isoformat() if r[5] else None,
+                }
+                for r in i_rows
+            ]
+            total_pct = sum(item["percentage"] for item in items)
+
+            return {
+                "id": str(p_row[0]),
+                "tenant_id": str(p_row[1]),
+                "profile_name": p_row[2],
+                "domain_category": p_row[3],
+                "created_by_membership_id": str(p_row[4]) if p_row[4] else None,
+                "is_active": bool(p_row[5]),
+                "created_at": p_row[6].isoformat() if p_row[6] else None,
+                "items": items,
+                "total_percentage": round(total_pct, 2),
+            }
+
+    @classmethod
+    def add_calibration_item(
+        cls,
+        tenant_id: str,
+        profile_id: str,
+        field_type_name: str,
+        percentage: float,
+        display_order: int = 0,
+    ) -> Dict[str, Any]:
+        """Menambahkan baris item kalibrasi baru ke profil yang ada."""
+        if not field_type_name.strip():
+            raise ValueError("Field Nama Tipe tidak boleh kosong.")
+        if percentage < 0.0 or percentage > 100.0:
+            raise ValueError("Persentase harus berada pada rentang 0 sampai 100.")
+
+        # Verifikasi profil milik tenant
+        cls.get_calibration_profile(tenant_id, profile_id)
+
+        item_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc)
+        with tenant_tx(tenant_id) as conn:
+            stmt = sa.text("""
+                INSERT INTO selection_calibration_items (
+                    id, calibration_profile_id, field_type_name,
+                    percentage, display_order, created_at
+                ) VALUES (
+                    :id, :profile_id, :field_name,
+                    :pct, :order, :created_at
+                );
+            """)
+            conn.execute(
+                stmt,
+                {
+                    "id": item_id,
+                    "profile_id": profile_id,
+                    "field_name": field_type_name.strip(),
+                    "pct": percentage,
+                    "order": display_order,
+                    "created_at": created_at,
+                },
+            )
+
+        return cls.get_calibration_profile(tenant_id, profile_id)
+
+    @classmethod
+    def delete_calibration_item(
+        cls,
+        tenant_id: str,
+        profile_id: str,
+        item_id: str,
+    ) -> Dict[str, Any]:
+        """Menghapus item kalibrasi individual dari profil."""
+        cls.get_calibration_profile(tenant_id, profile_id)
+        with tenant_tx(tenant_id) as conn:
+            conn.execute(
+                sa.text("""
+                    DELETE FROM selection_calibration_items
+                    WHERE id = :item_id AND calibration_profile_id = :profile_id;
+                """),
+                {"item_id": item_id, "profile_id": profile_id},
+            )
+        return cls.get_calibration_profile(tenant_id, profile_id)
+
+    @classmethod
+    def delete_calibration_profile(
+        cls,
+        tenant_id: str,
+        profile_id: str,
+    ) -> Dict[str, Any]:
+        """Menghapus profil kalibrasi beserta seluruh itemnya (cascade)."""
+        cls.get_calibration_profile(tenant_id, profile_id)
+        with tenant_tx(tenant_id) as conn:
+            conn.execute(
+                sa.text("DELETE FROM selection_calibration_profiles WHERE id = :id AND tenant_id = :tenant_id;"),
+                {"id": profile_id, "tenant_id": tenant_id},
+            )
+        return {"status": "success", "deleted_profile_id": profile_id}
+

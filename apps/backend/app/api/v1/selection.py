@@ -125,6 +125,25 @@ class CalibrateJobRequest(StrictSelectionRequestModel):
     human_reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID peninjau kalibrasi")
 
 
+class CalibrationItemPayload(StrictSelectionRequestModel):
+    field_type_name: str = Field(..., min_length=1, max_length=200, description="Nama field tipe dari preferensi user")
+    percentage: float = Field(..., ge=0.0, le=100.0, description="Persentase bobot kriteria (0-100)")
+    display_order: Optional[int] = Field(default=0, ge=0, description="Urutan tampilan item")
+
+
+class CreateCalibrationProfileRequest(StrictSelectionRequestModel):
+    profile_name: str = Field(..., min_length=1, max_length=200, description="Nama profil kalibrasi")
+    domain_category: Optional[str] = Field(default=None, max_length=100, description="Kategori domain opsional")
+    created_by_membership_id: Optional[str] = Field(default=None, max_length=100, description="UUID keanggotaan pembuat")
+    items: Optional[List[CalibrationItemPayload]] = Field(default=None, description="Daftar awal item kalibrasi")
+
+
+class CreateCalibrationItemRequest(StrictSelectionRequestModel):
+    field_type_name: str = Field(..., min_length=1, max_length=200, description="Nama field tipe dari preferensi user")
+    percentage: float = Field(..., ge=0.0, le=100.0, description="Persentase bobot kriteria (0-100)")
+    display_order: Optional[int] = Field(default=0, ge=0, description="Urutan tampilan item")
+
+
 # ---------------------------------------------------------------------------
 # Katalog Domain Categories
 # ---------------------------------------------------------------------------
@@ -659,6 +678,103 @@ async def file_upload_selection_event(tenant_id: str, request: FileUploadEventRe
             file_artifact_id=request.file_artifact_id,
         )
         return {"status": "success", "tenant_id": tenant_id, "triggered_count": len(results), "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN G: Profil Kalibrasi Seleksi (Selection Calibration Profiles)
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/calibration-profiles", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.get("/selection/tenants/{tenant_id}/calibration-profiles", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def list_calibration_profiles(tenant_id: str, domain_category: Optional[str] = Query(None)):
+    """Mengambil seluruh profil kalibrasi seleksi aktif milik tenant."""
+    try:
+        profiles = SelectionDomainService.list_calibration_profiles(tenant_id, domain_category)
+        return {"status": "success", "tenant_id": tenant_id, "data": profiles}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/calibration-profiles", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.post("/selection/tenants/{tenant_id}/calibration-profiles", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def create_calibration_profile(tenant_id: str, request: CreateCalibrationProfileRequest):
+    """Membuat profil kalibrasi seleksi baru beserta daftar item tipe dan persentase."""
+    try:
+        items_data = [item.model_dump() for item in request.items] if request.items else None
+        profile = SelectionDomainService.create_calibration_profile(
+            tenant_id=tenant_id,
+            profile_name=request.profile_name,
+            domain_category=request.domain_category,
+            created_by_membership_id=request.created_by_membership_id,
+            items=items_data,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": profile}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/selection/calibration-profiles/{profile_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.get("/selection/tenants/{tenant_id}/calibration-profiles/{profile_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def get_calibration_profile(tenant_id: str, profile_id: str):
+    """Mengambil detail profil kalibrasi spesifik beserta seluruh item kriteria."""
+    try:
+        profile = SelectionDomainService.get_calibration_profile(tenant_id, profile_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": profile}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/calibration-profiles/{profile_id}/items", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.post("/selection/tenants/{tenant_id}/calibration-profiles/{profile_id}/items", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def add_calibration_profile_item(tenant_id: str, profile_id: str, request: CreateCalibrationItemRequest):
+    """Menambahkan baris item kalibrasi baru (Field Nama Tipe + Persentase) ke profil."""
+    try:
+        updated_profile = SelectionDomainService.add_calibration_item(
+            tenant_id=tenant_id,
+            profile_id=profile_id,
+            field_type_name=request.field_type_name,
+            percentage=request.percentage,
+            display_order=request.display_order or 0,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": updated_profile}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/tenants/{tenant_id}/selection/calibration-profiles/{profile_id}/items/{item_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.delete("/selection/tenants/{tenant_id}/calibration-profiles/{profile_id}/items/{item_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def delete_calibration_profile_item(tenant_id: str, profile_id: str, item_id: str):
+    """Menghapus item kalibrasi dari profil."""
+    try:
+        updated_profile = SelectionDomainService.delete_calibration_item(
+            tenant_id=tenant_id,
+            profile_id=profile_id,
+            item_id=item_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": updated_profile}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/tenants/{tenant_id}/selection/calibration-profiles/{profile_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+@router.delete("/selection/tenants/{tenant_id}/calibration-profiles/{profile_id}", dependencies=[Depends(require_capability("selection.calibration.manage"))])
+async def delete_calibration_profile(tenant_id: str, profile_id: str):
+    """Menghapus profil kalibrasi seleksi beserta seluruh itemnya."""
+    try:
+        result = SelectionDomainService.delete_calibration_profile(tenant_id, profile_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -63,23 +63,26 @@ class SelectionPipelineEngine:
     ) -> None:
         """Memperbarui status progress pekerjaan di database secara atomik."""
         now = datetime.now(timezone.utc)
-        with tenant_tx(tenant_id) as conn:
-            stmt = sa.text("""
-                UPDATE selection_jobs
-                SET pipeline_stage = :stage,
-                    stage_progress_pct = :pct,
-                    completed_at = :completed_at
-                WHERE id = :id;
-            """)
-            conn.execute(
-                stmt,
-                {
-                    "id": job_id,
-                    "stage": stage.value,
-                    "pct": round(progress_pct, 2),
-                    "completed_at": now if completed else None,
-                },
-            )
+        try:
+            with tenant_tx(tenant_id) as conn:
+                stmt = sa.text("""
+                    UPDATE selection_jobs
+                    SET pipeline_stage = :stage,
+                        stage_progress_pct = :pct,
+                        completed_at = :completed_at
+                    WHERE id = :id;
+                """)
+                conn.execute(
+                    stmt,
+                    {
+                        "id": job_id,
+                        "stage": stage.value,
+                        "pct": round(progress_pct, 2),
+                        "completed_at": now if completed else None,
+                    },
+                )
+        except Exception as exc:
+            logger.debug(f"[SelectionPipeline] Skipping job progress db update: {exc}")
         logger.info(f"[SelectionPipeline] Job {job_id} -> {stage.value} ({progress_pct}%)")
 
     # -----------------------------------------------------------------------
@@ -299,6 +302,75 @@ class SelectionPipelineEngine:
         await cls.update_job_progress(tenant_id, job_id, PipelineStage.SELECTING, 40.0)
 
         configured_criteria = context.get("criteria", [])
+        calib_profile_id = context.get("calibration_profile_id")
+        if not calib_profile_id:
+            try:
+                with tenant_tx(tenant_id) as conn:
+                    calib_val = conn.execute(
+                        sa.text("SELECT calibration_profile_id FROM selection_jobs WHERE id = :job_id;"),
+                        {"job_id": job_id},
+                    ).scalar()
+                    if calib_val:
+                        calib_profile_id = str(calib_val)
+            except Exception:
+                pass
+
+        # Bila calibration_profile_id diset, konversi selection_calibration_items menjadi selection_criteria
+        if calib_profile_id:
+            try:
+                items_rows = context.get("calibration_items")
+                if items_rows is None:
+                    with tenant_tx(tenant_id) as conn:
+                        items_rows = conn.execute(
+                            sa.text("""
+                                SELECT id, field_type_name, percentage, display_order
+                                FROM selection_calibration_items
+                                WHERE calibration_profile_id = :p_id
+                                ORDER BY display_order ASC, created_at ASC;
+                            """),
+                            {"p_id": calib_profile_id},
+                        ).fetchall()
+                if items_rows:
+                    import re
+                    total_percentage = 0.0
+                    parsed_raw = []
+                    for r in items_rows:
+                        if isinstance(r, dict):
+                            fname = str(r.get("field_type_name", "")).strip()
+                            fpct = float(r.get("percentage", 0.0))
+                        else:
+                            fname = str(r[1]).strip()
+                            fpct = float(r[2])
+                        total_percentage += fpct
+                        parsed_raw.append((fname, fpct))
+
+                    if total_percentage <= 0:
+                        total_percentage = 100.0
+
+                    calib_criteria = []
+                    running_calib_sum = 0.0
+                    for i, (field_name, pct) in enumerate(parsed_raw):
+                        if i == len(parsed_raw) - 1:
+                            norm_w = round(1.0 - running_calib_sum, 4)
+                        else:
+                            norm_w = round(pct / total_percentage, 4)
+                            running_calib_sum += norm_w
+
+                        safe_key = re.sub(r'[^a-zA-Z0-9_]+', '_', field_name.lower()).strip('_')
+                        if not safe_key:
+                            safe_key = f"calib_{i+1}"
+
+                        calib_criteria.append({
+                            "key": safe_key,
+                            "label": field_name,
+                            "weight": norm_w,
+                            "source_type": "calibration_profile",
+                            "percentage": pct,
+                        })
+                    configured_criteria = calib_criteria
+            except Exception as e:
+                logger.warning(f"Gagal memuat profil kalibrasi {calib_profile_id}: {e}")
+
         if not configured_criteria:
             # Standar kriteria cerdas multi-dimensi
             domain_cat = context.get("domain_category", "general")
@@ -347,12 +419,16 @@ class SelectionPipelineEngine:
                 norm_w = round(raw_w / total_raw_weight, 4)
                 running_sum += norm_w
 
-            normalized_criteria.append({
+            crit_entry = {
                 "key": c.get("key") or f"crit_{i+1}",
                 "label": c.get("label") or f"Kriteria {i+1}",
                 "weight": norm_w,
                 "source_type": c.get("source_type") or "user_prompt",
-            })
+            }
+            if "percentage" in c and c["percentage"] is not None:
+                crit_entry["percentage"] = float(c["percentage"])
+
+            normalized_criteria.append(crit_entry)
 
         # Persist ke selection_criteria
         with tenant_tx(tenant_id) as conn:
@@ -416,20 +492,46 @@ class SelectionPipelineEngine:
             computed_total = 0.0
             for crit in criteria:
                 key = crit["key"]
+                label = crit.get("label", key)
                 weight = float(crit["weight"])
 
-                # Hitung skor kriteria berdasarkan relevansi atribut dan kelengkapan informasi
-                base_val = 60.0
-                attr_str = json.dumps(attrs).lower()
-                if key.lower() in attr_str:
-                    base_val += 20.0
-                if any(w in attr_str for w in ["expert", "senior", "lead", "advanced", "top", "excellent"]):
-                    base_val += 15.0
-                elif any(w in attr_str for w in ["intermediate", "proficient", "good", "certified"]):
-                    base_val += 10.0
+                # 1. Cek apakah attrs memiliki nilai numerik spesifik untuk key atau label kriteria
+                direct_score = None
+                for k, v in attrs.items():
+                    clean_k = str(k).lower().replace(" ", "_")
+                    if clean_k == key.lower() or str(k).lower() == label.lower() or key.lower() in clean_k or label.lower() in str(k).lower():
+                        try:
+                            num_v = float(v)
+                            if 0 <= num_v <= 100:
+                                direct_score = num_v
+                                break
+                            elif num_v > 100:
+                                direct_score = min(100.0, num_v)
+                                break
+                        except (ValueError, TypeError):
+                            pass
 
-                # Sesuaikan dengan faktor kualitas dokumen
-                criterion_score = min(100.0, max(20.0, base_val * (quality_score / 100.0 * 0.4 + 0.6)))
+                if direct_score is not None:
+                    criterion_score = direct_score
+                else:
+                    # 2. Hitung skor kriteria berdasarkan relevansi atribut dan kelengkapan informasi
+                    base_val = 60.0
+                    attr_str = json.dumps(attrs).lower()
+                    label_words = [w for w in label.lower().split() if len(w) > 2]
+
+                    if key.lower() in attr_str:
+                        base_val += 20.0
+                    elif any(w in attr_str for w in label_words):
+                        base_val += 15.0
+
+                    if any(w in attr_str for w in ["expert", "senior", "lead", "advanced", "top", "excellent"]):
+                        base_val += 15.0
+                    elif any(w in attr_str for w in ["intermediate", "proficient", "good", "certified"]):
+                        base_val += 10.0
+
+                    # Sesuaikan dengan faktor kualitas dokumen
+                    criterion_score = min(100.0, max(20.0, base_val * (quality_score / 100.0 * 0.4 + 0.6)))
+
                 criterion_score = round(criterion_score, 2)
                 breakdown[key] = criterion_score
                 computed_total += (criterion_score * weight)

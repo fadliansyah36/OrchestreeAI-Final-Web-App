@@ -243,3 +243,37 @@ class SelectionJobDetail(BaseModel):
     total_documents: int = 0
     results: List[ScoringResultDetail] = Field(default_factory=list)
 
+
+class CalibrationItemInput(BaseModel):
+    field_type_name: str = Field(..., min_length=1, max_length=200, description="Nama field tipe dari preferensi user")
+    percentage: float = Field(..., ge=0.0, le=100.0, description="Persentase bobot kriteria (0-100)")
+    display_order: int = Field(default=0, ge=0, description="Urutan tampilan item")
+
+
+class CalibrationItemDetail(BaseModel):
+    id: str
+    calibration_profile_id: str
+    field_type_name: str
+    percentage: float
+    display_order: int
+    created_at: datetime
+
+
+class CreateCalibrationProfileInput(BaseModel):
+    profile_name: str = Field(..., min_length=1, max_length=200, description="Nama profil kalibrasi")
+    domain_category: Optional[str] = Field(default=None, max_length=100, description="Kategori domain opsional")
+    created_by_membership_id: Optional[str] = Field(default=None, description="UUID membership pembuat")
+    items: Optional[List[CalibrationItemInput]] = Field(default=None, description="Daftar item kalibrasi awal")
+
+
+class CalibrationProfileDetail(BaseModel):
+    id: str
+    tenant_id: str
+    profile_name: str
+    domain_category: Optional[str] = None
+    created_by_membership_id: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime
+    items: List[CalibrationItemDetail] = Field(default_factory=list)
+    total_percentage: float = 0.0
+

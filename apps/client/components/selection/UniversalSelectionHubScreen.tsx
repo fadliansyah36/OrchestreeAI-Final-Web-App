@@ -39,6 +39,7 @@ import { SelectionResultScreen, SelectionScoringResultItem } from './SelectionRe
 import { SelectionHistoryScreen } from './SelectionHistoryScreen';
 import { SelectionReviewScreen } from './SelectionReviewScreen';
 import { SelectionAutomationScreen } from './SelectionAutomationScreen';
+import { SelectionCalibrationSettingScreen } from './SelectionCalibrationSettingScreen';
 import {
   ResponsiveContainer,
   BarChart,
@@ -179,6 +180,8 @@ export function UniversalSelectionHubScreen({
   const [newJobTitle, setNewJobTitle] = useState('');
   const [newJobCategory, setNewJobCategory] = useState('RECRUITMENT');
   const [newJobDescription, setNewJobDescription] = useState('');
+  const [calibrationProfiles, setCalibrationProfiles] = useState<any[]>([]);
+  const [selectedCalibrationProfileId, setSelectedCalibrationProfileId] = useState<string>('');
 
   // Upload Document modal
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -286,8 +289,21 @@ export function UniversalSelectionHubScreen({
     }
   };
 
+  const fetchCalibrationProfiles = async () => {
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/calibration-profiles`);
+      if (res.ok) {
+        const j = await res.json();
+        setCalibrationProfiles(j.data || []);
+      }
+    } catch (err) {
+      console.error('Gagal mengambil profil kalibrasi:', err);
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
+    fetchCalibrationProfiles();
   }, [tenantId]);
 
   useEffect(() => {
@@ -448,7 +464,8 @@ export function UniversalSelectionHubScreen({
         body: JSON.stringify({
           title: newJobTitle,
           category: newJobCategory,
-          description: newJobDescription
+          description: newJobDescription,
+          calibration_profile_id: selectedCalibrationProfileId || null,
         })
       });
 
@@ -458,6 +475,7 @@ export function UniversalSelectionHubScreen({
         setShowCreateModal(false);
         setNewJobTitle('');
         setNewJobDescription('');
+        setSelectedCalibrationProfileId('');
         await fetchJobs();
         setSelectedJobId(json.data.id);
       } else {
@@ -1165,85 +1183,95 @@ export function UniversalSelectionHubScreen({
         </div>
       )}
 
-      {/* Tab 3: Kalibrasi */}
+      {/* Tab: Kalibrasi */}
       {activeTab === 'calibration' && (
-        <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-emerald-400" />
-                Matriks Bobot & Kalibrasi Umpan Balik Manusia
-              </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Kriteria evaluasi dan mekanisme kalibrasi adaptif berlandaskan pertimbangan Human Reviewer.
-              </p>
-            </div>
+        <div className="space-y-8">
+          <SelectionCalibrationSettingScreen
+            tenantId={tenantId}
+            onProfileSaved={(_id) => {
+              fetchCalibrationProfiles();
+              showFeedback('Profil kalibrasi berhasil disimpan!');
+            }}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentJob?.criteria?.map((crit) => {
-                const currentWeight = currentJob.weights[crit.key] || crit.weight;
-                const adjustment = calAdjustments[crit.key] || 1.0;
-                return (
-                  <div key={crit.key} className="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-white">{crit.label}</span>
-                      <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                        Bobot: {(currentWeight * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    {crit.description && <p className="text-xs text-slate-400">{crit.description}</p>}
+          {currentJob && currentJob.criteria && currentJob.criteria.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+              <div>
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-emerald-400" />
+                  Penyesuaian Kalibrasi Khusus Pekerjaan Aktif ({currentJob.title})
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Umpan balik peninjau untuk menyempurnakan faktor bobot pekerjaan yang sedang aktif.
+                </p>
+              </div>
 
-                    <div className="pt-2 border-t border-slate-850 flex items-center justify-between gap-3">
-                      <label className="text-xs text-slate-400">Faktor Kalibrasi:</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min="0.5"
-                          max="2.0"
-                          step="0.1"
-                          value={adjustment}
-                          onChange={(e) =>
-                            setCalAdjustments({
-                              ...calAdjustments,
-                              [crit.key]: parseFloat(e.target.value)
-                            })
-                          }
-                          className="w-28 accent-emerald-500"
-                        />
-                        <span className="text-xs font-mono text-emerald-300 w-10 text-right">
-                          {adjustment.toFixed(1)}x
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {currentJob.criteria.map((crit) => {
+                  const currentWeight = currentJob.weights?.[crit.key] || crit.weight;
+                  const adjustment = calAdjustments[crit.key] || 1.0;
+                  return (
+                    <div key={crit.key} className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-white">{crit.label}</span>
+                        <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
+                          Bobot: {(currentWeight * 100).toFixed(1)}%
                         </span>
                       </div>
+                      {crit.description && <p className="text-[11px] text-slate-400">{crit.description}</p>}
+
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-3">
+                        <label className="text-xs text-slate-400">Faktor Kalibrasi:</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.1"
+                            value={adjustment}
+                            onChange={(e) =>
+                              setCalAdjustments({
+                                ...calAdjustments,
+                                [crit.key]: parseFloat(e.target.value)
+                              })
+                            }
+                            className="w-28 accent-emerald-500"
+                          />
+                          <span className="text-xs font-mono text-emerald-300 w-10 text-right">
+                            {adjustment.toFixed(1)}x
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <div className="pt-3 border-t border-slate-800 space-y-3">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-                Catatan Umpan Balik Kalibrasi Reviewer
-              </label>
-              <textarea
-                value={calNotes}
-                onChange={(e) => setCalNotes(e.target.value)}
-                rows={2}
-                placeholder="Misal: Naikkan bobot rekam jejak teknis karena proyek membutuhkan kestabilan arsitektur tingkat lanjut..." // allowlist: standard UI input hint
-                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-3 text-xs focus:outline-none focus:border-emerald-500"
-              />
+              <div className="pt-3 border-t border-slate-800 space-y-3">
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+                  Catatan Umpan Balik Kalibrasi Reviewer
+                </label>
+                <textarea
+                  value={calNotes}
+                  onChange={(e) => setCalNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Misal: Naikkan bobot rekam jejak teknis karena proyek membutuhkan kestabilan arsitektur tingkat lanjut..." // allowlist: standard UI input hint
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-3 text-xs focus:outline-none focus:border-emerald-500"
+                />
 
-              <div className="flex justify-end">
-                <button
-                  onClick={handleApplyCalibration}
-                  disabled={actionLoading || !calNotes.trim()}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-700/25 transition disabled:opacity-50"
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  {actionLoading ? 'Menerapkan...' : 'Terapkan Kalibrasi Bobot'}
-                </button>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleApplyCalibration}
+                    disabled={actionLoading || !calNotes.trim()}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-700/25 transition disabled:opacity-50"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    {actionLoading ? 'Menerapkan...' : 'Terapkan Kalibrasi Bobot'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1432,6 +1460,25 @@ export function UniversalSelectionHubScreen({
                   <option value="TENDER_EVALUATION">Evaluasi Tender</option>
                   <option value="LEAD_QUALIFICATION">Kualifikasi Prospek</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Gunakan Profil Kalibrasi (Opsional)</label>
+                <select
+                  value={selectedCalibrationProfileId}
+                  onChange={(e) => setSelectedCalibrationProfileId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg p-2.5 text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">Tanpa Kalibrasi (ikuti skill AI Agent)</option>
+                  {calibrationProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.profile_name} ({p.items_count} kriteria, {p.total_percentage}%)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Default akan mengikuti keahlian bawaan AI bila tidak memilih profil kalibrasi.
+                </span>
               </div>
 
               <div>
