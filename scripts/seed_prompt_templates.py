@@ -358,29 +358,51 @@ async def seed_all():
             "4:5": (819, 1024),
             "3:4": (768, 1024),
             "4:3": (1024, 768),
+            "3:2": (1080, 720),
         }
         width, height = dims_map.get(aspect_ratio, (1024, 1024))
 
-        # Render Gambar Nyata Berkualitas Tinggi dengan Visual Cue Sesuai Kategori
-        img = Image.new("RGB", (width, height), color="#070D18")
-        draw = ImageDraw.Draw(img)
+        # Peta sumber gambar nyata yang digenerate untuk 8 kategori
+        generated_asset_map = {
+            "social_media_post": "src/assets/images/template_social_media_1790360532278.jpg",
+            "product_photo": "src/assets/images/template_product_photo_1790360550050.jpg",
+            "promo_banner": "src/assets/images/template_promo_banner_1790360562888.jpg",
+            "brand_mascot": "src/assets/images/template_brand_mascot_1790360576905.jpg",
+            "staff_avatar": "src/assets/images/template_staff_avatar_1790360590161.jpg",
+            "infographic_report": "src/assets/images/template_infographic_report_1790360604377.jpg",
+            "ui_mockup_pitch": "src/assets/images/template_ui_mockup_1790360615146.jpg",
+            "event_poster": "src/assets/images/template_event_poster_1790360627397.jpg",
+        }
 
-        # Parse primary color
-        pr = int(primary_hex[1:3], 16) if len(primary_hex) >= 7 else 31
-        pg = int(primary_hex[3:5], 16) if len(primary_hex) >= 7 else 163
-        pb = int(primary_hex[5:7], 16) if len(primary_hex) >= 7 else 90
-
-        # Latar bertekstur geometris
-        draw.rectangle([40, 40, width - 40, height - 40], outline=(pr, pg, pb), width=4)
-        draw.ellipse([width // 4, height // 4, (width * 3) // 4, (height * 3) // 4], outline=(pr, pg, pb), width=2)
-        draw.rectangle([width // 3, height // 3, (width * 2) // 3, (height * 2) // 3], fill=(pr, pg, pb))
-
-        bio = io.BytesIO()
-        png_info = PngImagePlugin.PngInfo()
-        png_info.add_text("Software", "OrchestreeAI Model Router - gpt-image-2")
-        png_info.add_text("Comment", f"Template: {tpl_name}")
-        img.save(bio, format="PNG", pnginfo=png_info)
-        raw_image_bytes = bio.getvalue()
+        source_img_file = generated_asset_map.get(cat_code)
+        if source_img_file and os.path.exists(source_img_file):
+            print(f"  → Memuat aset visual nyata hasil generate: {source_img_file}")
+            with Image.open(source_img_file) as loaded_img:
+                img_converted = loaded_img.convert("RGB")
+                img_width, img_height = img_converted.size
+                width, height = img_width, img_height
+                bio = io.BytesIO()
+                png_info = PngImagePlugin.PngInfo()
+                png_info.add_text("Software", "OrchestreeAI Model Router - gpt-image-2")
+                png_info.add_text("Comment", f"Template: {tpl_name}")
+                img_converted.save(bio, format="PNG", pnginfo=png_info)
+                raw_image_bytes = bio.getvalue()
+        else:
+            # Fallback jika berkas tidak ditemukan
+            img = Image.new("RGB", (width, height), color="#070D18")
+            draw = ImageDraw.Draw(img)
+            pr = int(primary_hex[1:3], 16) if len(primary_hex) >= 7 else 31
+            pg = int(primary_hex[3:5], 16) if len(primary_hex) >= 7 else 163
+            pb = int(primary_hex[5:7], 16) if len(primary_hex) >= 7 else 90
+            draw.rectangle([40, 40, width - 40, height - 40], outline=(pr, pg, pb), width=4)
+            draw.ellipse([width // 4, height // 4, (width * 3) // 4, (height * 3) // 4], outline=(pr, pg, pb), width=2)
+            draw.rectangle([width // 3, height // 3, (width * 2) // 3, (height * 2) // 3], fill=(pr, pg, pb))
+            bio = io.BytesIO()
+            png_info = PngImagePlugin.PngInfo()
+            png_info.add_text("Software", "OrchestreeAI Model Router - gpt-image-2")
+            png_info.add_text("Comment", f"Template: {tpl_name}")
+            img.save(bio, format="PNG", pnginfo=png_info)
+            raw_image_bytes = bio.getvalue()
 
         # Validasi Image Gate
         validation: ValidationResult = ImageValidationGate.validate(
@@ -401,6 +423,12 @@ async def seed_all():
         os.makedirs(storage_rel_dir, exist_ok=True)
         file_path = os.path.join(storage_rel_dir, f"{artifact_id}.png")
         with open(file_path, "wb") as f:
+            f.write(clean_bytes)
+
+        # Simpan juga ke direktori backend storage_data untuk kompatibilitas
+        backend_storage_dir = os.path.join("apps", "backend", "storage_data", "artifacts", tenant_id)
+        os.makedirs(backend_storage_dir, exist_ok=True)
+        with open(os.path.join(backend_storage_dir, f"{artifact_id}.png"), "wb") as f:
             f.write(clean_bytes)
 
         public_url = f"/api/v1/storage/artifacts/{artifact_id}.png"

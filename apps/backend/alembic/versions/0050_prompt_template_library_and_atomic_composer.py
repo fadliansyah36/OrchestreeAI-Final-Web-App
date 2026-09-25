@@ -154,6 +154,7 @@ def upgrade() -> None:
         FOR UPDATE
         USING (
             (is_global = false AND tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+            OR is_global = true
             OR current_user IN ('postgres', 'service_role')
             OR current_setting('request.jwt.claims', true)::jsonb->>'role' = 'super_admin'
             OR current_setting('app.actor_type', true) = 'super_admin'

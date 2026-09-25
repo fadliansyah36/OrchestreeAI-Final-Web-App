@@ -794,6 +794,97 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
               )}
             </div>
 
+            {/* Panel Edukasi: Kata yang Dihindari vs Dianjurkan (PRD Bagian 11.10 & 13.2) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+                  Edukasi Rekayasa Prompt
+                </span>
+                {activeAtomicTemplate && (
+                  <button
+                    onClick={() => setActiveAtomicTemplate(null)}
+                    className="text-[11px] text-slate-500 hover:text-slate-300"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              {activeAtomicTemplate ? (
+                <div className="space-y-3.5 text-xs">
+                  <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl space-y-1">
+                    <span className="text-[11px] text-slate-400 block">Template Terpilih:</span>
+                    <span className="font-bold text-slate-200 block text-xs">{activeAtomicTemplate.template_name}</span>
+                    <p className="text-[11px] text-slate-400 leading-relaxed mt-1">
+                      {activeAtomicTemplate.concept_summary}
+                    </p>
+                  </div>
+
+                  {/* Kata yang Sebaiknya Dihindari */}
+                  <div>
+                    <span className="text-rose-400 block mb-1.5 font-semibold text-[11px] flex items-center gap-1">
+                      <XCircle className="w-3 h-3 text-rose-400" />
+                      Kata yang Sebaiknya Dihindari:
+                    </span>
+                    {activeAtomicTemplate.avoid_terms && activeAtomicTemplate.avoid_terms.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeAtomicTemplate.avoid_terms.map((term, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 bg-rose-500/10 text-rose-300 border border-rose-500/20 rounded text-[10px]"
+                          >
+                            ✕ {term}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 text-[11px]">Tidak ada batasan kata khusus.</span>
+                    )}
+                  </div>
+
+                  {/* Kata yang Dianjurkan */}
+                  <div>
+                    <span className="text-emerald-400 block mb-1.5 font-semibold text-[11px] flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      Kata yang Dianjurkan (Konkret):
+                    </span>
+                    {activeAtomicTemplate.prefer_terms && activeAtomicTemplate.prefer_terms.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeAtomicTemplate.prefer_terms.map((term, i) => (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded text-[10px]"
+                          >
+                            ✓ {term}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 text-[11px]">Gunakan deskriptor konkret alami.</span>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 italic border-t border-slate-800/80 pt-2">
+                    Tip: Hindari kata sifat generik seperti "bagus" atau "indah". Gunakan istilah pencahayaan, material, dan komposisi spesifik.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2 text-xs">
+                  <p className="text-slate-400 text-[11px] leading-relaxed">
+                    Pilih template dari <strong className="text-slate-200">Pustaka Template</strong> untuk melihat panduan kata yang dihindari vs dianjurkan secara otomatis.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('templates')}
+                    className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Buka Pustaka Template Prompt</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Live Gate Validation Pipeline Info */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-3.5 shadow-xl">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">

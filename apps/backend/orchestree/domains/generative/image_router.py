@@ -623,6 +623,73 @@ class ImageRouterService:
             return [dict(r._mapping) for r in res.fetchall()]
 
     @staticmethod
+    def create_prompt_category(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Menambahkan kategori master data template baru."""
+        from app.core.database import get_database_engine
+        engine = get_database_engine()
+        cat_id = str(uuid.uuid4())
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("""
+                    INSERT INTO prompt_template_categories (
+                        id, category_code, display_name, description, icon_key, display_order, created_at
+                    ) VALUES (
+                        :id, :code, :name, :desc, :icon, :order, now()
+                    )
+                """),
+                {
+                    "id": cat_id,
+                    "code": payload["category_code"],
+                    "name": payload["display_name"],
+                    "desc": payload.get("description", ""),
+                    "icon": payload.get("icon_key", "layers"),
+                    "order": payload.get("display_order", 0),
+                }
+            )
+            row = conn.execute(
+                sa.text("SELECT * FROM prompt_template_categories WHERE id = :id"),
+                {"id": cat_id}
+            ).fetchone()
+            return dict(row._mapping)
+
+    @staticmethod
+    def update_prompt_category(category_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Memperbarui master data kategori template."""
+        from app.core.database import get_database_engine
+        engine = get_database_engine()
+        with engine.begin() as conn:
+            fields = []
+            params: Dict[str, Any] = {"id": category_id}
+            for k in ["display_name", "description", "icon_key", "display_order"]:
+                if k in payload and payload[k] is not None:
+                    fields.append(f"{k} = :{k}")
+                    params[k] = payload[k]
+            if fields:
+                conn.execute(
+                    sa.text(f"UPDATE prompt_template_categories SET {', '.join(fields)} WHERE id = :id"),
+                    params
+                )
+            row = conn.execute(
+                sa.text("SELECT * FROM prompt_template_categories WHERE id = :id"),
+                {"id": category_id}
+            ).fetchone()
+            if not row:
+                raise ValueError(f"Kategori {category_id} tidak ditemukan.")
+            return dict(row._mapping)
+
+    @staticmethod
+    def delete_prompt_category(category_id: str) -> bool:
+        """Menghapus kategori template."""
+        from app.core.database import get_database_engine
+        engine = get_database_engine()
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("DELETE FROM prompt_template_categories WHERE id = :id"),
+                {"id": category_id}
+            )
+            return True
+
+    @staticmethod
     def list_prompt_library_templates(
         tenant_id: str,
         category_code: Optional[str] = None,

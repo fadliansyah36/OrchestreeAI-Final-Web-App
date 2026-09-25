@@ -58,6 +58,21 @@ class GenerativeJobCreate(BaseModel):
     force_fail_for_test: bool = False
 
 
+class PromptCategoryCreate(BaseModel):
+    category_code: str = Field(..., min_length=2, max_length=64)
+    display_name: str = Field(..., min_length=2, max_length=120)
+    description: str = Field(..., min_length=3, max_length=500)
+    icon_key: str = Field(default="layers")
+    display_order: int = Field(default=0)
+
+
+class PromptCategoryUpdate(BaseModel):
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    icon_key: Optional[str] = None
+    display_order: Optional[int] = None
+
+
 class AtomicPromptTemplateCreate(BaseModel):
     category_id: Optional[str] = None
     category_code: Optional[str] = None
@@ -231,6 +246,49 @@ async def list_prompt_categories(tenant_id: str):
         return {"status": "ok", "data": categories}
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
+
+
+@router.post("/prompt-categories", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_prompt_category(
+    tenant_id: str,
+    payload: PromptCategoryCreate,
+):
+    """Menambahkan kategori template prompt master platform (Super Admin)."""
+    try:
+        created = ImageRouterService.create_prompt_category(payload.model_dump())
+        return {"status": "ok", "data": created}
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.put("/prompt-categories/{category_id}", response_model=Dict[str, Any])
+async def update_prompt_category(
+    tenant_id: str,
+    category_id: str,
+    payload: PromptCategoryUpdate,
+):
+    """Memperbarui metadata kategori template prompt (Super Admin)."""
+    try:
+        clean_payload = {k: v for k, v in payload.model_dump().items() if v is not None}
+        updated = ImageRouterService.update_prompt_category(category_id, clean_payload)
+        return {"status": "ok", "data": updated}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.delete("/prompt-categories/{category_id}", response_model=Dict[str, Any])
+async def delete_prompt_category(
+    tenant_id: str,
+    category_id: str,
+):
+    """Menghapus kategori template prompt (Super Admin)."""
+    try:
+        ImageRouterService.delete_prompt_category(category_id)
+        return {"status": "ok", "deleted": True}
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 @router.get("/prompt-templates", response_model=Dict[str, Any])
