@@ -116,20 +116,25 @@ export function CreditTopupPackageScreen() {
         is_active: formIsActive,
       };
 
-      const url = editingPkg
-        ? `/api/v1/billing/admin/topup-packages/${editingPkg.id}`
-        : '/api/v1/billing/admin/topup-packages';
-      const method = editingPkg ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = editingPkg
+        ? await fetch(`/api/v1/billing/admin/topup-packages/${editingPkg.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Roles': 'SUPER_ADMIN',
+              'X-MFA-Verified': 'true',
+            },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/v1/billing/admin/topup-packages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Roles': 'SUPER_ADMIN',
+              'X-MFA-Verified': 'true',
+            },
+            body: JSON.stringify(payload),
+          });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

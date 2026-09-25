@@ -69,13 +69,23 @@ def scan_frontend_calls():
                     filepath = os.path.join(root, f)
                     with open(filepath, 'r', encoding='utf-8', errors='ignore') as fp:
                         lines = fp.readlines()
+                        total_lines = len(lines)
                         for i, line in enumerate(lines):
                             for match in api_pattern.finditer(line):
                                 raw_url = match.group(1)
+                                # Look around lines i to i+12 for HTTP method
+                                context = "".join(lines[max(0, i-2):min(total_lines, i+15)])
+                                method_match = re.search(r'method:\s*[\'"](GET|POST|PUT|PATCH|DELETE)[\'"]', context, re.I)
+                                if not method_match:
+                                    method_var_match = re.search(r'method\s*=\s*[^;]*[\'"](GET|POST|PUT|PATCH|DELETE)[\'"]', context, re.I)
+                                    method = method_var_match.group(1).upper() if method_var_match else 'GET'
+                                else:
+                                    method = method_match.group(1).upper()
                                 calls.append({
                                     'file': filepath,
                                     'line': i + 1,
-                                    'raw_url': raw_url
+                                    'raw_url': raw_url,
+                                    'method': method,
                                 })
     return calls
 
@@ -106,13 +116,13 @@ def main():
     print(f"[*] Total FastAPI Backend Endpoints : {len(backend_routes)}")
     print(f"[*] Total Frontend API Calls Found  : {len(frontend_calls)}")
 
-    # Normalized backend routes
-    backend_normalized = {normalize_path(r['path']): r for r in backend_routes}
-    all_known_paths = set(backend_normalized.keys())
+    # Normalized backend routes by (method, path)
+    backend_method_paths = {(r['method'], normalize_path(r['path'])): r for r in backend_routes}
+    all_known_paths = {normalize_path(r['path']) for r in backend_routes}
 
-    # Check frontend calls against known paths
+    # Check frontend calls against known paths & methods
     route_regexes = []
-    for kp in all_known_paths:
+    for (m, kp) in backend_method_paths.keys():
         parts = kp.strip('/').split('/')
         pattern_parts = []
         for part in parts:
@@ -121,60 +131,78 @@ def main():
             else:
                 pattern_parts.append(re.escape(part))
         regex = re.compile('^/' + '/'.join(pattern_parts) + '$')
-        route_regexes.append((regex, kp))
+        route_regexes.append((m, regex, kp))
 
     unmatched_calls = []
+    method_mismatch_calls = []
     matched_calls = []
-    matched_backend_paths = set()
+    matched_backend_endpoints = set()
 
     for call in frontend_calls:
         norm_call = normalize_path(call['raw_url'])
+        method = call['method']
         matched = False
-        if norm_call in all_known_paths:
+        method_matched = False
+
+        if (method, norm_call) in backend_method_paths:
             matched = True
-            matched_backend_paths.add(norm_call)
+            method_matched = True
+            matched_backend_endpoints.add((method, norm_call))
         else:
-            for regex, kp in route_regexes:
+            # Check regexes
+            for bm, regex, kp in route_regexes:
                 if regex.match(norm_call):
                     matched = True
-                    matched_backend_paths.add(kp)
-                    break
+                    if bm == method:
+                        method_matched = True
+                        matched_backend_endpoints.add((bm, kp))
+                        break
             if not matched:
                 norm_parts = norm_call.strip('/').split('/')
-                for kp in all_known_paths:
+                for (bm, kp) in backend_method_paths.keys():
                     kp_parts = kp.strip('/').split('/')
                     if len(norm_parts) == len(kp_parts):
-                        if all(np == ':param' or kp == ':param' or np == kp for np, kp in zip(norm_parts, kp_parts)):
+                        if all(np == ':param' or kp_part == ':param' or np == kp_part for np, kp_part in zip(norm_parts, kp_parts)):
                             matched = True
-                            matched_backend_paths.add(kp)
-                            break
+                            if bm == method:
+                                method_matched = True
+                                matched_backend_endpoints.add((bm, kp))
+                                break
 
-        if matched:
+        if matched and method_matched:
             matched_calls.append(call)
+        elif matched and not method_matched:
+            method_mismatch_calls.append((call, norm_call))
         else:
             unmatched_calls.append((call, norm_call))
 
-    print(f"[+] Matched Frontend Calls : {len(matched_calls)}")
+    print(f"[+] Matched Frontend Calls (Path & Method) : {len(matched_calls)}")
+    print(f"[!] Method Mismatches (Path exists, Method wrong): {len(method_mismatch_calls)}")
     print(f"[-] Unmatched / Dead Calls : {len(unmatched_calls)}")
+
+    if method_mismatch_calls:
+        print("\n--- METHOD MISMATCHES IN FRONTEND ---")
+        for call, norm in method_mismatch_calls:
+            print(f"  Line {call['line']} of {call['file']}: {call['method']} {call['raw_url']} -> Normalized: {norm}")
 
     if unmatched_calls:
         print("\n--- UNMATCHED / POTENTIAL DEAD CALLS IN FRONTEND ---")
         seen_unmatched = set()
         for call, norm in unmatched_calls:
-            key = f"{norm} in {call['file']}"
+            key = f"{call['method']} {norm} in {call['file']}"
             if key not in seen_unmatched:
                 seen_unmatched.add(key)
-                print(f"  Line {call['line']} of {call['file']}: {call['raw_url']} -> Normalized: {norm}")
+                print(f"  Line {call['line']} of {call['file']}: {call['method']} {call['raw_url']} -> Normalized: {norm}")
 
     # Check for backend endpoints not directly called by frontend (e.g. system webhooks, background tasks, or unused endpoints)
     uncalled_backend = []
-    for norm_p, r in backend_normalized.items():
-        if norm_p not in matched_backend_paths:
-            uncalled_backend.append((norm_p, r))
+    for (m, norm_p), r in backend_method_paths.items():
+        if (m, norm_p) not in matched_backend_endpoints:
+            uncalled_backend.append((m, norm_p, r))
 
     print(f"\n[*] Backend endpoints without direct frontend UI calls: {len(uncalled_backend)}")
-    for norm_p, r in sorted(uncalled_backend, key=lambda x: x[0])[:30]:
-        print(f"  {r['method']} {norm_p}")
+    for m, norm_p, r in sorted(uncalled_backend, key=lambda x: (x[1], x[0]))[:30]:
+        print(f"  {m} {norm_p}")
     if len(uncalled_backend) > 30:
         print(f"  ... and {len(uncalled_backend) - 30} more backend operations.")
 

@@ -56,7 +56,7 @@ export const OmnichannelHubScreen: React.FC<OmnichannelHubScreenProps> = ({
   onBack
 }) => {
   const [activeTab, setActiveTab] = useState<OmnichannelTab>(initialTab);
-  const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
+  const tenantId = tenant?.tenant_id || '';
 
   return (
     <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 w-full min-w-0 max-w-full overflow-hidden">

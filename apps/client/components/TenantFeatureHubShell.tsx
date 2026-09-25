@@ -44,7 +44,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   const [tenantTier, setTenantTier] = useState<{ tier_level: number; plan_code: string; is_enterprise: boolean } | null>(null);
 
   React.useEffect(() => {
-    const tid = tenant?.tenant_id || 'tenant-alpha-001';
+    const tid = tenant?.tenant_id || '';
     fetch(`/api/v1/tenants/${tid}/subscription/tier`)
       .then(r => r.json())
       .then(data => {
@@ -124,7 +124,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
           </button>
         </div>
         <BillingHubScreen
-          tenantId={tenant?.tenant_id || 'tenant-alpha-001'}
+          tenantId={tenant?.tenant_id || ''}
           tenantName={tenant?.display_name || tenant?.legal_name || 'Organisasi Aktif'}
           userRole={tenant?.role || 'TENANT_OWNER'}
         />
@@ -152,7 +152,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
             <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Feature Hub
           </button>
           <CampaignBuilderScreen
-            tenantId={tenant?.tenant_id || 'tenant-alpha-001'}
+            tenantId={tenant?.tenant_id || ''}
           />
         </div>
       </div>
@@ -170,7 +170,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
             <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Feature Hub
           </button>
           <ServiceRequestScreen
-            tenantId={tenant?.tenant_id || 'tenant-alpha-001'}
+            tenantId={tenant?.tenant_id || ''}
             onOpenInbox={() => setActiveRoute('/channels/integrations')}
           />
         </div>
@@ -189,7 +189,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
         tenant={tenant}
         onBack={() => {
           setActiveRoute('/hub');
-          const tid = tenant?.tenant_id || 'tenant-alpha-001';
+          const tid = tenant?.tenant_id || '';
           fetch(`/api/v1/tenants/${tid}/subscription/tier`)
             .then(r => r.json())
             .then(data => {
@@ -207,7 +207,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   if (activeRoute.startsWith('/security') || activeRoute.startsWith('/permissions')) {
     return (
       <AIDataPermissionScreen
-        tenantId={tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+        tenantId={tenant?.tenant_id || ''}
         tenantName={tenant?.display_name || tenant?.legal_name || 'Organisasi Aktif'}
         userRole={tenant?.role || 'TENANT_OWNER'}
         userId={tenant?.user_id}
@@ -219,7 +219,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
   if (activeRoute.startsWith('/selection')) {
     return (
       <UniversalSelectionHubScreen
-        tenantId={tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+        tenantId={tenant?.tenant_id || ''}
         onBack={() => setActiveRoute('/hub')}
       />
     );

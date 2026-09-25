@@ -127,7 +127,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   onBack,
   defaultCategory = 'all',
 }) => {
-  const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
+  const tenantId = tenant?.tenant_id || '';
   const userRole = tenant?.role || 'TENANT_OWNER';
 
   // Navigation & Tabs

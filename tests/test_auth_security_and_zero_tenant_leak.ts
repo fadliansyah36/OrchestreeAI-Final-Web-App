@@ -41,7 +41,7 @@ function makeRequest(
     const req = http.request(
       {
         hostname: '127.0.0.1',
-        port: 3000,
+        port: Number(process.env.TEST_PORT || 8001),
         path,
         method,
         headers: reqHeaders,

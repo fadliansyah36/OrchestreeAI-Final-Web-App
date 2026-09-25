@@ -240,6 +240,63 @@ class SelectionDomainService:
             cnt_stmt = sa.text("SELECT COUNT(*) FROM selection_source_documents WHERE selection_job_id = :job_id;")
             doc_count = conn.execute(cnt_stmt, {"job_id": job_id}).scalar() or 0
 
+            # Ambil dokumen sumber
+            docs_stmt = sa.text("""
+                SELECT id, source_channel, raw_text_ref, quality_score, validity_status, ingested_at
+                FROM selection_source_documents
+                WHERE selection_job_id = :job_id
+                ORDER BY ingested_at DESC;
+            """)
+            doc_rows = conn.execute(docs_stmt, {"job_id": job_id}).fetchall()
+            documents = [
+                {
+                    "id": str(d[0]),
+                    "source_channel": d[1],
+                    "raw_text": d[2],
+                    "quality_score": float(d[3]) if d[3] is not None else 100.0,
+                    "validity_status": d[4] or "VALID",
+                    "ingested_at": d[5].isoformat() if d[5] else None,
+                }
+                for d in doc_rows
+            ]
+
+            stage_val = row[6] or "uploaded"
+            status_map = {
+                "uploaded": "DRAFT",
+                "reading": "PROCESSING",
+                "understanding": "PROCESSING",
+                "validating": "PROCESSING",
+                "selecting": "PROCESSING",
+                "scoring": "PROCESSING",
+                "ranking": "PROCESSING",
+                "analyzing": "PROCESSING",
+                "visualizing": "PROCESSING",
+                "recommending": "PENDING_HUMAN_REVIEW",
+                "completed": "FINAL_APPROVED",
+                "failed": "REJECTED",
+            }
+            job_status = status_map.get(stage_val, "PROCESSING")
+
+            # Ambil riwayat kalibrasi
+            cal_stmt = sa.text("""
+                SELECT id, profile_name, calibration_factors, created_at
+                FROM selection_calibration_profiles
+                WHERE tenant_id = :tenant_id
+                ORDER BY created_at DESC LIMIT 5;
+            """)
+            cal_rows = conn.execute(cal_stmt, {"tenant_id": tenant_id}).fetchall()
+            calibration_history = [
+                {
+                    "id": str(c[0]),
+                    "profile_name": c[1],
+                    "calibration_factors": c[2] if isinstance(c[2], dict) else json.loads(c[2] or "{}"),
+                    "created_at": c[3].isoformat() if c[3] else None,
+                }
+                for c in cal_rows
+            ]
+
+            weights_dict = {c["key"]: c["weight"] for c in criteria}
+
             return {
                 "id": str(row[0]),
                 "tenant_id": str(row[1]),
@@ -248,13 +305,18 @@ class SelectionDomainService:
                 "instruction_prompt": row[4],
                 "calibration_profile_id": str(row[5]) if row[5] else None,
                 "pipeline_stage": row[6],
+                "status": job_status,
                 "stage_progress_pct": float(row[7]),
                 "initiated_by_membership_id": str(row[8]) if row[8] else None,
                 "initiated_by_agent_id": str(row[9]) if row[9] else None,
                 "created_at": row[10].isoformat() if row[10] else None,
                 "completed_at": row[11].isoformat() if row[11] else None,
+                "final_approved_at": row[11].isoformat() if row[11] else None,
                 "criteria": criteria,
+                "weights": weights_dict,
                 "total_documents": int(doc_count),
+                "documents": documents,
+                "calibration_history": calibration_history,
             }
 
     @classmethod
@@ -573,3 +635,128 @@ class SelectionDomainService:
                 }
                 for r in rows
             ]
+
+    @classmethod
+    def finalize_job(
+        cls,
+        tenant_id: str,
+        job_id: str,
+        reviewer_id: Optional[str] = None,
+        approval_notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Menyetujui pekerjaan seleksi secara final, memperbarui status menjadi 'completed',
+        dan mencatat kejadian ke company_context_events sebagai audit trail.
+        """
+        now_dt = datetime.now(timezone.utc)
+        with tenant_tx(tenant_id) as conn:
+            check_stmt = sa.text("SELECT id, title FROM selection_jobs WHERE id = :id;")
+            job_row = conn.execute(check_stmt, {"id": job_id}).fetchone()
+            if not job_row:
+                raise ValueError(f"Pekerjaan seleksi '{job_id}' tidak ditemukan.")
+
+            update_stmt = sa.text("""
+                UPDATE selection_jobs
+                SET pipeline_stage = 'completed',
+                    stage_progress_pct = 100.0,
+                    completed_at = :now_dt
+                WHERE id = :id;
+            """)
+            conn.execute(update_stmt, {"id": job_id, "now_dt": now_dt})
+
+            event_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO company_context_events (
+                        id, tenant_id, event_type, title, summary,
+                        correlation_score, source_types, source_signals,
+                        insights, recommended_actions, status, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, 'SELECTION_FINAL_APPROVAL',
+                        :title, :summary,
+                        1.0000, ARRAY['Native'], '[]'::jsonb,
+                        :insights::jsonb, '[]'::jsonb, 'RESOLVED', :now_dt, :now_dt
+                    );
+                """),
+                {
+                    "id": event_id,
+                    "tenant_id": tenant_id,
+                    "title": f"Persetujuan Final Seleksi: {job_row.title}",
+                    "summary": approval_notes or f"Pekerjaan seleksi '{job_row.title}' telah disetujui secara final.",
+                    "insights": json.dumps({
+                        "job_id": job_id,
+                        "reviewer_id": reviewer_id,
+                        "approval_notes": approval_notes,
+                    }),
+                    "now_dt": now_dt,
+                },
+            )
+
+        return {
+            "status": "approved",
+            "job_id": job_id,
+            "pipeline_stage": "completed",
+            "reviewer_id": reviewer_id,
+            "approval_notes": approval_notes,
+            "final_approved_at": now_dt.isoformat(),
+        }
+
+    @classmethod
+    def calibrate_job(
+        cls,
+        tenant_id: str,
+        job_id: str,
+        human_feedback_notes: Optional[str] = None,
+        criteria_adjustments: Optional[Dict[str, float]] = None,
+        human_reviewer_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Mengkalibrasi bobot kriteria evaluasi seleksi secara dinamis.
+        """
+        with tenant_tx(tenant_id) as conn:
+            check_stmt = sa.text("SELECT id, title FROM selection_jobs WHERE id = :id;")
+            job_row = conn.execute(check_stmt, {"id": job_id}).fetchone()
+            if not job_row:
+                raise ValueError(f"Pekerjaan seleksi '{job_id}' tidak ditemukan.")
+
+            if criteria_adjustments:
+                for crit_key, adj_factor in criteria_adjustments.items():
+                    conn.execute(
+                        sa.text("""
+                            UPDATE selection_criteria
+                            SET weight = ROUND(CAST(weight * :factor AS numeric), 4)
+                            WHERE selection_job_id = :job_id AND criterion_key = :key;
+                        """),
+                        {"factor": float(adj_factor), "job_id": job_id, "key": crit_key},
+                    )
+
+            profile_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO selection_calibration_profiles (
+                        id, tenant_id, profile_name, domain_category,
+                        calibration_factors, is_active, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, :name, 'general',
+                        :factors::jsonb, true, now(), now()
+                    );
+                """),
+                {
+                    "id": profile_id,
+                    "tenant_id": tenant_id,
+                    "name": f"Kalibrasi {job_row.title[:30]}",
+                    "factors": json.dumps({
+                        "adjustments": criteria_adjustments or {},
+                        "feedback_notes": human_feedback_notes,
+                        "reviewer_id": human_reviewer_id,
+                    }),
+                },
+            )
+
+        return {
+            "status": "calibrated",
+            "job_id": job_id,
+            "calibration_profile_id": profile_id,
+            "human_feedback_notes": human_feedback_notes,
+            "criteria_adjustments": criteria_adjustments,
+        }

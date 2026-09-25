@@ -147,6 +147,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout dan Pencabutan Sesi (Revocation Registry)
+         * @description Mengakhiri sesi dan mencabut token secara permanen (PRD v2.2 Bagian 15 & 16):
+         *     - Token dicatat ke blacklist revocation registry
+         *     - Cookie otentikasi dihapus dengan atribut keamanan ketat
+         */
+        post: operations["logout_endpoint_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenant/context": {
         parameters: {
             query?: never;
@@ -1085,7 +1107,24 @@ export interface paths {
         get?: never;
         put?: never;
         /** Webauthn Register Verify */
-        post: operations["webauthn_register_verify_api_v1_attendance_webauthn_register_verify_post"];
+        post: operations["webauthn_register_verify_slash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/register-verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Register Verify */
+        post: operations["webauthn_register_verify_dash"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1102,7 +1141,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Webauthn Login Challenge */
-        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_login_options_post"];
+        post: operations["webauthn_login_options"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1119,7 +1158,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Webauthn Login Challenge */
-        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_authenticate_challenge_post"];
+        post: operations["webauthn_auth_challenge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1136,7 +1175,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Webauthn Login Challenge */
-        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_login_challenge_post"];
+        post: operations["webauthn_login_challenge_dash"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1158,7 +1197,7 @@ export interface paths {
          *     - Memeriksa kredensial terdaftar di Supabase Postgres
          *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
          */
-        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_login_verify_post"];
+        post: operations["webauthn_login_verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1180,7 +1219,7 @@ export interface paths {
          *     - Memeriksa kredensial terdaftar di Supabase Postgres
          *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
          */
-        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_authenticate_verify_post"];
+        post: operations["webauthn_auth_verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1202,7 +1241,7 @@ export interface paths {
          *     - Memeriksa kredensial terdaftar di Supabase Postgres
          *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
          */
-        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_verify_post"];
+        post: operations["webauthn_verify_attendance_base"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2662,7 +2701,11 @@ export interface paths {
          */
         get: operations["search_tenant_memory_api_v1_tenants__tenant_id__memory_search_get"];
         put?: never;
-        post?: never;
+        /**
+         * Search Tenant Memory Post
+         * @description Pencarian hybrid Company Brain melalui HTTP POST (JSON Payload).
+         */
+        post: operations["search_tenant_memory_post_api_v1_tenants__tenant_id__memory_search_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2676,7 +2719,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Tenant Memory Documents
+         * @description Mengambil daftar dokumen pengetahuan yang tersimpan di Company Brain milik tenant.
+         */
+        get: operations["list_tenant_memory_documents_api_v1_tenants__tenant_id__memory_documents_get"];
         put?: never;
         /**
          * Create Tenant Memory Document
@@ -3028,7 +3075,11 @@ export interface paths {
          */
         get: operations["get_catalog_api_v1_admin_integrations_catalog_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Catalog App
+         * @description Mendaftarkan aplikasi baru ke third_party_app_registry (Super Admin).
+         */
+        post: operations["create_catalog_app_api_v1_admin_integrations_catalog_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3068,7 +3119,12 @@ export interface paths {
          */
         get: operations["get_tenant_connections_api_v1_tenants__tenant_id__integrations_connections_get"];
         put?: never;
-        post?: never;
+        /**
+         * Connect App
+         * @description Menghubungkan akun aplikasi pihak ketiga untuk tenant (PRD v2.2 Bagian 12.1).
+         *     Kredensial dienkripsi secara aman dengan kunci per-tenant.
+         */
+        post: operations["connect_app_api_v1_tenants__tenant_id__integrations_connections_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5329,6 +5385,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/selection/tenants/{tenant_id}/domain-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Domain Categories
+         * @description Mengambil katalog kategori domain evaluasi seleksi.
+         */
+        get: operations["get_selection_domain_categories_api_v1_selection_tenants__tenant_id__domain_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/domain-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Domain Categories
+         * @description Mengambil katalog kategori domain evaluasi seleksi.
+         */
+        get: operations["get_selection_domain_categories_api_v1_selection_domain_categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tenants/{tenant_id}/jobs": {
         parameters: {
             query?: never;
@@ -5410,7 +5506,7 @@ export interface paths {
         };
         /**
          * Get Selection Job Detail
-         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         * @description Mengambil rincian pekerjaan seleksi beserta kriteria dan progres.
          */
         get: operations["get_selection_job_detail_api_v1_tenants__tenant_id__jobs__job_id__get"];
         put?: never;
@@ -5430,7 +5526,7 @@ export interface paths {
         };
         /**
          * Get Selection Job Detail
-         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         * @description Mengambil rincian pekerjaan seleksi beserta kriteria dan progres.
          */
         get: operations["get_selection_job_detail_api_v1_selection_tenants__tenant_id__jobs__job_id__get"];
         put?: never;
@@ -5450,7 +5546,7 @@ export interface paths {
         };
         /**
          * Get Selection Job Detail
-         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         * @description Mengambil rincian pekerjaan seleksi beserta kriteria dan progres.
          */
         get: operations["get_selection_job_detail_api_v1_tenants__tenant_id__selection_jobs__job_id__get"];
         put?: never;
@@ -5472,7 +5568,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Source Document
-         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi.
          */
         post: operations["upload_source_document_api_v1_tenants__tenant_id__jobs__job_id__documents_post"];
         delete?: never;
@@ -5492,7 +5588,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Source Document
-         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi.
          */
         post: operations["upload_source_document_api_v1_selection_tenants__tenant_id__jobs__job_id__documents_post"];
         delete?: never;
@@ -5512,69 +5608,9 @@ export interface paths {
         put?: never;
         /**
          * Upload Source Document
-         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi.
          */
         post: operations["upload_source_document_api_v1_tenants__tenant_id__selection_jobs__job_id__documents_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/calibrate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Calibrate Selection Weights
-         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
-         */
-        post: operations["calibrate_selection_weights_api_v1_tenants__tenant_id__jobs__job_id__calibrate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Calibrate Selection Weights
-         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
-         */
-        post: operations["calibrate_selection_weights_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Calibrate Selection Weights
-         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
-         */
-        post: operations["calibrate_selection_weights_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5591,10 +5627,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Execute Scoring And Ranking
-         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         * Execute Selection Pipeline
+         * @description Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+         *     Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
          */
-        post: operations["execute_scoring_and_ranking_api_v1_tenants__tenant_id__jobs__job_id__score_post"];
+        post: operations["execute_selection_pipeline_api_v1_tenants__tenant_id__jobs__job_id__score_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5611,10 +5648,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Execute Scoring And Ranking
-         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         * Execute Selection Pipeline
+         * @description Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+         *     Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
          */
-        post: operations["execute_scoring_and_ranking_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post"];
+        post: operations["execute_selection_pipeline_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5631,17 +5669,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Execute Scoring And Ranking
-         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         * Execute Selection Pipeline
+         * @description Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+         *     Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
          */
-        post: operations["execute_scoring_and_ranking_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post"];
+        post: operations["execute_selection_pipeline_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/{tenant_id}/scores/{score_id}/review": {
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -5651,17 +5690,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Submit Human Review
-         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         * Execute Selection Pipeline
+         * @description Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+         *     Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
          */
-        post: operations["submit_human_review_api_v1_tenants__tenant_id__scores__score_id__review_post"];
+        post: operations["execute_selection_pipeline_api_v1_selection_tenants__tenant_id__jobs__job_id__run_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/selection/tenants/{tenant_id}/scores/{score_id}/review": {
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -5671,93 +5711,91 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Submit Human Review
-         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         * Execute Selection Pipeline
+         * @description Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+         *     Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
          */
-        post: operations["submit_human_review_api_v1_selection_tenants__tenant_id__scores__score_id__review_post"];
+        post: operations["execute_selection_pipeline_api_v1_tenants__tenant_id__selection_jobs__job_id__run_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/{tenant_id}/selection/scores/{score_id}/review": {
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/results": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Submit Human Review
-         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         * Get Selection Results
+         * @description Mengambil hasil scoring berbobot dan perangkingan entitas.
          */
-        post: operations["submit_human_review_api_v1_tenants__tenant_id__selection_scores__score_id__review_post"];
+        get: operations["get_selection_results_api_v1_selection_tenants__tenant_id__jobs__job_id__results_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/finalize": {
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/results": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Finalize Selection Job
-         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
-         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         * Get Selection Results
+         * @description Mengambil hasil scoring berbobot dan perangkingan entitas.
          */
-        post: operations["finalize_selection_job_api_v1_tenants__tenant_id__jobs__job_id__finalize_post"];
+        get: operations["get_selection_results_api_v1_tenants__tenant_id__selection_jobs__job_id__results_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/finalize": {
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/insights": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Finalize Selection Job
-         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
-         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         * Get Selection Insights
+         * @description Mengambil insight naratif AI (ranking reasons, strengths, weaknesses, risks, recommendations).
          */
-        post: operations["finalize_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__finalize_post"];
+        get: operations["get_selection_insights_api_v1_selection_tenants__tenant_id__jobs__job_id__insights_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/finalize": {
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/insights": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Finalize Selection Job
-         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
-         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         * Get Selection Insights
+         * @description Mengambil insight naratif AI (ranking reasons, strengths, weaknesses, risks, recommendations).
          */
-        post: operations["finalize_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__finalize_post"];
+        get: operations["get_selection_insights_api_v1_tenants__tenant_id__selection_jobs__job_id__insights_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5773,7 +5811,7 @@ export interface paths {
         };
         /**
          * Get Selection Analytics
-         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         * @description Mengambil snapshot analitik dinamis (KPI, distribusi, statistik, perbandingan).
          */
         get: operations["get_selection_analytics_api_v1_tenants__tenant_id__jobs__job_id__analytics_get"];
         put?: never;
@@ -5793,7 +5831,7 @@ export interface paths {
         };
         /**
          * Get Selection Analytics
-         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         * @description Mengambil snapshot analitik dinamis (KPI, distribusi, statistik, perbandingan).
          */
         get: operations["get_selection_analytics_api_v1_selection_tenants__tenant_id__jobs__job_id__analytics_get"];
         put?: never;
@@ -5813,11 +5851,191 @@ export interface paths {
         };
         /**
          * Get Selection Analytics
-         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         * @description Mengambil snapshot analitik dinamis (KPI, distribusi, statistik, perbandingan).
          */
         get: operations["get_selection_analytics_api_v1_tenants__tenant_id__selection_jobs__job_id__analytics_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/visualizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Visualizations
+         * @description Mengambil diagram visualisasi data yang dipilih secara otomatis oleh AI.
+         */
+        get: operations["get_selection_visualizations_api_v1_selection_tenants__tenant_id__jobs__job_id__visualizations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/visualizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Visualizations
+         * @description Mengambil diagram visualisasi data yang dipilih secara otomatis oleh AI.
+         */
+        get: operations["get_selection_visualizations_api_v1_tenants__tenant_id__selection_jobs__job_id__visualizations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia terhadap hasil scoring kandidat/vendor.
+         */
+        post: operations["submit_human_review_api_v1_tenants__tenant_id__scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia terhadap hasil scoring kandidat/vendor.
+         */
+        post: operations["submit_human_review_api_v1_selection_tenants__tenant_id__scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia terhadap hasil scoring kandidat/vendor.
+         */
+        post: operations["submit_human_review_api_v1_tenants__tenant_id__selection_scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Selection Job
+         * @description Mengesahkan dan menyelesaikan pekerjaan seleksi secara final (Audit Trail).
+         */
+        post: operations["finalize_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Selection Job
+         * @description Mengesahkan dan menyelesaikan pekerjaan seleksi secara final (Audit Trail).
+         */
+        post: operations["finalize_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibrate Selection Job
+         * @description Mengkalibrasi bobot kriteria evaluasi seleksi secara dinamis.
+         */
+        post: operations["calibrate_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibrate Selection Job
+         * @description Mengkalibrasi bobot kriteria evaluasi seleksi secara dinamis.
+         */
+        post: operations["calibrate_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6081,7 +6299,11 @@ export interface paths {
          */
         get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_chief_of_staff_events_get"];
         put?: never;
-        post?: never;
+        /**
+         * Ingest Company Context Event
+         * @description Mencatat event operasional / sintesis langsung ke company_context_events.
+         */
+        post: operations["ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_chief_of_staff_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6102,7 +6324,11 @@ export interface paths {
          */
         get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_context_events_get"];
         put?: never;
-        post?: never;
+        /**
+         * Ingest Company Context Event
+         * @description Mencatat event operasional / sintesis langsung ke company_context_events.
+         */
+        post: operations["ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_context_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6123,7 +6349,11 @@ export interface paths {
          */
         get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_company_context_events_get"];
         put?: never;
-        post?: never;
+        /**
+         * Ingest Company Context Event
+         * @description Mencatat event operasional / sintesis langsung ke company_context_events.
+         */
+        post: operations["ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_company_context_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7447,25 +7677,66 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        /** CalibrateWeightsRequest */
-        CalibrateWeightsRequest: {
+        /** CalibrateJobRequest */
+        CalibrateJobRequest: {
             /**
              * Human Feedback Notes
-             * @description Catatan panduan penyesuaian bobot dari reviewer
+             * @description Catatan umpan balik kalibrasi
              */
-            human_feedback_notes: string;
+            human_feedback_notes?: string | null;
             /**
              * Criteria Adjustments
-             * @description Faktor pengali per kriteria (misal: {'tech_depth': 1.2, 'culture_fit': 0.8})
+             * @description Faktor penyesuaian bobot per kriteria
              */
-            criteria_adjustments: {
+            criteria_adjustments?: {
                 [key: string]: number;
-            };
+            } | null;
             /**
              * Human Reviewer Id
-             * @description UUID reviewer manusia
+             * @description UUID peninjau kalibrasi
              */
             human_reviewer_id?: string | null;
+        };
+        /** CatalogAppCreateRequest */
+        CatalogAppCreateRequest: {
+            /** App Code */
+            app_code: string;
+            /** Name */
+            name: string;
+            /** Category */
+            category: string;
+            /** Description */
+            description: string;
+            /**
+             * Icon
+             * @default share2
+             */
+            icon: string;
+            /**
+             * Auth Type
+             * @default oauth2
+             */
+            auth_type: string;
+            /**
+             * Supported Scopes
+             * @default []
+             */
+            supported_scopes: string[];
+            /**
+             * Requires Transparency Notice
+             * @default false
+             */
+            requires_transparency_notice: boolean;
+            /** Transparency Notice Template */
+            transparency_notice_template?: string | null;
+        };
+        /** ChangeSubscriptionTierRequest */
+        ChangeSubscriptionTierRequest: {
+            /**
+             * Plan Code
+             * @description Kode paket tujuan
+             */
+            plan_code: string;
         };
         /** ChatMessageRequest */
         ChatMessageRequest: {
@@ -7597,6 +7868,33 @@ export interface components {
              * @description Nomor telepon atau username Telegram akun terhubung
              */
             external_identifier: string;
+        };
+        /** ConnectAppRequest */
+        ConnectAppRequest: {
+            /** App Code */
+            app_code: string;
+            /** Connection Name */
+            connection_name: string;
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token?: string | null;
+            /**
+             * Expires In Seconds
+             * @default 5184000
+             */
+            expires_in_seconds: number | null;
+            /** Expires In Days */
+            expires_in_days?: number | null;
+            /** External Account Id */
+            external_account_id?: string | null;
+            /** External Account Name */
+            external_account_name?: string | null;
+            /**
+             * Authorized Scopes
+             * @default []
+             */
+            authorized_scopes: string[];
         };
         /** ConsumeCreditApiRequest */
         ConsumeCreditApiRequest: {
@@ -7900,7 +8198,8 @@ export interface components {
             /** Variant B Template */
             variant_b_template: string;
             /**
-             * Min Sample Size // allowlist: statistical sample size for a/b testing experiment
+             * Minimum Participant Count
+             * @description Jumlah observasi partisipan minimum untuk signifikansi statistik
              * @default 50
              */
             min_sample_size: number;
@@ -8016,15 +8315,30 @@ export interface components {
              */
             title: string;
             /**
-             * @description Kategori seleksi
-             * @default RECRUITMENT
+             * Instruction Prompt
+             * @description Perintah instruksi evaluasi seleksi
              */
-            category: components["schemas"]["SelectionJobCategory"];
+            instruction_prompt?: string | null;
             /**
              * Description
              * @description Deskripsi kualifikasi atau lingkup seleksi
              */
             description?: string | null;
+            /**
+             * Domain Category
+             * @description Kategori domain: recruitment, supplier, finance, sales, general
+             */
+            domain_category?: string | null;
+            /**
+             * Category
+             * @description Kategori kompatibilitas mundur
+             */
+            category?: string | null;
+            /**
+             * Calibration Profile Id
+             * @description UUID profil kalibrasi (jika ada)
+             */
+            calibration_profile_id?: string | null;
             /**
              * Criteria
              * @description Daftar kriteria evaluasi
@@ -8034,11 +8348,18 @@ export interface components {
             }[] | null;
             /**
              * Weights
-             * @description Bobot kriteria (akan dinormalisasi ke total 1.0)
+             * @description Bobot kriteria awal
              */
             weights?: {
                 [key: string]: number;
             } | null;
+            /**
+             * Source Documents
+             * @description Dokumen awal yang disertakan
+             */
+            source_documents?: {
+                [key: string]: unknown;
+            }[] | null;
         };
         /** CreateServiceRequestPayload */
         CreateServiceRequestPayload: {
@@ -8133,26 +8454,31 @@ export interface components {
             /**
              * Base
              * @description Nilai dasar unit kerja dari jenis aktivitas AI
+             * @default 0
              */
             base: number;
             /**
              * Complexity
              * @description Faktor pengali kompleksitas tugas
+             * @default 1
              */
             complexity: number;
             /**
              * Model
              * @description Faktor pengali model LLM yang dipilih
+             * @default 1
              */
             model: number;
             /**
              * Tool
              * @description Faktor pengali perkakas MCP berdasarkan risk tier
+             * @default 1
              */
             tool: number;
             /**
              * Execution
              * @description Faktor pengali mode eksekusi
+             * @default 1
              */
             execution: number;
             /**
@@ -8160,6 +8486,18 @@ export interface components {
              * @description Total estimasi kredit AI yang dibutuhkan
              */
             final_estimate: number;
+            /** Activity Code */
+            activity_code?: string | null;
+            /** Base Work Units */
+            base_work_units?: number | null;
+            /** Complexity Multiplier */
+            complexity_multiplier?: number | null;
+            /** Model Multiplier */
+            model_multiplier?: number | null;
+            /** Tool Multiplier */
+            tool_multiplier?: number | null;
+            /** Execution Multiplier */
+            execution_multiplier?: number | null;
         };
         /** CreditTopupPackagePayload */
         CreditTopupPackagePayload: {
@@ -8494,14 +8832,25 @@ export interface components {
             /** Prompt */
             prompt: string;
         };
-        /** ExecuteScoringRequest */
-        ExecuteScoringRequest: {
+        /** ExecutePipelineRequest */
+        ExecutePipelineRequest: {
             /**
              * Model Used
              * @description Identifier model LLM
              * @default meta-llama/llama-3.3-70b-instruct
              */
             model_used: string | null;
+            /**
+             * Actor Id
+             * @description UUID aktor pelaksana
+             */
+            actor_id?: string | null;
+            /**
+             * Actor Type
+             * @description Tipe aktor: human_user atau ai_agent
+             * @default human_user
+             */
+            actor_type: string | null;
         };
         /** FabricConnectorCreateInput */
         FabricConnectorCreateInput: {
@@ -8577,14 +8926,14 @@ export interface components {
         FinalizeJobRequest: {
             /**
              * Reviewer Id
-             * @description UUID penanggung jawab persetujuan
+             * @description UUID peninjau / direktur
              */
-            reviewer_id: string;
+            reviewer_id?: string | null;
             /**
              * Approval Notes
-             * @description Catatan persetujuan akhir komprehensif
+             * @description Catatan persetujuan akhir
              */
-            approval_notes: string;
+            approval_notes?: string | null;
         };
         /** FinancialCommandCenterResponse */
         FinancialCommandCenterResponse: {
@@ -8739,11 +9088,6 @@ export interface components {
             /** Assigned To User Id */
             assigned_to_user_id?: string | null;
         };
-        /**
-         * HumanReviewStatus
-         * @enum {string}
-         */
-        HumanReviewStatus: "PENDING" | "ACCEPTED" | "OVERRIDDEN" | "REJECTED";
         /** HumanizeTextPayload */
         HumanizeTextPayload: {
             /** Text Content */
@@ -8760,6 +9104,24 @@ export interface components {
              * @default true
              */
             enforce_grounding: boolean;
+        };
+        /** IngestContextEventInput */
+        IngestContextEventInput: {
+            /**
+             * Event Type
+             * @default general_operational_event
+             */
+            event_type: string;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /** Source Types */
+            source_types?: string[] | null;
         };
         /** IngestSignalInput */
         IngestSignalInput: {
@@ -9572,6 +9934,30 @@ export interface components {
             /** Raw Base64 */
             raw_base64?: string | null;
         };
+        /** SearchMemoryPostRequest */
+        SearchMemoryPostRequest: {
+            /**
+             * Query
+             * @description Kata kunci atau pertanyaan semantik
+             */
+            query: string;
+            /**
+             * Category
+             * @description Filter kategori memori
+             */
+            category?: string | null;
+            /**
+             * Limit
+             * @description Batas hasil pencarian
+             * @default 5
+             */
+            limit: number | null;
+            /**
+             * Top K
+             * @description Alias batas hasil
+             */
+            top_k?: number | null;
+        };
         /** SegmentCriteriaRequest */
         SegmentCriteriaRequest: {
             /** Tiers */
@@ -9591,11 +9977,6 @@ export interface components {
             /** Tags */
             tags?: string[] | null;
         };
-        /**
-         * SelectionJobCategory
-         * @enum {string}
-         */
-        SelectionJobCategory: "RECRUITMENT" | "VENDOR_SELECTION" | "TENDER_EVALUATION" | "LEAD_QUALIFICATION" | "DOCUMENT_AUDIT";
         /** SendMessageRequest */
         SendMessageRequest: {
             /**
@@ -9643,10 +10024,10 @@ export interface components {
             comment_text: string;
         };
         /**
-         * SourceDocumentType
+         * SourceChannel
          * @enum {string}
          */
-        SourceDocumentType: "RESUME" | "PROPOSAL" | "PORTFOLIO" | "CERTIFICATE" | "INTERVIEW_TRANSCRIPT" | "FINANCIAL_RECORD";
+        SourceChannel: "file_upload" | "prompt_text" | "whatsapp" | "telegram" | "api" | "database_query" | "workflow_trigger" | "integration_fabric";
         /** SpecialistAgentDispatchInput */
         SpecialistAgentDispatchInput: {
             /** Agent Role */
@@ -9760,8 +10141,16 @@ export interface components {
         };
         /** SubmitReviewRequest */
         SubmitReviewRequest: {
-            /** @description Keputusan tinjauan: ACCEPTED, OVERRIDDEN, REJECTED */
-            decision: components["schemas"]["HumanReviewStatus"];
+            /**
+             * Decision
+             * @description Keputusan tinjauan: approved, rejected, overridden (atau ACCEPTED, OVERRIDDEN, REJECTED)
+             */
+            decision?: string | null;
+            /**
+             * Decision Status
+             * @description Status keputusan baru
+             */
+            decision_status?: string | null;
             /**
              * Override Score
              * @description Skor override manusia jika disesuaikan
@@ -9771,7 +10160,7 @@ export interface components {
              * Reviewer Notes
              * @description Catatan justifikasi tinjauan manusia
              */
-            reviewer_notes: string;
+            reviewer_notes?: string | null;
             /**
              * Reviewer Id
              * @description UUID reviewer manusia
@@ -10225,32 +10614,28 @@ export interface components {
         UploadDocumentRequest: {
             /**
              * Document Name
-             * @description Nama berkas (misal: Resume_John.pdf)
+             * @description Nama berkas atau label dokumen
              */
-            document_name: string;
+            document_name?: string | null;
             /**
              * Candidate Name
              * @description Nama kandidat atau vendor
              */
-            candidate_name: string;
+            candidate_name?: string | null;
             /**
-             * @description Jenis berkas sumber
+             * Source Type
+             * @description Jenis berkas sumber (kompatibilitas)
              * @default RESUME
              */
-            source_type: components["schemas"]["SourceDocumentType"];
+            source_type: string | null;
             /**
-             * Candidate Email
-             * @description Email kandidat/vendor
+             * @description Kanal sumber: file_upload, prompt_text, api, dst
+             * @default file_upload
              */
-            candidate_email?: string | null;
-            /**
-             * Candidate Phone
-             * @description Nomor telepon kandidat/vendor
-             */
-            candidate_phone?: string | null;
+            source_channel: components["schemas"]["SourceChannel"] | null;
             /**
              * Raw Text
-             * @description Teks konten dokumen untuk ekstraksi data understanding
+             * @description Teks konten dokumen untuk ekstraksi
              */
             raw_text?: string | null;
             /**
@@ -10258,6 +10643,18 @@ export interface components {
              * @description URL berkas
              */
             file_url?: string | null;
+            /**
+             * File Artifact Id
+             * @description UUID berkas di file_artifacts
+             */
+            file_artifact_id?: string | null;
+            /**
+             * Metadata
+             * @description Metadata saluran tambahan
+             */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ValidateAvailabilityInput */
         ValidateAvailabilityInput: {
@@ -10611,6 +11008,37 @@ export interface operations {
                 code: string;
             };
             header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_endpoint_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -12262,7 +12690,7 @@ export interface operations {
             };
         };
     };
-    webauthn_register_verify_api_v1_attendance_webauthn_register_verify_post: {
+    webauthn_register_verify_slash: {
         parameters: {
             query?: never;
             header?: {
@@ -12298,7 +12726,43 @@ export interface operations {
             };
         };
     };
-    webauthn_login_challenge_api_v1_attendance_webauthn_login_options_post: {
+    webauthn_register_verify_dash: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnRegisterVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_login_options: {
         parameters: {
             query?: never;
             header?: {
@@ -12334,7 +12798,7 @@ export interface operations {
             };
         };
     };
-    webauthn_login_challenge_api_v1_attendance_webauthn_authenticate_challenge_post: {
+    webauthn_auth_challenge: {
         parameters: {
             query?: never;
             header?: {
@@ -12370,7 +12834,7 @@ export interface operations {
             };
         };
     };
-    webauthn_login_challenge_api_v1_attendance_webauthn_login_challenge_post: {
+    webauthn_login_challenge_dash: {
         parameters: {
             query?: never;
             header?: {
@@ -12406,7 +12870,7 @@ export interface operations {
             };
         };
     };
-    webauthn_verify_attendance_api_v1_attendance_webauthn_login_verify_post: {
+    webauthn_login_verify: {
         parameters: {
             query?: never;
             header?: {
@@ -12442,7 +12906,7 @@ export interface operations {
             };
         };
     };
-    webauthn_verify_attendance_api_v1_attendance_webauthn_authenticate_verify_post: {
+    webauthn_auth_verify: {
         parameters: {
             query?: never;
             header?: {
@@ -12478,7 +12942,7 @@ export interface operations {
             };
         };
     };
-    webauthn_verify_attendance_api_v1_attendance_webauthn_verify_post: {
+    webauthn_verify_attendance_base: {
         parameters: {
             query?: never;
             header?: {
@@ -14329,9 +14793,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ChangeSubscriptionTierRequest"];
             };
         };
         responses: {
@@ -15004,6 +15466,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemorySearchResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_tenant_memory_post_api_v1_tenants__tenant_id__memory_search_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchMemoryPostRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tenant_memory_documents_api_v1_tenants__tenant_id__memory_documents_get: {
+        parameters: {
+            query?: {
+                /** @description Filter kategori memori */
+                category?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -15784,6 +16328,42 @@ export interface operations {
             };
         };
     };
+    create_catalog_app_api_v1_admin_integrations_catalog_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogAppCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_catalog_api_v1_integrations_catalog_get: {
         parameters: {
             query?: {
@@ -15834,6 +16414,44 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_app_api_v1_tenants__tenant_id__integrations_connections_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectAppRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20359,9 +20977,74 @@ export interface operations {
             };
         };
     };
+    get_selection_domain_categories_api_v1_selection_tenants__tenant_id__domain_categories_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_domain_categories_api_v1_selection_domain_categories_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_selection_jobs_api_v1_tenants__tenant_id__jobs_get: {
         parameters: {
             query?: {
+                domain_category?: string | null;
                 status?: string | null;
             };
             header?: {
@@ -20436,6 +21119,7 @@ export interface operations {
     list_selection_jobs_api_v1_selection_tenants__tenant_id__jobs_get: {
         parameters: {
             query?: {
+                domain_category?: string | null;
                 status?: string | null;
             };
             header?: {
@@ -20510,6 +21194,7 @@ export interface operations {
     list_selection_jobs_api_v1_tenants__tenant_id__selection_jobs_get: {
         parameters: {
             query?: {
+                domain_category?: string | null;
                 status?: string | null;
             };
             header?: {
@@ -20803,7 +21488,7 @@ export interface operations {
             };
         };
     };
-    calibrate_selection_weights_api_v1_tenants__tenant_id__jobs__job_id__calibrate_post: {
+    execute_selection_pipeline_api_v1_tenants__tenant_id__jobs__job_id__score_post: {
         parameters: {
             query?: never;
             header?: {
@@ -20816,9 +21501,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+                "application/json": components["schemas"]["ExecutePipelineRequest"] | null;
             };
         };
         responses: {
@@ -20842,7 +21527,7 @@ export interface operations {
             };
         };
     };
-    calibrate_selection_weights_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post: {
+    execute_selection_pipeline_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post: {
         parameters: {
             query?: never;
             header?: {
@@ -20855,9 +21540,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+                "application/json": components["schemas"]["ExecutePipelineRequest"] | null;
             };
         };
         responses: {
@@ -20881,7 +21566,7 @@ export interface operations {
             };
         };
     };
-    calibrate_selection_weights_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post: {
+    execute_selection_pipeline_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post: {
         parameters: {
             query?: never;
             header?: {
@@ -20894,9 +21579,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+                "application/json": components["schemas"]["ExecutePipelineRequest"] | null;
             };
         };
         responses: {
@@ -20920,7 +21605,7 @@ export interface operations {
             };
         };
     };
-    execute_scoring_and_ranking_api_v1_tenants__tenant_id__jobs__job_id__score_post: {
+    execute_selection_pipeline_api_v1_selection_tenants__tenant_id__jobs__job_id__run_post: {
         parameters: {
             query?: never;
             header?: {
@@ -20933,9 +21618,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["ExecuteScoringRequest"];
+                "application/json": components["schemas"]["ExecutePipelineRequest"] | null;
             };
         };
         responses: {
@@ -20959,7 +21644,7 @@ export interface operations {
             };
         };
     };
-    execute_scoring_and_ranking_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post: {
+    execute_selection_pipeline_api_v1_tenants__tenant_id__selection_jobs__job_id__run_post: {
         parameters: {
             query?: never;
             header?: {
@@ -20972,9 +21657,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["ExecuteScoringRequest"];
+                "application/json": components["schemas"]["ExecutePipelineRequest"] | null;
             };
         };
         responses: {
@@ -20998,7 +21683,7 @@ export interface operations {
             };
         };
     };
-    execute_scoring_and_ranking_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post: {
+    get_selection_results_api_v1_selection_tenants__tenant_id__jobs__job_id__results_get: {
         parameters: {
             query?: never;
             header?: {
@@ -21011,11 +21696,287 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExecuteScoringRequest"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
+    };
+    get_selection_results_api_v1_tenants__tenant_id__selection_jobs__job_id__results_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_insights_api_v1_selection_tenants__tenant_id__jobs__job_id__insights_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_insights_api_v1_tenants__tenant_id__selection_jobs__job_id__insights_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_tenants__tenant_id__jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_selection_tenants__tenant_id__jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_tenants__tenant_id__selection_jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_visualizations_api_v1_selection_tenants__tenant_id__jobs__job_id__visualizations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_visualizations_api_v1_tenants__tenant_id__selection_jobs__job_id__visualizations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -21154,45 +22115,6 @@ export interface operations {
             };
         };
     };
-    finalize_selection_job_api_v1_tenants__tenant_id__jobs__job_id__finalize_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-Tenant-Id"?: string | null;
-            };
-            path: {
-                tenant_id: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FinalizeJobRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     finalize_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__finalize_post: {
         parameters: {
             query?: never;
@@ -21271,7 +22193,7 @@ export interface operations {
             };
         };
     };
-    get_selection_analytics_api_v1_tenants__tenant_id__jobs__job_id__analytics_get: {
+    calibrate_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post: {
         parameters: {
             query?: never;
             header?: {
@@ -21284,7 +22206,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrateJobRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -21306,7 +22232,7 @@ export interface operations {
             };
         };
     };
-    get_selection_analytics_api_v1_selection_tenants__tenant_id__jobs__job_id__analytics_get: {
+    calibrate_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post: {
         parameters: {
             query?: never;
             header?: {
@@ -21319,42 +22245,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrateJobRequest"];
             };
         };
-    };
-    get_selection_analytics_api_v1_tenants__tenant_id__selection_jobs__job_id__analytics_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-                "X-Tenant-Id"?: string | null;
-            };
-            path: {
-                tenant_id: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -22055,6 +22950,44 @@ export interface operations {
             };
         };
     };
+    ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_chief_of_staff_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestContextEventInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_company_context_events_api_v1_tenants__tenant_id__enterprise_context_events_get: {
         parameters: {
             query?: {
@@ -22091,6 +23024,44 @@ export interface operations {
             };
         };
     };
+    ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_context_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestContextEventInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_company_context_events_api_v1_tenants__tenant_id__enterprise_company_context_events_get: {
         parameters: {
             query?: {
@@ -22109,6 +23080,44 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_company_context_event_api_v1_tenants__tenant_id__enterprise_company_context_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestContextEventInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

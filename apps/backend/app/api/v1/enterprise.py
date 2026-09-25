@@ -644,6 +644,14 @@ class TriggerCorrelationInput(BaseModel):
     signals: Optional[List[IngestSignalInput]] = None
 
 
+class IngestContextEventInput(BaseModel):
+    event_type: str = "general_operational_event"
+    title: str
+    summary: str
+    details: Optional[Dict[str, Any]] = None
+    source_types: Optional[List[str]] = Field(default_factory=lambda: ["Native"])
+
+
 @router.get("/company-context/events")
 @router.get("/context/events")
 @router.get("/chief-of-staff/events")
@@ -661,6 +669,46 @@ async def list_company_context_events(tenant_id: str, limit: int = 50):
         """
         rows = await db.fetch(query, uuid.UUID(tenant_id), limit)
         return {"events": [dict(r) for r in rows], "count": len(rows)}
+
+
+@router.post("/company-context/events", status_code=status.HTTP_201_CREATED)
+@router.post("/context/events", status_code=status.HTTP_201_CREATED)
+@router.post("/chief-of-staff/events", status_code=status.HTTP_201_CREATED)
+async def ingest_company_context_event(tenant_id: str, payload: IngestContextEventInput):
+    """
+    Mencatat event operasional / sintesis langsung ke company_context_events.
+    """
+    event_id = uuid.uuid4()
+    source_types = payload.source_types or ["Native"]
+    details_json = json.dumps(payload.details or {})
+    async with get_db_connection() as db:
+        await db.execute(
+            """
+            INSERT INTO company_context_events (
+                id, tenant_id, event_type, title, summary,
+                correlation_score, source_types, source_signals,
+                insights, recommended_actions, status, created_at, updated_at
+            ) VALUES (
+                $1, $2, $3, $4, $5,
+                0.9000, $6, '[]'::jsonb,
+                $7::jsonb, '[]'::jsonb, 'PROCESSED', now(), now()
+            )
+            """,
+            event_id,
+            uuid.UUID(tenant_id),
+            payload.event_type,
+            payload.title,
+            payload.summary,
+            source_types,
+            details_json,
+        )
+        return {
+            "status": "success",
+            "event_id": str(event_id),
+            "tenant_id": tenant_id,
+            "title": payload.title,
+            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
 
 
 @router.post("/company-context/signals", status_code=status.HTTP_201_CREATED)

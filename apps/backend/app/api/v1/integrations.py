@@ -1,8 +1,9 @@
 """FastAPI Router untuk Integrasi Pihak Ketiga & Observasi Kerja (PRD v2.2 Bagian 12 & 12.9)
 """
 
+import uuid
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
@@ -30,6 +31,7 @@ class ConnectAppRequest(BaseModel):
     access_token: str
     refresh_token: Optional[str] = None
     expires_in_seconds: Optional[int] = 5184000  # 60 hari default
+    expires_in_days: Optional[int] = None
     external_account_id: Optional[str] = None
     external_account_name: Optional[str] = None
     authorized_scopes: List[str] = []
@@ -99,6 +101,63 @@ async def get_catalog(category: Optional[str] = None):
         }
 
 
+@router.post("/admin/integrations/catalog", status_code=status.HTTP_201_CREATED)
+async def create_catalog_app(payload: CatalogAppCreateRequest):
+    """
+    Mendaftarkan aplikasi baru ke third_party_app_registry (Super Admin).
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            app_id = str(uuid.uuid4()) if 'uuid' in globals() else None
+            query = """
+                INSERT INTO third_party_app_registry (
+                    app_code, name, category, description, icon, auth_type,
+                    supported_scopes, requires_transparency_notice,
+                    transparency_notice_template, is_active, created_at, updated_at
+                ) VALUES (
+                    :app_code, :name, :category, :description, :icon, :auth_type,
+                    :supported_scopes, :requires_transparency_notice,
+                    :transparency_notice_template, true, now(), now()
+                )
+                ON CONFLICT (app_code) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    category = EXCLUDED.category,
+                    description = EXCLUDED.description,
+                    icon = EXCLUDED.icon,
+                    auth_type = EXCLUDED.auth_type,
+                    supported_scopes = EXCLUDED.supported_scopes,
+                    requires_transparency_notice = EXCLUDED.requires_transparency_notice,
+                    transparency_notice_template = EXCLUDED.transparency_notice_template,
+                    updated_at = now()
+                RETURNING id, app_code, name, category, description;
+            """
+            res = conn.execute(
+                sa.text(query),
+                {
+                    "app_code": payload.app_code,
+                    "name": payload.name,
+                    "category": payload.category,
+                    "description": payload.description,
+                    "icon": payload.icon,
+                    "auth_type": payload.auth_type,
+                    "supported_scopes": payload.supported_scopes,
+                    "requires_transparency_notice": payload.requires_transparency_notice,
+                    "transparency_notice_template": payload.transparency_notice_template,
+                },
+            ).fetchone()
+            return {
+                "status": "created",
+                "app": {
+                    "id": str(res.id),
+                    "app_code": res.app_code,
+                    "name": res.name,
+                    "category": res.category,
+                    "description": res.description,
+                },
+            }
+
+
 @router.get("/tenants/{tenant_id}/integrations/connections")
 async def get_tenant_connections(tenant_id: str):
     """
@@ -161,6 +220,97 @@ async def get_tenant_connections(tenant_id: str):
                 for r in rows
             ]
         }
+
+
+@router.post("/tenants/{tenant_id}/integrations/connections", status_code=status.HTTP_201_CREATED)
+async def connect_app(tenant_id: str, payload: ConnectAppRequest):
+    """
+    Menghubungkan akun aplikasi pihak ketiga untuk tenant (PRD v2.2 Bagian 12.1).
+    Kredensial dienkripsi secara aman dengan kunci per-tenant.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                {"tenant_id": tenant_id}
+            )
+
+            # Cek registri aplikasi
+            app_row = conn.execute(
+                sa.text("SELECT id, app_code, name FROM third_party_app_registry WHERE app_code = :code AND is_active = true"),
+                {"code": payload.app_code}
+            ).fetchone()
+            if not app_row:
+                raise HTTPException(status_code=404, detail=f"Aplikasi '{payload.app_code}' tidak terdaftar atau tidak aktif.")
+
+            # Enkripsi kredensial
+            enc_access = encrypt_credential(tenant_id, payload.access_token)
+            enc_refresh = encrypt_credential(tenant_id, payload.refresh_token) if payload.refresh_token else None
+
+            # Hitung masa berlaku
+            if payload.expires_in_days:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
+            elif payload.expires_in_seconds:
+                expires_at = datetime.now(timezone.utc) + timedelta(seconds=payload.expires_in_seconds)
+            else:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=60)
+
+            stmt = """
+                INSERT INTO integration_connections (
+                    tenant_id, app_id, app_code, connection_name, status,
+                    access_token_encrypted, refresh_token_encrypted, token_expires_at,
+                    authorized_scopes, external_account_id, external_account_name,
+                    health_status, last_health_check_at, updated_at
+                ) VALUES (
+                    :tenant_id, :app_id, :app_code, :connection_name, 'connected',
+                    :access_enc, :refresh_enc, :expires_at,
+                    :scopes, :ext_acc_id, :ext_acc_name,
+                    'healthy', now(), now()
+                )
+                ON CONFLICT (tenant_id, app_code) DO UPDATE SET
+                    connection_name = EXCLUDED.connection_name,
+                    status = 'connected',
+                    access_token_encrypted = EXCLUDED.access_token_encrypted,
+                    refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
+                    token_expires_at = EXCLUDED.token_expires_at,
+                    authorized_scopes = EXCLUDED.authorized_scopes,
+                    external_account_id = EXCLUDED.external_account_id,
+                    external_account_name = EXCLUDED.external_account_name,
+                    health_status = 'healthy',
+                    last_health_check_at = now(),
+                    updated_at = now()
+                RETURNING id, tenant_id, app_code, connection_name, status, health_status;
+            """
+            res = conn.execute(
+                sa.text(stmt),
+                {
+                    "tenant_id": tenant_id,
+                    "app_id": app_row.id,
+                    "app_code": payload.app_code,
+                    "connection_name": payload.connection_name,
+                    "access_enc": enc_access,
+                    "refresh_enc": enc_refresh,
+                    "expires_at": expires_at,
+                    "scopes": payload.authorized_scopes,
+                    "ext_acc_id": payload.external_account_id,
+                    "ext_acc_name": payload.external_account_name,
+                }
+            ).fetchone()
+
+            return {
+                "status": "connected",
+                "message": f"Koneksi ke {app_row.name} berhasil dihubungkan.",
+                "connection": {
+                    "id": str(res.id),
+                    "tenant_id": str(res.tenant_id),
+                    "app_code": res.app_code,
+                    "connection_name": res.connection_name,
+                    "status": res.status,
+                    "health_status": res.health_status,
+                }
+            }
 
 
 @router.post("/tenants/{tenant_id}/integrations/connections/{connection_id}/health-check")

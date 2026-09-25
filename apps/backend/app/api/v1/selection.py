@@ -71,6 +71,17 @@ class SubmitReviewRequest(StrictSelectionRequestModel):
     reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID reviewer manusia")
 
 
+class FinalizeJobRequest(StrictSelectionRequestModel):
+    reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID peninjau / direktur")
+    approval_notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan persetujuan akhir")
+
+
+class CalibrateJobRequest(StrictSelectionRequestModel):
+    human_feedback_notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan umpan balik kalibrasi")
+    criteria_adjustments: Optional[Dict[str, float]] = Field(default=None, description="Faktor penyesuaian bobot per kriteria")
+    human_reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID peninjau kalibrasi")
+
+
 # ---------------------------------------------------------------------------
 # Katalog Domain Categories
 # ---------------------------------------------------------------------------
@@ -306,3 +317,41 @@ async def submit_human_review(tenant_id: str, score_id: str, request: SubmitRevi
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/finalize")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/finalize")
+async def finalize_selection_job(tenant_id: str, job_id: str, request: FinalizeJobRequest):
+    """Mengesahkan dan menyelesaikan pekerjaan seleksi secara final (Audit Trail)."""
+    try:
+        result = SelectionDomainService.finalize_job(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            reviewer_id=request.reviewer_id,
+            approval_notes=request.approval_notes,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate")
+async def calibrate_selection_job(tenant_id: str, job_id: str, request: CalibrateJobRequest):
+    """Mengkalibrasi bobot kriteria evaluasi seleksi secara dinamis."""
+    try:
+        result = SelectionDomainService.calibrate_job(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            human_feedback_notes=request.human_feedback_notes,
+            criteria_adjustments=request.criteria_adjustments,
+            human_reviewer_id=request.human_reviewer_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -182,7 +182,7 @@ class CreateMessageExperimentIn(BaseModel):
     variant_a_template: str
     variant_b_name: str = "Variant B (Eksperimen)"
     variant_b_template: str
-    min_sample_size: int = 50
+    min_sample_size: int = Field(50, title="Minimum Participant Count", description="Jumlah observasi partisipan minimum untuk signifikansi statistik")
     target_metric: str = "CONVERSION_RATE"
     confidence_level_threshold: float = 0.95
 

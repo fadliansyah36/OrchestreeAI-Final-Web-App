@@ -32,6 +32,13 @@ class DocumentCreateRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class SearchMemoryPostRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="Kata kunci atau pertanyaan semantik")
+    category: Optional[str] = Field(None, description="Filter kategori memori")
+    limit: Optional[int] = Field(5, ge=1, le=50, description="Batas hasil pencarian")
+    top_k: Optional[int] = Field(None, ge=1, le=50, description="Alias batas hasil")
+
+
 @router.get("/tenants/{tenant_id}/memory/search", response_model=List[MemorySearchResult])
 async def search_tenant_memory(
     tenant_id: str = Path(..., description="ID Tenant"),
@@ -84,6 +91,139 @@ async def search_tenant_memory(
         category=category,
     )
     return results
+
+
+@router.post("/tenants/{tenant_id}/memory/search")
+async def search_tenant_memory_post(
+    payload: SearchMemoryPostRequest,
+    tenant_id: str = Path(..., description="ID Tenant"),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE", alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header("memory.search,data.read", alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+):
+    """
+    Pencarian hybrid Company Brain melalui HTTP POST (JSON Payload).
+    """
+    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    subject = SubjectContext(
+        user_id=x_user_id,
+        tenant_id=tenant_id,
+        roles=roles,
+        capabilities=capabilities,
+        is_mfa_verified=is_mfa,
+    )
+
+    pdp_decision = await authorize(
+        subject=subject,
+        resource=ResourceContext(
+            tenant_id=tenant_id,
+            resource_type="memory",
+            resource_id="global_search",
+        ),
+        action="memory.search",
+    )
+    if not pdp_decision.is_authorized:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Akses pencarian memori ditolak PDP: {pdp_decision.reason}",
+        )
+
+    engine = get_memory_engine()
+    limit = payload.limit or payload.top_k or 5
+    results = await engine.hybrid_search(
+        tenant_id=tenant_id,
+        query=payload.query,
+        subject=subject,
+        top_k=limit,
+        category=payload.category,
+    )
+    return {"results": [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in results]}
+
+
+@router.get("/tenants/{tenant_id}/memory/documents")
+async def list_tenant_memory_documents(
+    tenant_id: str = Path(..., description="ID Tenant"),
+    category: Optional[str] = Query(None, description="Filter kategori memori"),
+    limit: int = Query(50, ge=1, le=200),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
+    x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE,ADMIN,MANAGER", alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header("memory.documents.read,data.read", alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+):
+    """
+    Mengambil daftar dokumen pengetahuan yang tersimpan di Company Brain milik tenant.
+    """
+    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    subject = SubjectContext(
+        user_id=x_user_id,
+        tenant_id=tenant_id,
+        roles=roles,
+        capabilities=capabilities,
+        is_mfa_verified=is_mfa,
+    )
+
+    pdp_decision = await authorize(
+        subject=subject,
+        resource=ResourceContext(
+            tenant_id=tenant_id,
+            resource_type="memory",
+            resource_id="documents_list",
+        ),
+        action="memory.documents.read",
+    )
+    if not pdp_decision.is_authorized:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Akses dokumen memori ditolak PDP: {pdp_decision.reason}",
+        )
+
+    from app.core.database import get_database_engine
+    import sqlalchemy as sa
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        conn.execute(
+            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+            {"tenant_id": tenant_id}
+        )
+        sql = """
+            SELECT id, tenant_id, title, summary, category, source_type,
+                   data_classification, confidence, decay_factor, access_count,
+                   last_accessed_at, created_at
+            FROM memory_documents
+            WHERE tenant_id = :tenant_id
+        """
+        params = {"tenant_id": tenant_id, "limit": limit}
+        if category and category != "all":
+            sql += " AND category = :category"
+            params["category"] = category
+        sql += " ORDER BY created_at DESC LIMIT :limit;"
+
+        rows = conn.execute(sa.text(sql), params).fetchall()
+        return [
+            {
+                "id": str(r[0]),
+                "tenant_id": str(r[1]),
+                "title": r[2],
+                "summary": r[3],
+                "category": r[4],
+                "source_type": r[5],
+                "data_classification": r[6],
+                "confidence": float(r[7]),
+                "decay_factor": float(r[8]),
+                "access_count": int(r[9]),
+                "last_accessed_at": r[10].isoformat() if r[10] else None,
+                "created_at": r[11].isoformat() if r[11] else None,
+            }
+            for r in rows
+        ]
 
 
 @router.post("/tenants/{tenant_id}/memory/documents")

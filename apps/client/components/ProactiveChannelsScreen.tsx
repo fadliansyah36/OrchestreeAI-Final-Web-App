@@ -30,7 +30,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   tenant,
   onBack,
 }) => {
-  const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
+  const tenantId = tenant?.tenant_id || '';
   const membershipId = tenant?.membership_id || tenant?.user_id || 'member-001';
 
   // Tabs: 'channels' | 'notifications' | 'logs'

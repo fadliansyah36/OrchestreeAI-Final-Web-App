@@ -501,8 +501,8 @@ async def webauthn_register_challenge(payload: WebAuthnRegisterChallengeRequest)
     }
 
 
-@router.post("/api/v1/attendance/webauthn/register-verify", status_code=status.HTTP_201_CREATED)
-@router.post("/api/v1/attendance/webauthn/register/verify", status_code=status.HTTP_201_CREATED)
+@router.post("/api/v1/attendance/webauthn/register-verify", status_code=status.HTTP_201_CREATED, operation_id="webauthn_register_verify_dash")
+@router.post("/api/v1/attendance/webauthn/register/verify", status_code=status.HTTP_201_CREATED, operation_id="webauthn_register_verify_slash")
 async def webauthn_register_verify(payload: WebAuthnRegisterVerifyRequest):
     stored = _webauthn_challenges.get(payload.tenant_membership_id)
     if not stored:
@@ -544,9 +544,9 @@ async def webauthn_register_verify(payload: WebAuthnRegisterVerifyRequest):
     }
 
 
-@router.post("/api/v1/attendance/webauthn/login-challenge")
-@router.post("/api/v1/attendance/webauthn/authenticate-challenge")
-@router.post("/api/v1/attendance/webauthn/login/options")
+@router.post("/api/v1/attendance/webauthn/login-challenge", operation_id="webauthn_login_challenge_dash")
+@router.post("/api/v1/attendance/webauthn/authenticate-challenge", operation_id="webauthn_auth_challenge")
+@router.post("/api/v1/attendance/webauthn/login/options", operation_id="webauthn_login_options")
 async def webauthn_login_challenge(payload: WebAuthnLoginChallengeRequest):
     challenge = secrets.token_urlsafe(32)
     _webauthn_challenges[payload.tenant_membership_id] = {
@@ -571,9 +571,9 @@ async def webauthn_login_challenge(payload: WebAuthnLoginChallengeRequest):
     }
 
 
-@router.post("/api/v1/attendance/webauthn/verify")
-@router.post("/api/v1/attendance/webauthn/authenticate-verify")
-@router.post("/api/v1/attendance/webauthn/login/verify")
+@router.post("/api/v1/attendance/webauthn/verify", operation_id="webauthn_verify_attendance_base")
+@router.post("/api/v1/attendance/webauthn/authenticate-verify", operation_id="webauthn_auth_verify")
+@router.post("/api/v1/attendance/webauthn/login/verify", operation_id="webauthn_login_verify")
 async def webauthn_verify_attendance(payload: WebAuthnVerifyAttendanceRequest):
     """
     Verifikasi Presensi WebAuthn dengan Pencegahan Replay Attack

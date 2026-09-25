@@ -41,7 +41,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   onBack,
   defaultTab = 'workforce_hub',
 }) => {
-  const tenantId = tenant?.tenant_id || 'tenant-alpha-001';
+  const tenantId = tenant?.tenant_id || '';
   const [activeTab, setActiveTab] = useState<'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query'>(defaultTab);
 
   // Status langganan real-time
