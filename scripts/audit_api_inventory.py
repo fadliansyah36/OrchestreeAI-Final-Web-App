@@ -13,7 +13,33 @@ import re
 import json
 
 def scan_backend_routes():
+    import sys
+    import urllib.request
     try:
+        # Try fetching from running FastAPI backend first
+        with urllib.request.urlopen("http://127.0.0.1:8001/openapi.json", timeout=3) as resp:
+            openapi = json.loads(resp.read().decode('utf-8'))
+            paths = openapi.get('paths', {})
+            routes = []
+            for path, methods in paths.items():
+                for m in methods:
+                    if m.lower() in ['get', 'post', 'put', 'patch', 'delete']:
+                        routes.append({
+                            'method': m.upper(),
+                            'path': path,
+                            'file': 'fastapi_openapi'
+                        })
+            return routes
+    except Exception as fetch_err:
+        pass
+
+    try:
+        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        backend_dir = os.path.join(root_dir, 'apps', 'backend')
+        if root_dir not in sys.path:
+            sys.path.insert(0, root_dir)
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
         from app.main import app
         openapi = app.openapi()
         paths = openapi.get('paths', {})
@@ -29,8 +55,7 @@ def scan_backend_routes():
         return routes
     except Exception as e:
         print(f"Warning: Could not load app.openapi(): {e}")
-        routes = []
-        return routes
+        return []
 
 def scan_frontend_calls():
     calls = []

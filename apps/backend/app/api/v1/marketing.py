@@ -6,6 +6,8 @@ OrchestreeAI Marketing, Campaigns, Social Calendar (F.01-SOCIAL) & Marketplace A
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request, Query, Path, Header, Depends
 from pydantic import BaseModel, Field
+import sqlalchemy as sa
+from app.core.database import get_database_engine
 from app.authz.pdp import require_capability, webhook_endpoint
 
 from orchestree.domains.marketing.campaign_engine import (
@@ -286,48 +288,36 @@ async def toggle_post_ai_disclosure(
 
 @router.get("/marketplaces")
 async def get_marketplace_integrations(tenant_id: str = Path(...)):
-    """Mengambil status koneksi Partner API Marketplace milik tenant."""
-    return {
-        "status": "ok",
-        "data": [
-            {
-                "channel": "SHOPEE",
-                "shop_id": "shp-tenant-881",
-                "shop_name": "Official Store Shopee",
-                "is_active": True,
-                "sync_status": "SYNCED",
-                "last_synced_at": "Baru saja",
-                "pending_orders": 3,
-            },
-            {
-                "channel": "TOKOPEDIA",
-                "shop_id": "tkp-tenant-412",
-                "shop_name": "Official Store Tokopedia",
-                "is_active": True,
-                "sync_status": "SYNCED",
-                "last_synced_at": "10 menit lalu",
-                "pending_orders": 2,
-            },
-            {
-                "channel": "TIKTOK_SHOP",
-                "shop_id": "tts-tenant-990",
-                "shop_name": "TikTok Shop Seller",
-                "is_active": True,
-                "sync_status": "SYNCED",
-                "last_synced_at": "15 menit lalu",
-                "pending_orders": 5,
-            },
-            {
-                "channel": "BLIBLI",
-                "shop_id": "bli-tenant-102",
-                "shop_name": "Blibli Official Merchant",
-                "is_active": True,
-                "sync_status": "SYNCED",
-                "last_synced_at": "30 menit lalu",
-                "pending_orders": 1,
-            },
-        ],
-    }
+    """Mengambil status koneksi Partner API Marketplace milik tenant dari basis data nyata."""
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.text("""
+                SELECT id, channel_type, account_label, external_identifier, status, metadata, updated_at
+                FROM channel_accounts
+                WHERE tenant_id = :tenant_id
+                  AND channel_type IN ('SHOPEE', 'TOKOPEDIA', 'TIKTOK_SHOP', 'BLIBLI')
+                ORDER BY created_at DESC;
+            """),
+            {"tenant_id": tenant_id}
+        ).fetchall()
+        return {
+            "status": "ok",
+            "data": [
+                {
+                    "id": str(r.id),
+                    "channel": r.channel_type,
+                    "shop_id": r.external_identifier or str(r.id),
+                    "shop_name": r.account_label,
+                    "is_active": r.status in ("CONNECTED", "ACTIVE"),
+                    "sync_status": r.status,
+                    "last_synced_at": r.updated_at.isoformat() if r.updated_at else None,
+                    "pending_orders": 0,
+                    "metadata": r.metadata if isinstance(r.metadata, dict) else {},
+                }
+                for r in rows
+            ],
+        }
 
 
 @router.post("/marketplaces/sync-orders")
@@ -360,13 +350,25 @@ async def fulfill_marketplace_order(
 # Webhook Handlers (Meta & TikTok Commercial Intent)
 
 @webhook_router.post("/instagram")
-async def receive_instagram_webhook(payload: SocialWebhookCommentPayload):
+async def receive_instagram_webhook(payload: SocialWebhookCommentPayload, tenant_id: Optional[str] = Query(None)):
     """
     Webhook resmi Meta Graph API untuk komentar dan pesan Instagram.
     Mendeteksi Commercial Intent dan membalas otomatis via DM & komentar publik.
     """
+    effective_tenant = tenant_id
+    if not effective_tenant:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT tenant_id FROM channel_accounts WHERE channel_type = 'INSTAGRAM' LIMIT 1;")
+            ).fetchone()
+            if row:
+                effective_tenant = str(row.tenant_id)
+    if not effective_tenant:
+        raise HTTPException(status_code=400, detail="Organisasi tenant untuk kanal Instagram tidak ditemukan.")
+
     result = handle_social_comment_webhook(
-        tenant_id="tenant-default",
+        tenant_id=effective_tenant,
         platform="INSTAGRAM",
         comment_id=payload.comment_id,
         media_id=payload.media_id,
@@ -378,10 +380,22 @@ async def receive_instagram_webhook(payload: SocialWebhookCommentPayload):
 
 
 @webhook_router.post("/tiktok")
-async def receive_tiktok_webhook(payload: SocialWebhookCommentPayload):
+async def receive_tiktok_webhook(payload: SocialWebhookCommentPayload, tenant_id: Optional[str] = Query(None)):
     """Webhook resmi TikTok for Business untuk video comment & direct message."""
+    effective_tenant = tenant_id
+    if not effective_tenant:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT tenant_id FROM channel_accounts WHERE channel_type = 'TIKTOK' LIMIT 1;")
+            ).fetchone()
+            if row:
+                effective_tenant = str(row.tenant_id)
+    if not effective_tenant:
+        raise HTTPException(status_code=400, detail="Organisasi tenant untuk kanal TikTok tidak ditemukan.")
+
     result = handle_social_comment_webhook(
-        tenant_id="tenant-default",
+        tenant_id=effective_tenant,
         platform="TIKTOK",
         comment_id=payload.comment_id,
         media_id=payload.media_id,

@@ -124,8 +124,8 @@ class BaseMarketplaceTransactionalAdapter:
                     }
                 )
                 db_session.commit()
-            except Exception:
-                pass
+            except Exception as sync_err:
+                print(f"[MarketplaceSync] Gagal menyimpan sinkronisasi pesanan {external_id}: {sync_err}")
 
         return {
             "channel": self.channel.value,
@@ -173,20 +173,23 @@ class ShopeeTransactionalAdapter(BaseMarketplaceTransactionalAdapter):
         cursor: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # Format Partner API Shopee v2.order.get_order_list
-        return [
-            {
-                "external_order_id": "260924SHP99201",
-                "marketplace": "SHOPEE",
-                "status": "READY_TO_SHIP",
-                "buyer_name": "Rian Kusuma (Shopee)",
-                "total_amount": 275000.0,
-                "currency": "IDR",
-                "items": [
-                    {"sku": "KMJ-FLN-01", "name": "Kemeja Flanel Hitam", "quantity": 1, "price": 275000.0}
-                ],
-                "created_time": datetime.now(timezone.utc).isoformat(),
-            }
-        ]
+        if not credentials or not credentials.get("access_token"):
+            return []
+        try:
+            partner_id = credentials.get("partner_id")
+            token = credentials.get("access_token")
+            shop_id = credentials.get("shop_id")
+            res = httpx.get(
+                "https://partner.shopeemobile.com/api/v2/order/get_order_list",
+                params={"partner_id": partner_id, "access_token": token, "shop_id": shop_id, "cursor": cursor or ""},
+                timeout=10.0,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("response", {}).get("order_list", [])
+        except Exception:
+            pass
+        return []
 
     def update_shipping_status(
         self,
@@ -237,20 +240,23 @@ class TokopediaTransactionalAdapter(BaseMarketplaceTransactionalAdapter):
         cursor: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # Format Tokopedia Open API fs/v2/order/single
-        return [
-            {
-                "external_order_id": "TKP-2026-88120",
-                "marketplace": "TOKOPEDIA",
-                "status": "PAID",
-                "buyer_name": "Siti Rahma (Tokopedia)",
-                "total_amount": 195000.0,
-                "currency": "IDR",
-                "items": [
-                    {"sku": "TSH-OVR-02", "name": "Kaos Oversize Abu", "quantity": 1, "price": 195000.0}
-                ],
-                "created_time": datetime.now(timezone.utc).isoformat(),
-            }
-        ]
+        if not credentials or not credentials.get("access_token"):
+            return []
+        try:
+            fs_id = credentials.get("fs_id")
+            token = credentials.get("access_token")
+            res = httpx.get(
+                "https://fs.tokopedia.net/v2/order/list",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"fs_id": fs_id, "from_date": cursor or ""},
+                timeout=10.0,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("data", [])
+        except Exception:
+            pass
+        return []
 
     def update_shipping_status(
         self,
@@ -300,20 +306,23 @@ class TikTokShopTransactionalAdapter(BaseMarketplaceTransactionalAdapter):
         cursor: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # TikTok Shop order/202309/orders
-        return [
-            {
-                "external_order_id": "TTS-577890123",
-                "marketplace": "TIKTOK_SHOP",
-                "status": "AWAITING_SHIPMENT",
-                "buyer_name": "Dinda Ayu (TikTok Shop)",
-                "total_amount": 320000.0,
-                "currency": "IDR",
-                "items": [
-                    {"sku": "JKT-DNM-03", "name": "Jaket Denim Vintage", "quantity": 1, "price": 320000.0}
-                ],
-                "created_time": datetime.now(timezone.utc).isoformat(),
-            }
-        ]
+        if not credentials or not credentials.get("access_token"):
+            return []
+        try:
+            app_key = credentials.get("app_key")
+            token = credentials.get("access_token")
+            res = httpx.get(
+                "https://open-api.tiktokglobalshop.com/order/202309/orders",
+                headers={"x-tts-access-token": token},
+                params={"app_key": app_key, "page_token": cursor or ""},
+                timeout=10.0,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("data", {}).get("orders", [])
+        except Exception:
+            pass
+        return []
 
     def update_shipping_status(
         self,
@@ -363,20 +372,23 @@ class BlibliTransactionalAdapter(BaseMarketplaceTransactionalAdapter):
         cursor: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         # Blibli merchant/v1/orders
-        return [
-            {
-                "external_order_id": "BLI-99302148",
-                "marketplace": "BLIBLI",
-                "status": "FP",  # Finished Payment
-                "buyer_name": "Hendra Wijaya (Blibli)",
-                "total_amount": 450000.0,
-                "currency": "IDR",
-                "items": [
-                    {"sku": "SPT-SNK-04", "name": "Sepatu Sneaker Canvas", "quantity": 1, "price": 450000.0}
-                ],
-                "created_time": datetime.now(timezone.utc).isoformat(),
-            }
-        ]
+        if not credentials or not credentials.get("api_key"):
+            return []
+        try:
+            api_key = credentials.get("api_key")
+            api_secret = credentials.get("api_secret")
+            res = httpx.get(
+                "https://api.blibli.com/merchant/v1/orders",
+                headers={"Authorization": f"Basic {api_key}:{api_secret}"},
+                params={"page": cursor or "1"},
+                timeout=10.0,
+            )
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("content", [])
+        except Exception:
+            pass
+        return []
 
     def update_shipping_status(
         self,

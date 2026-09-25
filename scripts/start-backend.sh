@@ -14,7 +14,12 @@ fi
 pkill -f "uvicorn.*8001" 2>/dev/null || true
 sleep 1
 
-# Export environment variables from apps/backend/.env
+# Export environment variables from .env or apps/backend/.env
+if [ -f ".env" ]; then
+  set -a
+  source .env
+  set +a
+fi
 if [ -f "apps/backend/.env" ]; then
   set -a
   source apps/backend/.env

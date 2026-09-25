@@ -90,8 +90,7 @@ async def upload_file(
                     },
                 )
     except Exception as e:
-        # Logging non-fatal untuk kompatibilitas lingkungan
-        pass
+        logger.warning("Gagal sinkronisasi metadata objek penyimpanan Supabase: %s", e)
 
     public_url = f"/api/v1/storage/{bucket}/{storage_path}"
 

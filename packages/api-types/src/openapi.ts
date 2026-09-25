@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * Health Ready
-         * @description Kesiapan layanan menerima beban trafik (readiness probe).
+         * @description Kesiapan layanan menerima beban trafik (readiness probe - Fail-Closed).
          */
         get: operations["health_ready_health_ready_get"];
         put?: never;
@@ -56,6 +56,89 @@ export interface paths {
          * @description Hasil pemeriksaan komprehensif 18 langkah Fail-Closed Startup Gate.
          */
         get: operations["health_startup_health_startup_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Live
+         * @description Verifikasi proses aktif (liveness probe).
+         */
+        get: operations["health_live_api_v1_health_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Ready
+         * @description Kesiapan layanan menerima beban trafik (readiness probe - Fail-Closed).
+         */
+        get: operations["health_ready_api_v1_health_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/startup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health Startup
+         * @description Hasil pemeriksaan komprehensif 18 langkah Fail-Closed Startup Gate.
+         */
+        get: operations["health_startup_api_v1_health_startup_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-company-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verifikasi Validitas Kode Akses Perusahaan
+         * @description Verifikasi kode perusahaan secara aman tanpa membocorkan data sensitif:
+         *     - Normalisasi dan hitung SHA-256 hash
+         *     - Cari kecocokan di tenant_company_codes
+         *     - Kembalikan nama tampilan perusahaan bila valid
+         */
+        get: operations["verify_company_code_endpoint_api_v1_auth_verify_company_code_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -150,7 +233,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/register-tenant": {
+    "/api/v1/tenant/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Anggota Tenant Saat Ini
+         * @description Mengambil daftar anggota tenant beserta perannya.
+         */
+        get: operations["list_current_tenant_members_api_v1_tenant_members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Anggota Tenant (Spesifik)
+         * @description Mengambil daftar anggota tenant beserta role yang aktif.
+         *     Dilindungi otorisasi tenant.members.view dan isolasi tenant.
+         */
+        get: operations["list_tenant_members_api_v1_tenants__tenant_id__members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/tenants": {
         parameters: {
             query?: never;
             header?: never;
@@ -169,14 +293,14 @@ export interface paths {
          *     5. Menetapkan role `TENANT_OWNER` di `user_roles`.
          *     6. Mencatat aksi di `audit_logs`.
          */
-        post: operations["register_tenant_api_v1_onboarding_register_tenant_post"];
+        post: operations["register_tenant_api_v1_onboarding_tenants_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/onboarding/join-company": {
+    "/api/v1/onboarding/join": {
         parameters: {
             query?: never;
             header?: never;
@@ -192,7 +316,6849 @@ export interface paths {
          *     2. Menempatkan pendaftaran ke dalam `hr_approval_queue` dengan status 'pending'.
          *     3. Notifikasi in-app siap ditinjau oleh HR / Tenant Admin.
          */
-        post: operations["join_company_api_v1_onboarding_join_company_post"];
+        post: operations["join_company_api_v1_onboarding_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/company-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pembuatan Kode Perusahaan Baru
+         * @description Membuat kode perusahaan baru, dilindungi otorisasi hr.company_code.manage.
+         */
+        post: operations["create_company_code_onboarding_api_v1_onboarding_company_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/hr-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Antrean HR Approval
+         * @description Mengambil daftar permohonan pendaftaran staf, dilindungi hr.approval.review.
+         */
+        get: operations["list_hr_approvals_api_v1_onboarding_hr_approvals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/hr-approvals/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Review Antrean HR Approval
+         * @description Menyetujui atau menolak pendaftaran staf.
+         */
+        patch: operations["review_hr_approval_api_v1_onboarding_hr_approvals__id__review_patch"];
+        trace?: never;
+    };
+    "/public/subscription-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Paket Langganan Publik
+         * @description Mengembalikan daftar paket langganan aktif langsung dari tabel subscription_plans.
+         *     Read-only tanpa memerlukan otentikasi.
+         */
+        get: operations["list_public_subscription_plans_public_subscription_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/plan-facility-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Matriks Fasilitas Paket Langganan Publik
+         * @description Mengembalikan matriks fasilitas paket langganan langsung dari basis data Supabase PostgreSQL.
+         *     Read-only tanpa otentikasi.
+         */
+        get: operations["get_public_plan_facility_matrix_public_plan_facility_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/prospects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pendaftaran Prospek & Permintaan Demo
+         * @description Mencatat pengajuan prospek atau permintaan demonstrasi organisasi ke basis data.
+         *     Terintegrasi dengan Cloudflare Turnstile Web Integrity dan Alokasi Atomik Slot Trial (PRD 13.5 & 13.6).
+         */
+        post: operations["register_prospect_public_prospects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validasi Web Integrity untuk Onboarding Organisasi Baru
+         * @description Validasi Turnstile pada alur pendaftaran tenant baru publik.
+         */
+        post: operations["validate_register_turnstile_public_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validasi Web Integrity untuk Bergabung ke Organisasi
+         * @description Validasi Turnstile pada alur bergabung anggota tim via kode perusahaan.
+         */
+        post: operations["validate_join_turnstile_public_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/subscription-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Paket Langganan Publik
+         * @description Mengembalikan daftar paket langganan aktif langsung dari tabel subscription_plans.
+         *     Read-only tanpa memerlukan otentikasi.
+         */
+        get: operations["list_public_subscription_plans_api_v1_public_subscription_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/plan-facility-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Matriks Fasilitas Paket Langganan Publik
+         * @description Mengembalikan matriks fasilitas paket langganan langsung dari basis data Supabase PostgreSQL.
+         *     Read-only tanpa otentikasi.
+         */
+        get: operations["get_public_plan_facility_matrix_api_v1_public_plan_facility_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/prospects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pendaftaran Prospek & Permintaan Demo
+         * @description Mencatat pengajuan prospek atau permintaan demonstrasi organisasi ke basis data.
+         *     Terintegrasi dengan Cloudflare Turnstile Web Integrity dan Alokasi Atomik Slot Trial (PRD 13.5 & 13.6).
+         */
+        post: operations["register_prospect_api_v1_public_prospects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validasi Web Integrity untuk Onboarding Organisasi Baru
+         * @description Validasi Turnstile pada alur pendaftaran tenant baru publik.
+         */
+        post: operations["validate_register_turnstile_api_v1_public_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validasi Web Integrity untuk Bergabung ke Organisasi
+         * @description Validasi Turnstile pada alur bergabung anggota tim via kode perusahaan.
+         */
+        post: operations["validate_join_turnstile_api_v1_public_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/console-sec-auth/mfa-verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Console Mfa */
+        post: operations["verify_console_mfa_api_v1_console_sec_auth_mfa_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Departemen Organisasi
+         * @description Mengambil seluruh departemen aktif pada tenant.
+         *     - Otorisasi: kapabilitas workforce.department.view
+         *     - Role DEPT_MANAGER hanya diizinkan melihat departemen miliknya sendiri
+         */
+        get: operations["list_departments_api_v1_tenants__tenant_id__departments_get"];
+        put?: never;
+        /**
+         * Buat Departemen Baru
+         * @description Membuat departemen baru dalam struktur tenant.
+         *     - Otorisasi: kapabilitas workforce.department.manage (Owner / Admin)
+         *     - Role STAFF_HUMAN ditolak dengan 403 DENY_RBAC
+         */
+        post: operations["create_department_api_v1_tenants__tenant_id__departments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/departments/{department_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Perbarui atau Hapus Departemen (Soft Delete Guard)
+         * @description Memperbarui metadata departemen atau melakukan soft delete.
+         *     - Guard rail integritas data: Tolak soft delete (409 Conflict) jika departemen
+         *       masih memiliki staf aktif atau tugas aktif terdaftar.
+         */
+        patch: operations["update_department_api_v1_tenants__tenant_id__departments__department_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Staf Anggota Tenant
+         * @description Mengambil data staf karyawan anggota tenant beserta departemen dan perannya.
+         *     - Otorisasi: workforce.staff.view
+         */
+        get: operations["list_staff_api_v1_tenants__tenant_id__staff_get"];
+        put?: never;
+        /**
+         * Tambah atau Mutasi Staf Tenant
+         * @description Mendaftarkan atau memperbarui staf anggota tenant dan menetapkannya ke departemen.
+         *     - Otorisasi: workforce.staff.manage
+         */
+        post: operations["create_or_assign_staff_api_v1_tenants__tenant_id__staff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar AI Agent Otonom
+         * @description Mengambil registri pekerja AI otonom yang bertugas di tenant.
+         *     - Otorisasi: workforce.agent.view
+         */
+        get: operations["list_agents_api_v1_tenants__tenant_id__agents_get"];
+        put?: never;
+        /**
+         * Daftarkan AI Agent Baru
+         * @description Mendaftarkan staf agen AI otonom baru ke dalam registri tenant dengan Shadow Mapping job_title_id.
+         *     - Otorisasi: workforce.agent.manage
+         */
+        post: operations["create_agent_api_v1_tenants__tenant_id__agents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/job-titles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 15 Jabatan Staf AI Terstandarisasi Platform (is_reference=true)
+         * @description Mengambil katalog 15 Jabatan Staf AI Resmi platform beserta structural role, level rank, dan sub-spesialisasi.
+         */
+        get: operations["get_job_titles_api_v1_tenants__tenant_id__job_titles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/job-titles/reconciliation-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Laporan Rekonsiliasi Audit Shadow Mapping Jabatan AI
+         * @description Mengambil ringkasan laporan rekonsiliasi jabatan AI: jumlah agen otomatis terpetakan vs butuh keputusan manual.
+         */
+        get: operations["get_reconciliation_report_api_v1_tenants__tenant_id__job_titles_reconciliation_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/job-titles/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Jalankan Audit Rekonsiliasi Shadow Mapping Jabatan AI
+         * @description Mengeksekusi proses Shadow Mapping pada tabel ai_agents, mencatat hasil rekonsiliasi, dan menerbitkan laporan.
+         */
+        post: operations["trigger_job_title_reconcile_api_v1_tenants__tenant_id__job_titles_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/agents/{agent_id}/job-title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Penetapan Manual Jabatan Resmi Agen AI
+         * @description Menetapkan jabatan resmi dari katalog platform untuk menyelesaikan ambiguitas agen.
+         */
+        patch: operations["assign_agent_job_title_api_v1_tenants__tenant_id__agents__agent_id__job_title_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/org-chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bagan Struktur Organisasi Terpadu (Org Chart)
+         * @description Agregasi terpadu struktur departemen, staf manajer, staf operasional, dan AI Agent.
+         */
+        get: operations["get_org_chart_api_v1_tenants__tenant_id__org_chart_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Performance Overview
+         * @description Ringkasan metrik kinerja tingkat eksekutif untuk HomeOverviewScreen.
+         *     Menghasilkan data KPI terpadu, skor radar 6 dimensi (Human vs AI), leaderboard, dan alert aktif.
+         *     Semua angka traceable ke query sumber yang sama dengan layar detail (PRD v2.2 Bagian 22.3).
+         */
+        get: operations["get_performance_overview_api_v1_tenants__tenant_id__performance_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Monthly Performance Detail
+         * @description Mendapatkan detail tabel lengkap evaluasi kinerja bulanan seluruh pekerja.
+         *     Audit Konsistensi Hub vs Detail (PRD v2.2 Bagian 22.3):
+         *     Nilai dan kolom identik dengan sumber data yang digunakan pada ringkasan HomeOverview.
+         */
+        get: operations["get_monthly_performance_detail_api_v1_tenants__tenant_id__performance_monthly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Daily Performance Metrics
+         * @description Mengambil data metrik kinerja harian langsung dari tabel performance_metrics_daily.
+         *     Dapat digunakan untuk verifikasi audit manual dan reproducibility.
+         */
+        get: operations["get_daily_performance_metrics_api_v1_tenants__tenant_id__performance_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/scoring/trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Performance Scoring
+         * @description Memicu kalkulasi skor kinerja bulanan dan penetapan peringkat secara instan (Celery job runner).
+         *     Memerlukan hak akses role TENANT_ADMIN / TENANT_OWNER.
+         */
+        post: operations["trigger_performance_scoring_api_v1_tenants__tenant_id__performance_scoring_trigger_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Performance Alerts
+         * @description Melihat daftar seluruh peringatan deviasi dan anomali kinerja tim.
+         */
+        get: operations["list_performance_alerts_api_v1_tenants__tenant_id__performance_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/performance/alerts/{alert_id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Acknowledge Performance Alert
+         * @description Mengonfirmasi atau menyelesaikan peringatan kinerja.
+         */
+        patch: operations["acknowledge_performance_alert_api_v1_tenants__tenant_id__performance_alerts__alert_id__acknowledge_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/boards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tenant Boards
+         * @description Mengambil seluruh papan kanban milik tenant dari Supabase Postgres.
+         */
+        get: operations["list_tenant_boards_api_v1_tenants__tenant_id__boards_get"];
+        put?: never;
+        /**
+         * Create Board
+         * @description Membuat papan tugas baru di Supabase Postgres.
+         */
+        post: operations["create_board_api_v1_tenants__tenant_id__boards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/boards/{board_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Board Detail
+         * @description Mengambil rincian papan, kolom, dan kartu tugas nyata dari Supabase Postgres.
+         */
+        get: operations["get_board_detail_api_v1_tenants__tenant_id__boards__board_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/boards/{board_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Task
+         * @description Menambahkan tugas baru ke papan kanban nyata.
+         */
+        post: operations["create_task_api_v1_tenants__tenant_id__boards__board_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/boards/{board_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Board Events
+         * @description Mengambil riwayat event kolaborasi papan tugas dari Supabase Postgres.
+         */
+        get: operations["get_board_events_api_v1_tenants__tenant_id__boards__board_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{task_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Move Task
+         * @description Perpindahan Tugas Antar Kolom dengan Kunci Optimistis (Optimistic Concurrency Control)
+         *     - Wajib menyertakan Header If-Match dengan versi tugas
+         *     - Jika versi tidak cocok, tolak 409 Conflict
+         *     - Emit event ke Supabase Realtime channel tenant:{tenant_id}:board:{board_id}
+         */
+        patch: operations["move_task_api_v1_tasks__task_id__move_patch"];
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/register/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Register Challenge */
+        post: operations["webauthn_register_challenge_api_v1_attendance_webauthn_register_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/register-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Register Challenge */
+        post: operations["webauthn_register_challenge_api_v1_attendance_webauthn_register_challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/register/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Register Verify */
+        post: operations["webauthn_register_verify_api_v1_attendance_webauthn_register_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/login/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Login Challenge */
+        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_login_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/authenticate-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Login Challenge */
+        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_authenticate_challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/login-challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webauthn Login Challenge */
+        post: operations["webauthn_login_challenge_api_v1_attendance_webauthn_login_challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/login/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webauthn Verify Attendance
+         * @description Verifikasi Presensi WebAuthn dengan Pencegahan Replay Attack
+         *     - Memeriksa kredensial terdaftar di Supabase Postgres
+         *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
+         */
+        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_login_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/authenticate-verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webauthn Verify Attendance
+         * @description Verifikasi Presensi WebAuthn dengan Pencegahan Replay Attack
+         *     - Memeriksa kredensial terdaftar di Supabase Postgres
+         *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
+         */
+        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_authenticate_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/webauthn/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webauthn Verify Attendance
+         * @description Verifikasi Presensi WebAuthn dengan Pencegahan Replay Attack
+         *     - Memeriksa kredensial terdaftar di Supabase Postgres
+         *     - Memverifikasi bahwa sign_count masuk lebih tinggi daripada sign_count tersimpan
+         */
+        post: operations["webauthn_verify_attendance_api_v1_attendance_webauthn_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attendance Records
+         * @description Mengambil riwayat presensi dari Supabase Postgres.
+         */
+        get: operations["list_attendance_records_api_v1_attendance_records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attendance/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attendance Credentials
+         * @description Mengambil daftar kredensial WebAuthn terdaftar dari Supabase Postgres.
+         */
+        get: operations["list_attendance_credentials_api_v1_attendance_credentials_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orchestration/workflows/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispatch Workflow
+         * @description Memicu eksekusi alur kerja kognitif otonom dari intent.
+         *     Titik Evaluasi PDP ke-1: Endpoint REST.
+         */
+        post: operations["dispatch_workflow_api_v1_orchestration_workflows_dispatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/llm-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Llm Providers
+         * @description Monitoring kesehatan dan status real-time 4 adapter provider LLM:
+         *     NVIDIA NIM, OpenRouter, GPT-Image-2, Gemini.
+         */
+        get: operations["get_admin_llm_providers_api_v1_admin_llm_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mcp-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Mcp Tools
+         * @description Katalog dan tata kelola perkakas F.01-MCP terdaftar.
+         */
+        get: operations["get_admin_mcp_tools_api_v1_admin_mcp_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orchestration/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Inference Endpoint
+         * @description Eksekusi inferensi AI langsung lewat Model Router tunggal dengan validasi Credit Ledger & PDP.
+         */
+        post: operations["execute_inference_endpoint_api_v1_orchestration_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/orchestration/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tenant Orchestration Chat
+         * @description Interaksi chat asisten orkestrasi internal tenant melalui Model Router tunggal.
+         */
+        post: operations["tenant_orchestration_chat_api_v1_tenants__tenant_id__orchestration_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orchestration/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orchestration Executions
+         * @description Mengambil daftar riwayat eksekusi workflow kognitif dari database Supabase nyata.
+         */
+        get: operations["list_orchestration_executions_api_v1_orchestration_executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Decision Outcomes */
+        get: operations["get_decision_outcomes_api_v1_learning_outcomes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning/confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill Confidences */
+        get: operations["get_skill_confidences_api_v1_learning_confidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning/lessons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Lessons Learned */
+        get: operations["get_lessons_learned_api_v1_learning_lessons_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning/growth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Growth Logs */
+        get: operations["get_growth_logs_api_v1_learning_growth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/learning/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Human Feedback */
+        post: operations["submit_human_feedback_api_v1_learning_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subscription Plans
+         * @description Daftar 5 Paket Komersial Resmi OrchestreeAI (PRD v2.2 Bagian 14.1 & Prompt Bagian A):
+         *     TRIAL, STARTER, PROFESSIONAL, ENTERPRISE, CUSTOM.
+         *     Termasuk matriks hak akses 21 fasilitas platform (plan_facility_matrix).
+         */
+        get: operations["list_subscription_plans_api_v1_billing_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/facilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Facility Catalog
+         * @description Katalog 21 Fasilitas Platform OrchestreeAI.
+         */
+        get: operations["list_facility_catalog_api_v1_billing_facilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/topup-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Topup Packages
+         * @description Daftar Paket Top-Up Kredit AI Resmi (Micro, Standar, Pro, Enterprise).
+         */
+        get: operations["list_topup_packages_api_v1_billing_topup_packages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/activity-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Activity Types
+         * @description 18 Baseline Metering Jenis Aktivitas AI OrchestreeAI.
+         */
+        get: operations["list_activity_types_api_v1_billing_activity_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/factors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Credit Factors
+         * @description Faktor Pengali Formula Biaya Kredit AI (Kompleksitas, Model LLM, Tool Risk Tier, Mode Eksekusi).
+         */
+        get: operations["list_credit_factors_api_v1_billing_factors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calculate Credit Estimate
+         * @description Tahap 1: Estimasi Biaya Kredit AI (estimate_credit_cost).
+         *     Transparan ditampilkan ke pengguna sebelum eksekusi beban kerja AI berat.
+         */
+        post: operations["calculate_credit_estimate_api_v1_billing_estimate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/reserve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reserve Credit Endpoint
+         * @description Tahap 2: Reservasi Kredit AI (reserve_credit).
+         *     Mengunci dompet dengan row-level lock (FOR UPDATE).
+         *     Jika akun is_unlimited_override=true, tetap dicatat di reservasi & mutasi audit tanpa menolak saldo.
+         */
+        post: operations["reserve_credit_endpoint_api_v1_billing_reserve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consume Credit Endpoint
+         * @description Tahap 4: Konsumsi Kredit Aktual AI (consume_credit).
+         *     Memotong saldo dompet sesuai pemakaian riil dan mencatat ke buku besar transaksi.
+         */
+        post: operations["consume_credit_endpoint_api_v1_billing_consume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Credit Endpoint
+         * @description Tahap 5: Pengembalian Reservasi Kredit (refund_credit).
+         *     Melepaskan saldo yang direservasi bila eksekusi AI gagal atau dibatalkan.
+         */
+        post: operations["refund_credit_endpoint_api_v1_billing_refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/wallet/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Wallet Summary Current
+         * @description Mengembalikan ringkasan saldo siklus tenant saat ini.
+         */
+        get: operations["get_wallet_summary_current_api_v1_billing_wallet_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/tenants/{tenant_id}/credit-wallet/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Credit Wallet Summary Path
+         * @description Kontrak Resmi BAGIAN C:
+         *     GET /api/v1/tenants/{tenant_id}/credit-wallet/summary (dimount di bawah router billing & tenants).
+         */
+        get: operations["get_tenant_credit_wallet_summary_path_api_v1_billing_tenants__tenant_id__credit_wallet_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Credit Reservations
+         * @description Mengambil daftar reservasi kredit organisasi.
+         */
+        get: operations["list_credit_reservations_api_v1_billing_reservations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/wallets/{tenant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Wallet
+         * @description Mengambil status dompet kredit organisasi.
+         */
+        get: operations["get_tenant_wallet_api_v1_billing_wallets__tenant_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Wallet
+         * @description Mengambil status dompet kredit organisasi.
+         */
+        get: operations["get_tenant_wallet_api_v1_billing_wallet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Transactions
+         * @description Mengambil riwayat mutasi kredit (buku besar).
+         */
+        get: operations["list_transactions_api_v1_billing_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invoices
+         * @description Mengambil daftar faktur pembayaran organisasi.
+         */
+        get: operations["list_invoices_api_v1_billing_invoices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/topup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Topup Invoice
+         * @description Membuat faktur baru untuk pembelian top up kredit AI.
+         *     Menghasilkan payment URL (Midtrans Snap atau Xendit Invoice).
+         */
+        post: operations["create_topup_invoice_api_v1_billing_topup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/sandbox-settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sandbox Settle Payment
+         * @description Pelunasan faktur langsung untuk keperluan verifikasi pengujian & sandbox environment.
+         *     Menjalankan alur resmi Entitlement + AI Credit Allocation (BAGIAN D) secara menyeluruh.
+         */
+        post: operations["sandbox_settle_payment_api_v1_billing_sandbox_settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Subscription Plans
+         * @description CRUD Subscription Plans: Daftar 5 paket komersial resmi (Trial, Starter, Professional, Enterprise, Custom).
+         */
+        get: operations["admin_list_subscription_plans_api_v1_billing_admin_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Subscription Plan
+         * @description Update paket komersial: harga, credit allowance, batas staff/agent, durasi trial.
+         *     Perubahan harga TIDAK mengubah invoice/faktur tenant siklus berjalan karena invoice menyimpan snapshot harga riil.
+         *     Tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_subscription_plan_api_v1_billing_admin_plans__plan_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/facility-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Get Facility Matrix
+         * @description Mengambil katalog fasilitas, daftar paket, dan seluruh matriks hak akses paket komersial.
+         */
+        get: operations["admin_get_facility_matrix_api_v1_billing_admin_facility_matrix_get"];
+        /**
+         * Admin Update Facility Matrix
+         * @description Memperbarui nilai sel matriks hak akses fasilitas paket secara batch atau single cell.
+         *     Nilai level valid: none, basic, advanced, enterprise, custom, limited, unlimited.
+         *     Tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_facility_matrix_api_v1_billing_admin_facility_matrix_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Get Formula Factors
+         * @description Mengambil seluruh parameter formula biaya kredit AI:
+         *     - 18 baseline aktivitas AI (ai_activity_types)
+         *     - Faktor kompleksitas (credit_complexity_factors)
+         *     - Faktor model AI (credit_model_cost_factors)
+         *     - Faktor MCP tool risk tier (credit_tool_factors)
+         *     - Faktor mode eksekusi (credit_execution_factors)
+         */
+        get: operations["admin_get_formula_factors_api_v1_billing_admin_formula_factors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/activity-type/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Activity Type
+         * @description Update baseline metering aktivitas AI. Wajib tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_activity_type_api_v1_billing_admin_formula_factors_activity_type__item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/complexity/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Complexity Factor
+         * @description Update multiplier kompleksitas. Wajib tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_complexity_factor_api_v1_billing_admin_formula_factors_complexity__item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/model/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Model Cost Factor
+         * @description Update multiplier model AI. Wajib tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_model_cost_factor_api_v1_billing_admin_formula_factors_model__item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/tool/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Tool Factor
+         * @description Update multiplier alat MCP. Wajib tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_tool_factor_api_v1_billing_admin_formula_factors_tool__item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/execution/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Execution Factor
+         * @description Update multiplier mode eksekusi. Wajib tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_execution_factor_api_v1_billing_admin_formula_factors_execution__item_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/formula-factors/test-estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Test Estimate Formula
+         * @description Uji nyata formula kredit AI: menghitung estimasi biaya kredit secara langsung
+         *     dari database PostgreSQL (membuktikan perubahan multiplier seketika memengaruhi hasil kalkulasi).
+         */
+        post: operations["admin_test_estimate_formula_api_v1_billing_admin_formula_factors_test_estimate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/topup-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Topup Packages
+         * @description CRUD Paket Top-Up Kredit: Menampilkan seluruh paket dari credit_topup_packages.
+         */
+        get: operations["admin_list_topup_packages_api_v1_billing_admin_topup_packages_get"];
+        put?: never;
+        /**
+         * Admin Create Topup Package
+         * @description Menambahkan paket top-up baru ke katalog resmi. Tercatat di Audit Ledger.
+         */
+        post: operations["admin_create_topup_package_api_v1_billing_admin_topup_packages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/topup-packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Topup Package
+         * @description Memperbarui paket top-up yang ada. Tercatat di Audit Ledger.
+         */
+        put: operations["admin_update_topup_package_api_v1_billing_admin_topup_packages__package_id__put"];
+        post?: never;
+        /**
+         * Admin Delete Topup Package
+         * @description Menonaktifkan paket top-up. Tercatat di Audit Ledger.
+         */
+        delete: operations["admin_delete_topup_package_api_v1_billing_admin_topup_packages__package_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/tenant-subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Tenant Subscriptions
+         * @description Menampilkan daftar tenant beserta detail langganan aktif, status unlimited override,
+         *     dan saldo kredit (balance, reserved, available).
+         */
+        get: operations["admin_list_tenant_subscriptions_api_v1_billing_admin_tenant_subscriptions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/tenant-subscriptions/override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Tenant Unlimited Override
+         * @description Super Admin Override: Mengaktifkan/menonaktifkan akun tanpa batas kredit (is_unlimited_override).
+         *     ATURAN KETAT:
+         *     1. Hanya role SUPER_ADMIN atau PLATFORM_SUPERADMIN yang berwenang.
+         *     2. Alasan (unlimited_reason) WAJIB diisi jika is_unlimited_override=true.
+         *     3. Tercatat di Audit Ledger dengan capability 'billing.unlimited_grant' dan risk_tier 'critical'.
+         */
+        post: operations["set_tenant_unlimited_override_api_v1_billing_tenant_subscriptions_override_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/tenant-override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Tenant Unlimited Override
+         * @description Super Admin Override: Mengaktifkan/menonaktifkan akun tanpa batas kredit (is_unlimited_override).
+         *     ATURAN KETAT:
+         *     1. Hanya role SUPER_ADMIN atau PLATFORM_SUPERADMIN yang berwenang.
+         *     2. Alasan (unlimited_reason) WAJIB diisi jika is_unlimited_override=true.
+         *     3. Tercatat di Audit Ledger dengan capability 'billing.unlimited_grant' dan risk_tier 'critical'.
+         */
+        post: operations["set_tenant_unlimited_override_api_v1_billing_admin_tenant_override_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/manual-adjustment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Manual Credit Adjustment
+         * @description Super Admin Manual Credit Adjustment:
+         *     Menyesuaikan saldo kredit tenant secara manual (misal refund kompensasi insiden).
+         *     Alasan (reason) WAJIB diisi.
+         *     Mencatat ke tenant_credit_wallet, credit_allocations, tenant_credit_transactions, dan audit_logs.
+         */
+        post: operations["admin_manual_credit_adjustment_api_v1_billing_admin_manual_adjustment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing/admin/command-center": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Financial Command Center
+         * @description Pusat Kendali Finansial Super Admin (PRD v2.2 Bagian 14 & 18.2).
+         *     Menampilkan agregasi finansial komprehensif lintas organisasi:
+         *     - Likuiditas kredit sirkulasi, reservasi, & saldo tersedia
+         *     - MRR (Monthly Recurring Revenue) dari paket aktif
+         *     - Distribusi tenant per paket langganan
+         *     - Top consumer kredit (organisasi dengan konsumsi tertinggi)
+         *     - Proyeksi revenue dari alokasi top-up + invoice lunas
+         *     - Rekonsiliasi payment gateway (Midtrans & Xendit)
+         */
+        get: operations["get_financial_command_center_api_v1_billing_admin_command_center_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/credit-wallet/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Summary Direct
+         * @description Router alternatif langsung pada path /api/v1/tenants/{tenant_id}/credit-wallet/summary.
+         */
+        get: operations["get_tenant_summary_direct_api_v1_tenants__tenant_id__credit_wallet_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/subscription/tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Subscription Tier
+         * @description Mengambil status tier langganan tenant dari Supabase Postgres.
+         */
+        get: operations["get_tenant_subscription_tier_api_v1_tenants__tenant_id__subscription_tier_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/subscription/change-tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Tenant Subscription Tier
+         * @description Mengubah tier langganan tenant.
+         */
+        post: operations["change_tenant_subscription_tier_api_v1_tenants__tenant_id__subscription_change_tier_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/billing/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Billing Wallet Direct
+         * @description Mengambil status dompet kredit tenant dari Supabase.
+         */
+        get: operations["get_tenant_billing_wallet_direct_api_v1_tenants__tenant_id__billing_wallet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/payment/midtrans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Midtrans Webhook
+         * @description Webhook handler resmi untuk notifikasi transaksi Midtrans Snap/Core API.
+         *     Memverifikasi tanda tangan SHA512(order_id + status_code + gross_amount + ServerKey).
+         */
+        post: operations["handle_midtrans_webhook_api_v1_webhooks_payment_midtrans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/payment/xendit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Xendit Webhook
+         * @description Webhook handler resmi untuk notifikasi transaksi Xendit Invoice.
+         *     Memverifikasi x-callback-token sesuai standar keamanan Xendit.
+         */
+        post: operations["handle_xendit_webhook_api_v1_webhooks_payment_xendit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify Meta Whatsapp Webhook
+         * @description Verifikasi handshake webhook resmi Meta WhatsApp Business Cloud API.
+         *     Memeriksa kesesuaian hub.verify_token dengan konfigurasi META_WEBHOOK_VERIFY_TOKEN.
+         */
+        get: operations["verify_meta_whatsapp_webhook_api_v1_webhooks_whatsapp_get"];
+        put?: never;
+        /**
+         * Handle Whatsapp Webhook
+         * @description Menerima incoming message webhook dari Meta WhatsApp Cloud API:
+         *     1. Membedakan pesan Proaktif vs Omnichannel berdasarkan phone_number_id
+         *     2. Mendeteksi perintah Opt-Out (STOP / BERHENTI) & Opt-In (START / LANJUT)
+         *     3. Mengirimkan balasan resmi konfirmasi ke pengguna
+         */
+        post: operations["handle_whatsapp_webhook_api_v1_webhooks_whatsapp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Telegram Bot Webhook
+         * @description Webhook resmi Telegram Bot platform:
+         *     1. Memverifikasi deep-link command: /start verify_{verification_code}
+         *     2. Memproses protokol Opt-Out (STOP / BERHENTI / /stop) & Opt-In (START / /start)
+         *     3. Memberikan panduan perintah resmi platform
+         */
+        post: operations["handle_telegram_bot_webhook_api_v1_webhooks_telegram_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/telegram-bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handle Telegram Bot Webhook
+         * @description Webhook resmi Telegram Bot platform:
+         *     1. Memverifikasi deep-link command: /start verify_{verification_code}
+         *     2. Memproses protokol Opt-Out (STOP / BERHENTI / /stop) & Opt-In (START / /start)
+         *     3. Memberikan panduan perintah resmi platform
+         */
+        post: operations["handle_telegram_bot_webhook_api_v1_webhooks_telegram_bot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/channels/whatsapp/request-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Request Whatsapp Otp
+         * @description Menerbitkan dan mengirimkan OTP verifikasi nomor WhatsApp via Meta Cloud API.
+         */
+        post: operations["api_request_whatsapp_otp_api_v1_proactive_channels_whatsapp_request_otp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/channels/whatsapp/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Verify Whatsapp Otp
+         * @description Memverifikasi OTP WhatsApp staf dan mengaktifkan preferensi proaktif.
+         */
+        post: operations["api_verify_whatsapp_otp_api_v1_proactive_channels_whatsapp_verify_otp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/channels/telegram/deeplink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Generate Telegram Deeplink
+         * @description Membuat tautan deep-link verifikasi resmi Telegram Bot: t.me/{bot}?start=verify_{code}.
+         */
+        post: operations["api_generate_telegram_deeplink_api_v1_proactive_channels_telegram_deeplink_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Get Subscriptions
+         * @description Mengambil status langganan kanal proaktif staf (WhatsApp & Telegram).
+         */
+        get: operations["api_get_subscriptions_api_v1_proactive_subscriptions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/subscriptions/{channel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Api Update Subscription
+         * @description Memperbarui preferensi jadwal pengiriman dan jenis notifikasi kanal.
+         */
+        patch: operations["api_update_subscription_api_v1_proactive_subscriptions__channel__patch"];
+        trace?: never;
+    };
+    "/api/v1/proactive/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Get Logs
+         * @description Mengambil riwayat log audit pengiriman pesan proaktif.
+         */
+        get: operations["api_get_logs_api_v1_proactive_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Get Notifications
+         * @description Mengambil pesan dari In-App Notification Center.
+         */
+        get: operations["api_get_notifications_api_v1_proactive_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Api Mark Notification Read
+         * @description Menandai satu notifikasi telah dibaca.
+         */
+        patch: operations["api_mark_notification_read_api_v1_proactive_notifications__notification_id__read_patch"];
+        trace?: never;
+    };
+    "/api/v1/proactive/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Mark All Read
+         * @description Menandai seluruh notifikasi in-app telah dibaca.
+         */
+        post: operations["api_mark_all_read_api_v1_proactive_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/push/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Register Web Push
+         * @description Mendaftarkan langganan Web Push VAPID peramban.
+         */
+        post: operations["api_register_web_push_api_v1_proactive_push_subscribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proactive/scheduler/trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Trigger Scheduler
+         * @description Memicu siklus pengiriman pesan proaktif (Celery Beat task runner).
+         */
+        post: operations["api_trigger_scheduler_api_v1_proactive_scheduler_trigger_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chat/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stream Chat Message
+         * @description Streaming SSE untuk asisten Ask AI (PRD v2.2 Bagian 8.2):
+         *     1. Validasi PDP authorize()
+         *     2. Reservasi Kredit di Credit Ledger (Estimated 15 CR)
+         *     3. Eksekusi inferensi multi-provider melalui Model Router
+         *     4. Streaming token per token via text/event-stream (SSE)
+         *     5. Rekonsiliasi & konsumsi kredit aktual saat selesai, atau refund jika gagal
+         */
+        post: operations["stream_chat_message_api_v1_chat_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/memory/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Tenant Memory
+         * @description Pencarian hybrid multi-modal teks & vektor memori Company Brain.
+         *     Tervalidasi secara ketat oleh isolasi RLS dan filter ABAC/PDP per entitas data.
+         */
+        get: operations["search_tenant_memory_api_v1_tenants__tenant_id__memory_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/memory/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Tenant Memory Document
+         * @description Menyimpan dokumen pengetahuan baru dan menghasilkan representasi vektor embedding 1536.
+         */
+        post: operations["create_tenant_memory_document_api_v1_tenants__tenant_id__memory_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/memory/consolidate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consolidate Tenant Memory
+         * @description Memicu evaluasi peluruhan (decay) confidence memori organisasi.
+         */
+        post: operations["consolidate_tenant_memory_api_v1_tenants__tenant_id__memory_consolidate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Competitor Targets */
+        get: operations["list_competitor_targets_api_v1_tenants__tenant_id__competitor_targets_get"];
+        put?: never;
+        /** Create Competitor Target */
+        post: operations["create_competitor_target_api_v1_tenants__tenant_id__competitor_targets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/targets/{target_id}/crawl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger Crawl Target */
+        post: operations["trigger_crawl_target_api_v1_tenants__tenant_id__competitor_targets__target_id__crawl_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Snapshots */
+        get: operations["list_snapshots_api_v1_tenants__tenant_id__competitor_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Changes */
+        get: operations["list_changes_api_v1_tenants__tenant_id__competitor_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Insights */
+        get: operations["list_insights_api_v1_tenants__tenant_id__competitor_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/insights/{insight_id}/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dispatch Insight Proactive */
+        post: operations["dispatch_insight_proactive_api_v1_tenants__tenant_id__competitor_insights__insight_id__dispatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reports */
+        get: operations["list_reports_api_v1_tenants__tenant_id__competitor_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/competitor/reports/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Report */
+        post: operations["generate_report_api_v1_tenants__tenant_id__competitor_reports_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/world-monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get World Monitor
+         * @description Sinyal makro global dan tren industri eksternal dari basis data nyata.
+         */
+        get: operations["get_world_monitor_api_v1_tenants__tenant_id__intelligence_world_monitor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/vibe-prospecting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vibe Prospecting
+         * @description Radar prospek komersial & deteksi sinyal niat beli dari percakapan publik dari basis data nyata.
+         */
+        get: operations["get_vibe_prospecting_api_v1_tenants__tenant_id__intelligence_vibe_prospecting_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/data-quality/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Quality Issues
+         * @description Mengambil riwayat isu kualitas data dan konflik sumber untuk tenant.
+         */
+        get: operations["list_data_quality_issues_api_v1_tenants__tenant_id__intelligence_data_quality_issues_get"];
+        put?: never;
+        /**
+         * Create Data Quality Issue
+         * @description Mencatat isu kualitas data baru.
+         *     ATURAN MUTLAK: ai_auto_selection_prevented = True untuk isu konflik.
+         */
+        post: operations["create_data_quality_issue_api_v1_tenants__tenant_id__intelligence_data_quality_issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/data-quality/issues/{issue_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Data Quality Issue
+         * @description Menerima pengesahan resolusi manusia atas konflik data sumber eksternal.
+         *     AI TIDAK PERNAH memilih secara sepihak; pengesahan murni berasal dari manusia.
+         */
+        post: operations["resolve_data_quality_issue_api_v1_tenants__tenant_id__intelligence_data_quality_issues__issue_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/validate-availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Data Availability
+         * @description Output Validator:
+         *     Memeriksa klaim ketersediaan data dari LLM/agen.
+         *     Klaim AVAILABLE palsu secara tegas DITOLAK bila data kosong / tidak sah,
+         *     dan insiden penolakan dicatat sebagai isu kualitas data.
+         */
+        post: operations["validate_data_availability_api_v1_tenants__tenant_id__intelligence_validate_availability_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/intelligence/data-quality/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Data Quality Summary
+         * @description Mengambil statistik agregat ketersediaan dan isu kualitas data.
+         */
+        get: operations["get_data_quality_summary_api_v1_tenants__tenant_id__intelligence_data_quality_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/brain/inventory/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Brain Live Inventory
+         * @description Mengambil status inventori & katalog langsung dari basis data produk untuk Company Brain.
+         */
+        get: operations["get_brain_live_inventory_api_v1_tenants__tenant_id__brain_inventory_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/brain/sync-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Catalog To Brain
+         * @description Menyelaraskan seluruh katalog produk ke basis pengetahuan Company Brain.
+         */
+        post: operations["sync_catalog_to_brain_api_v1_tenants__tenant_id__brain_sync_catalog_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/integrations/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Mengambil daftar katalog aplikasi resmi yang didukung platform OrchestreeAI dari basis data nyata.
+         */
+        get: operations["get_catalog_api_v1_admin_integrations_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog
+         * @description Mengambil daftar katalog aplikasi resmi yang didukung platform OrchestreeAI dari basis data nyata.
+         */
+        get: operations["get_catalog_api_v1_integrations_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Connections
+         * @description Mengambil status seluruh koneksi integrasi aktif/non-aktif milik tenant dari database Supabase nyata.
+         */
+        get: operations["get_tenant_connections_api_v1_tenants__tenant_id__integrations_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections/{connection_id}/health-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Health
+         * @description Menjalankan health-check berkala terhadap token dan konektivitas provider.
+         */
+        post: operations["check_health_api_v1_tenants__tenant_id__integrations_connections__connection_id__health_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections/{connection_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Connection
+         * @description Melakukan pemutusan koneksi dengan Revoke Cascading (PRD Bagian 12.9):
+         *     Membatalkan seluruh scheduled post terkait dan mematikan sync worker tanpa job yatim.
+         */
+        post: operations["revoke_connection_api_v1_tenants__tenant_id__integrations_connections__connection_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/sync-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Integration Sync Logs
+         * @description Mengambil log sinkronisasi integrasi pihak ketiga untuk tenant.
+         */
+        get: operations["get_integration_sync_logs_api_v1_tenants__tenant_id__integrations_sync_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections/{connection_id}/refresh-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Connection Token
+         * @description Memperbarui token otentikasi koneksi integrasi.
+         */
+        post: operations["refresh_connection_token_api_v1_tenants__tenant_id__integrations_connections__connection_id__refresh_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections/{connection_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Connection Sync
+         * @description Memicu sinkronisasi data dari aplikasi pihak ketiga.
+         */
+        post: operations["trigger_connection_sync_api_v1_tenants__tenant_id__integrations_connections__connection_id__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/integrations/connections/{connection_id}/transparency-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Consent Transparency Notice
+         * @description Mencatat persetujuan transparansi observasi (metadata-only) untuk integrasi pihak ketiga.
+         */
+        post: operations["consent_transparency_notice_api_v1_tenants__tenant_id__integrations_connections__connection_id__transparency_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/prospects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Semua Prospek & Status Uji Coba
+         * @description Mengembalikan daftar prospek organisasi untuk Admin Super Hub.
+         */
+        get: operations["list_prospects_admin_prospects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/trial-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ringkasan Status 36 Slot Trial Real-Time
+         * @description Membaca status real-time 36 slot trial dan statistik alokasi dari platform_settings.
+         */
+        get: operations["get_trial_slots_overview_admin_trial_slots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/prospects/{prospect_id}/select-trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Alokasi Atomik Slot Trial untuk Prospek
+         * @description Mengamankan slot trial secara atomik (SELECT FOR UPDATE SKIP LOCKED) untuk prospek tertentu.
+         */
+        patch: operations["allocate_prospect_slot_admin_prospects__prospect_id__select_trial_patch"];
+        trace?: never;
+    };
+    "/admin/prospects/{prospect_id}/schedule-meeting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Jadwalkan Pertemuan Solusi Enterprise
+         * @description Menyimpan jadwal meeting eksekutif untuk prospek.
+         */
+        patch: operations["schedule_prospect_meeting_admin_prospects__prospect_id__schedule_meeting_patch"];
+        trace?: never;
+    };
+    "/admin/prospects/{prospect_id}/activate-trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aktivasi Tenant Uji Coba Resmi
+         * @description Mengaktifkan masa trial resmi dan mendepositkan 1,000 credit kerja awal ke tenant.
+         */
+        post: operations["activate_prospect_trial_admin_prospects__prospect_id__activate_trial_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/prospects/{prospect_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus atau Tolak Prospek
+         * @description Menghapus data prospek dan membebaskan slot trial jika sebelumnya terisi.
+         */
+        delete: operations["delete_prospect_admin_prospects__prospect_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/web-integrity-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Log Audit Web Integrity Cloudflare Turnstile
+         * @description Menampilkan log verifikasi bot integritas untuk audit keamanan.
+         */
+        get: operations["list_web_integrity_logs_admin_web_integrity_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/prospects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Semua Prospek & Status Uji Coba
+         * @description Mengembalikan daftar prospek organisasi untuk Admin Super Hub.
+         */
+        get: operations["list_prospects_api_v1_admin_prospects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/trial-slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ringkasan Status 36 Slot Trial Real-Time
+         * @description Membaca status real-time 36 slot trial dan statistik alokasi dari platform_settings.
+         */
+        get: operations["get_trial_slots_overview_api_v1_admin_trial_slots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/prospects/{prospect_id}/select-trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Alokasi Atomik Slot Trial untuk Prospek
+         * @description Mengamankan slot trial secara atomik (SELECT FOR UPDATE SKIP LOCKED) untuk prospek tertentu.
+         */
+        patch: operations["allocate_prospect_slot_api_v1_admin_prospects__prospect_id__select_trial_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/prospects/{prospect_id}/schedule-meeting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Jadwalkan Pertemuan Solusi Enterprise
+         * @description Menyimpan jadwal meeting eksekutif untuk prospek.
+         */
+        patch: operations["schedule_prospect_meeting_api_v1_admin_prospects__prospect_id__schedule_meeting_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/prospects/{prospect_id}/activate-trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aktivasi Tenant Uji Coba Resmi
+         * @description Mengaktifkan masa trial resmi dan mendepositkan 1,000 credit kerja awal ke tenant.
+         */
+        post: operations["activate_prospect_trial_api_v1_admin_prospects__prospect_id__activate_trial_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/prospects/{prospect_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Hapus atau Tolak Prospek
+         * @description Menghapus data prospek dan membebaskan slot trial jika sebelumnya terisi.
+         */
+        delete: operations["delete_prospect_api_v1_admin_prospects__prospect_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/web-integrity-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Log Audit Web Integrity Cloudflare Turnstile
+         * @description Menampilkan log verifikasi bot integritas untuk audit keamanan.
+         */
+        get: operations["list_web_integrity_logs_api_v1_admin_web_integrity_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/channel-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Akun Kanal Tenant
+         * @description Mengembalikan seluruh akun kanal aktif dan pending milik tenant.
+         */
+        get: operations["list_channel_accounts_api_v1_tenants__tenant_id__channel_accounts_get"];
+        put?: never;
+        /**
+         * Registrasi Akun Kanal Baru
+         * @description Mendaftarkan akun kanal baru (WhatsApp Cloud API atau Telegram MTProto).
+         */
+        post: operations["create_channel_account_api_v1_tenants__tenant_id__channel_accounts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/channel-accounts/{ca_id}/qr-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Buat Sesi QR Login Telegram MTProto
+         * @description Memicu pembuatan sesi MTProto baru dan mengekspor login token resmi untuk dipindai via QR Code.
+         */
+        post: operations["create_mtproto_qr_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_session_post"];
+        /**
+         * Putuskan Sesi MTProto (Revoke Resmi)
+         * @description Mencabut otorisasi Telegram MTProto resmi (auth.logOut) dan menghapus data sesi dari database.
+         */
+        delete: operations["revoke_channel_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_session_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/channel-accounts/{ca_id}/qr-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poll Status QR Session MTProto
+         * @description Memeriksa status pemindaian QR code sesi Telegram secara berkala.
+         */
+        get: operations["check_mtproto_qr_status_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/channel-accounts/{ca_id}/qr-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Konfirmasi Otorisasi Sesi MTProto
+         * @description Menerima otorisasi loginToken Telegram dan menyimpan session string dengan envelope encryption KMS.
+         */
+        post: operations["confirm_mtproto_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Percakapan Omnichannel
+         * @description Mengembalikan daftar obrolan aktif dari WhatsApp dan Telegram beserta profil pelanggan.
+         */
+        get: operations["list_conversations_api_v1_tenants__tenant_id__conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/conversations/{conv_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Riwayat Pesan Percakapan
+         * @description Mengambil riwayat pesan masuk dan keluar untuk satu percakapan.
+         */
+        get: operations["get_conversation_messages_api_v1_tenants__tenant_id__conversations__conv_id__messages_get"];
+        put?: never;
+        /**
+         * Kirim Pesan Keluar
+         * @description Mengirim pesan keluar via MTProto atau API resmi, menerapkan anti-flood guard & memotong kredit.
+         */
+        post: operations["send_outbound_message_api_v1_tenants__tenant_id__conversations__conv_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/conversations/{conv_id}/handover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Alihkan Percakapan (AI <-> Human)
+         * @description Mengalihkan penanganan percakapan antara asisten AI dan staf manusia.
+         */
+        patch: operations["handover_conversation_api_v1_tenants__tenant_id__conversations__conv_id__handover_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Direktori Pelanggan Kanonik
+         * @description Mengembalikan direktori profil pelanggan beserta identitas kanal terhubung.
+         */
+        get: operations["list_customers_api_v1_tenants__tenant_id__customers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/customers/merge-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Review Penggabungan WEAK Match
+         * @description Mengembalikan daftar kandidat penggabungan profil pelanggan dengan status WEAK yang menunggu verifikasi manusia.
+         */
+        get: operations["list_merge_reviews_api_v1_tenants__tenant_id__customers_merge_reviews_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/customers/merge-reviews/{log_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setujui Penggabungan Profil
+         * @description Menyetujui penggabungan profil pelanggan WEAK match, memindahkan identitas kanal & percakapan.
+         */
+        post: operations["approve_customer_merge_api_v1_tenants__tenant_id__customers_merge_reviews__log_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/customers/merge-reviews/{log_id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batalkan Penggabungan Profil (Rollback)
+         * @description Membatalkan penggabungan profil pelanggan yang sebelumnya disetujui (reversible).
+         */
+        post: operations["rollback_customer_merge_api_v1_tenants__tenant_id__customers_merge_reviews__log_id__rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/omnichannel/inbound": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbound Webhook Kanal Terpadu
+         * @description Jalur kanonik tunggal untuk payload masuk dari Meta WhatsApp Cloud API atau webhook resmi.
+         *     Memverifikasi tanda tangan signature, menolak channel yang tidak dikenali,
+         *     dan meneruskan ke route_inbound_message.
+         */
+        post: operations["inbound_webhook_handler_api_v1_webhooks_omnichannel_inbound_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/commerce/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Products
+         * @description Mengambil katalog produk resmi bertenant dari database nyata.
+         */
+        get: operations["get_products_api_v1_commerce_products_get"];
+        put?: never;
+        /**
+         * Create Product
+         * @description Menambahkan produk baru ke katalog resmi.
+         */
+        post: operations["create_product_api_v1_commerce_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Products
+         * @description Mengambil katalog produk resmi bertenant dari database nyata.
+         */
+        get: operations["get_products_api_v1_tenants__tenant_id__commerce_products_get"];
+        put?: never;
+        /**
+         * Create Product
+         * @description Menambahkan produk baru ke katalog resmi.
+         */
+        post: operations["create_product_api_v1_tenants__tenant_id__commerce_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/commerce/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Product
+         * @description Memperbarui metadata produk di katalog.
+         */
+        put: operations["update_product_api_v1_commerce_products__product_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Product
+         * @description Memperbarui metadata produk di katalog.
+         */
+        put: operations["update_product_api_v1_tenants__tenant_id__commerce_products__product_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/commerce/products/{product_id}/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update Stock
+         * @description Memperbarui tingkat stok gudang aktual produk.
+         */
+        post: operations["update_stock_api_v1_commerce_products__product_id__stock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/products/{product_id}/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Stock
+         * @description Memperbarui tingkat stok gudang aktual produk.
+         */
+        put: operations["update_stock_api_v1_tenants__tenant_id__commerce_products__product_id__stock_put"];
+        /**
+         * Update Stock
+         * @description Memperbarui tingkat stok gudang aktual produk.
+         */
+        post: operations["update_stock_api_v1_tenants__tenant_id__commerce_products__product_id__stock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/commerce/promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Promotions
+         * @description Mengambil daftar promosi aktif tenant dari basis data nyata.
+         */
+        get: operations["get_promotions_api_v1_commerce_promotions_get"];
+        put?: never;
+        /**
+         * Create Promotion
+         * @description Menerbitkan aturan promosi diskon baru.
+         */
+        post: operations["create_promotion_api_v1_commerce_promotions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Promotions
+         * @description Mengambil daftar promosi aktif tenant dari basis data nyata.
+         */
+        get: operations["get_promotions_api_v1_tenants__tenant_id__commerce_promotions_get"];
+        put?: never;
+        /**
+         * Create Promotion
+         * @description Menerbitkan aturan promosi diskon baru.
+         */
+        post: operations["create_promotion_api_v1_tenants__tenant_id__commerce_promotions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/{customer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Or Create Cart
+         * @description Mengambil atau menginisiasi keranjang belanja aktif pelanggan dari data nyata.
+         */
+        get: operations["get_or_create_cart_api_v1_cart__customer_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/{cart_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Cart Item
+         * @description Menambahkan produk ke keranjang belanja.
+         */
+        post: operations["add_cart_item_api_v1_cart__cart_id__items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/{cart_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Cart Item
+         * @description Menghapus item dari keranjang belanja.
+         */
+        delete: operations["remove_cart_item_api_v1_cart__cart_id__items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/{cart_id}/quotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Quotation
+         * @description Menerbitkan quotation (penawaran harga resmi) berbatas waktu dari keranjang belanja.
+         */
+        post: operations["create_quotation_api_v1_cart__cart_id__quotation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Checkout Cart
+         * @description Mengonversi keranjang belanja aktif menjadi pesanan (order) resmi.
+         */
+        post: operations["checkout_cart_api_v1_cart_checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Orders
+         * @description Mengambil daftar pesanan pelanggan resmi dari database nyata.
+         */
+        get: operations["get_orders_api_v1_tenants__tenant_id__commerce_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Orders
+         * @description Mengambil daftar pesanan pelanggan resmi dari database nyata.
+         */
+        get: operations["get_orders_api_v1_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/orders/{order_id}/waybill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Waybill
+         * @description Menerbitkan resi pengiriman (AWB) dari ekspedisi resmi.
+         */
+        post: operations["create_waybill_api_v1_tenants__tenant_id__commerce_orders__order_id__waybill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/{order_id}/waybill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Waybill
+         * @description Menerbitkan resi pengiriman (AWB) dari ekspedisi resmi.
+         */
+        post: operations["create_waybill_api_v1_orders__order_id__waybill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shipping Rates
+         * @description Mengecek tarif ongkir resmi kurir (JNE, J&T, SiCepat, AnterAja).
+         */
+        get: operations["get_shipping_rates_api_v1_shipping_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/shipping/tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shipping Tracking
+         * @description Menjawab pertanyaan pelacakan 'sudah sampai mana' HANYA berbasis event tracking nyata.
+         */
+        get: operations["get_shipping_tracking_api_v1_tenants__tenant_id__commerce_shipping_tracking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping/tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shipping Tracking
+         * @description Menjawab pertanyaan pelacakan 'sudah sampai mana' HANYA berbasis event tracking nyata.
+         */
+        get: operations["get_shipping_tracking_api_v1_shipping_tracking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/commerce/validate-grounding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Grounding
+         * @description Penegakan Grounding Output Validator harga & stok sebelum AI mengirim jawaban.
+         */
+        post: operations["validate_grounding_api_v1_tenants__tenant_id__commerce_validate_grounding_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/grounding/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Grounding
+         * @description Penegakan Grounding Output Validator harga & stok sebelum AI mengirim jawaban.
+         */
+        post: operations["validate_grounding_api_v1_grounding_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/commerce/webhook-signature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Webhook Signature Endpoint
+         * @description Menghasilkan signature SHA512 untuk verifikasi webhook payment gateway.
+         */
+        post: operations["generate_webhook_signature_endpoint_api_v1_commerce_webhook_signature_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/sales-stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Sales Stage
+         * @description Transisi state machine SalesStage percakapan.
+         */
+        put: operations["update_sales_stage_api_v1_conversations_sales_stage_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/payment/{gateway}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Payment Webhook
+         * @description SATU-SATUNYA sumber kebenaran status 'paid' adalah webhook resmi yang tervalidasi signature.
+         *     AI Closer TIDAK PERNAH menandai pesanan 'paid' secara manual.
+         */
+        post: operations["receive_payment_webhook_api_v1_webhooks_payment__gateway__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Crm Pipeline
+         * @description Mengambil matriks pipeline Kanban CRM dari Supabase Postgres.
+         */
+        get: operations["get_crm_pipeline_api_v1_tenants__tenant_id__crm_pipeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Leads
+         * @description Mengambil daftar leads bertenant dari Supabase Postgres.
+         */
+        get: operations["list_leads_api_v1_tenants__tenant_id__crm_leads_get"];
+        put?: never;
+        /**
+         * Create Lead
+         * @description Membuat lead baru di Supabase Postgres.
+         */
+        post: operations["create_lead_api_v1_tenants__tenant_id__crm_leads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads/{lead_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lead Detail
+         * @description Mengambil rincian lead dan kualifikasi BANT dari basis data nyata.
+         */
+        get: operations["get_lead_detail_api_v1_tenants__tenant_id__crm_leads__lead_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads/{lead_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lead Timeline
+         * @description Mengambil riwayat audit scoring dan timeline aktivitas lead.
+         */
+        get: operations["get_lead_timeline_api_v1_tenants__tenant_id__crm_leads__lead_id__timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads/{lead_id}/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Lead Stage
+         * @description Memperbarui tahap lead dan menghitung ulang tahap funnel.
+         */
+        patch: operations["update_lead_stage_api_v1_tenants__tenant_id__crm_leads__lead_id__stage_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads/{lead_id}/qualification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Lead Qualification
+         * @description Mencatat jawaban kualifikasi lead dan memperbarui skor secara matematis.
+         */
+        post: operations["record_lead_qualification_api_v1_tenants__tenant_id__crm_leads__lead_id__qualification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/leads/{lead_id}/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recalculate Lead Score
+         * @description Menghitung ulang skor lead dari parameter database terkini.
+         */
+        post: operations["recalculate_lead_score_api_v1_tenants__tenant_id__crm_leads__lead_id__recalculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/personas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Crm Personas
+         * @description Mengambil daftar persona AI Agent dan konfigurasinya dari Supabase Postgres.
+         */
+        get: operations["list_crm_personas_api_v1_tenants__tenant_id__crm_personas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/personas/{agent_id}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Persona Config
+         * @description Memperbarui konfigurasi persona AI Agent (tone, pertanyaan BANT, score triggers).
+         */
+        patch: operations["update_persona_config_api_v1_tenants__tenant_id__crm_personas__agent_id__config_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/persona-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Persona Rules
+         * @description Mengambil daftar aturan handover antar persona dari Supabase Postgres.
+         */
+        get: operations["list_persona_rules_api_v1_tenants__tenant_id__crm_persona_rules_get"];
+        put?: never;
+        /**
+         * Create Persona Rule
+         * @description Membuat aturan handover baru di tabel persona_handoff_rules.
+         */
+        post: operations["create_persona_rule_api_v1_tenants__tenant_id__crm_persona_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/persona-rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Persona Rule
+         * @description Menghapus aturan handover persona dari Supabase Postgres.
+         */
+        delete: operations["delete_persona_rule_api_v1_tenants__tenant_id__crm_persona_rules__rule_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/crm/persona-handovers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Persona Handovers
+         * @description Mengambil riwayat handover persona dari Supabase Postgres.
+         */
+        get: operations["list_persona_handovers_api_v1_tenants__tenant_id__crm_persona_handovers_get"];
+        put?: never;
+        /**
+         * Test Or Dispatch Handover
+         * @description Mengeksekusi handover persona dan mencatatnya ke audit ledger Supabase.
+         */
+        post: operations["test_or_dispatch_handover_api_v1_tenants__tenant_id__crm_persona_handovers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/segments/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Audience Segment
+         * @description Menghasilkan pratinjau audiens nyata berdasarkan filter terparameterisasi.
+         *     TIDAK PERNAH menggunakan SQL bebas dari LLM (PRD v2.2 Bagian 12.6).
+         */
+        post: operations["preview_audience_segment_api_v1_tenants__tenant_id__marketing_segments_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Marketing Campaign
+         * @description Membuat kampanye pemasaran terpadu.
+         */
+        post: operations["create_marketing_campaign_api_v1_tenants__tenant_id__marketing_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/campaigns/{campaign_id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Marketing Campaign
+         * @description Mengeksekusi pengiriman kampanye secara langsung ke audiens terparameterisasi.
+         */
+        post: operations["execute_marketing_campaign_api_v1_tenants__tenant_id__marketing_campaigns__campaign_id__execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Content Calendar
+         * @description Mengambil jadwal content calendar tenant nyata dari database Supabase.
+         */
+        get: operations["get_content_calendar_api_v1_tenants__tenant_id__marketing_calendar_get"];
+        put?: never;
+        /**
+         * Schedule Calendar Post
+         * @description Menjadwalkan konten baru ke kalender sosial media via F.01-SOCIAL.
+         */
+        post: operations["schedule_calendar_post_api_v1_tenants__tenant_id__marketing_calendar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/calendar/{item_id}/scrub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scrub Calendar Media Metadata
+         * @description Membersihkan metadata teknis (EXIF, XMP, IPTC, C2PA) secara tuntas.
+         *     Prasyarat wajib sebelum konten dapat dipublikasikan.
+         */
+        post: operations["scrub_calendar_media_metadata_api_v1_tenants__tenant_id__marketing_calendar__item_id__scrub_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/calendar/{item_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Calendar Post
+         * @description Menerbitkan postingan media sosial.
+         *     ATURAN MUTLAK PRD v2.2 Bagian 11.12.7:
+         *     Publish job WAJIB MENOLAK item yang metadata_scrub_status belum 'clean'!
+         */
+        post: operations["publish_calendar_post_api_v1_tenants__tenant_id__marketing_calendar__item_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/calendar/{item_id}/disclosure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Toggle Post Ai Disclosure
+         * @description Mengatur toggle disclosure AI secara independen dari pembersihan metadata teknis.
+         */
+        patch: operations["toggle_post_ai_disclosure_api_v1_tenants__tenant_id__marketing_calendar__item_id__disclosure_patch"];
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/marketplaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Marketplace Integrations
+         * @description Mengambil status koneksi Partner API Marketplace milik tenant dari basis data nyata.
+         */
+        get: operations["get_marketplace_integrations_api_v1_tenants__tenant_id__marketing_marketplaces_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/marketplaces/sync-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Marketplace Orders
+         * @description Menyinkronkan pesanan masuk dari semua Partner API marketplace ke tabel internal orders.
+         */
+        post: operations["sync_marketplace_orders_api_v1_tenants__tenant_id__marketing_marketplaces_sync_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/marketing/marketplaces/fulfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fulfill Marketplace Order
+         * @description Mengirimkan nomor resi ekspedisi dan status pengiriman balik ke marketplace.
+         */
+        post: operations["fulfill_marketplace_order_api_v1_tenants__tenant_id__marketing_marketplaces_fulfill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/social/instagram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Instagram Webhook
+         * @description Webhook resmi Meta Graph API untuk komentar dan pesan Instagram.
+         *     Mendeteksi Commercial Intent dan membalas otomatis via DM & komentar publik.
+         */
+        post: operations["receive_instagram_webhook_api_v1_webhooks_social_instagram_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/social/tiktok": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Tiktok Webhook
+         * @description Webhook resmi TikTok for Business untuk video comment & direct message.
+         */
+        post: operations["receive_tiktok_webhook_api_v1_webhooks_social_tiktok_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Service Requests Endpoint
+         * @description Mengambil daftar tiket layanan pelanggan (komplain, refund, retur) nyata.
+         *     Query langsung dari basis data Supabase PostgreSQL dengan isolasi tenant.
+         */
+        get: operations["list_service_requests_endpoint_api_v1_tenants__tenant_id__service_requests_get"];
+        put?: never;
+        /**
+         * Create Service Request Endpoint
+         * @description Node CUSTOMER_SERVICE_INTAKE:
+         *     Mencatat komplain/refund/return sebagai baris nyata.
+         *     Refund wajib berhenti di HUMAN_APPROVAL, tidak diputuskan sepihak oleh AI.
+         */
+        post: operations["create_service_request_endpoint_api_v1_tenants__tenant_id__service_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/requests/{ticket_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Service Request Endpoint
+         * @description Persetujuan resmi manusia untuk tiket refund atau komplain.
+         */
+        post: operations["approve_service_request_endpoint_api_v1_tenants__tenant_id__service_requests__ticket_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/requests/{ticket_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Service Request Endpoint
+         * @description Penolakan tiket oleh staf manusia.
+         */
+        post: operations["reject_service_request_endpoint_api_v1_tenants__tenant_id__service_requests__ticket_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/handover/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Handover Endpoint
+         * @description Mengevaluasi 4 trigger handover: explicit request, low confidence, objection, high-value refund.
+         */
+        post: operations["evaluate_handover_endpoint_api_v1_tenants__tenant_id__service_handover_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/handover/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Build Handover Summary Endpoint
+         * @description Menghasilkan ringkasan handover terstruktur (PRD v2.2 Bagian 12.7).
+         *     Field numerik diambil langsung dari data terstruktur nyata.
+         */
+        post: operations["build_handover_summary_endpoint_api_v1_tenants__tenant_id__service_handover_summary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/humanize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Humanize Output Endpoint
+         * @description F.01-HUMANIZE-ID: Post-processing pass akhir Output Validator khusus Bahasa Indonesia.
+         *     TIDAK PERNAH mengubah fakta/angka, hanya gaya bahasa.
+         */
+        post: operations["humanize_output_endpoint_api_v1_tenants__tenant_id__service_humanize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/abandoned-carts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Abandoned Carts Endpoint
+         * @description Mengambil daftar keranjang belanja yang ditinggalkan untuk tenant.
+         */
+        get: operations["list_abandoned_carts_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/abandoned-carts/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Schedule Abandoned Cart Endpoint
+         * @description Menjadwalkan pesan recovery keranjang ditinggalkan nyata.
+         */
+        post: operations["schedule_abandoned_cart_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_schedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/service/abandoned-carts/process": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Process Abandoned Carts Endpoint
+         * @description Mengeksekusi recovery keranjang yang jatuh tempo dengan gaya bahasa F.01-HUMANIZE-ID.
+         */
+        post: operations["process_abandoned_carts_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_process_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Rules
+         * @description Mengambil matriks guardrail penjualan untuk tenant dari Supabase Postgres.
+         */
+        get: operations["get_guardrail_rules_api_v1_sales_tenants__tenant_id__guardrails_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Rules
+         * @description Mengambil matriks guardrail penjualan untuk tenant dari Supabase Postgres.
+         */
+        get: operations["get_guardrail_rules_api_v1_tenants__tenant_id__sales_guardrails_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/{rule_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Guardrail Rule
+         * @description Memperbarui aturan guardrail untuk aksi tertentu (misal DISCOUNT).
+         */
+        put: operations["update_guardrail_rule_api_v1_sales_tenants__tenant_id__guardrails__rule_code__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/{rule_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Guardrail Rule
+         * @description Memperbarui aturan guardrail untuk aksi tertentu (misal DISCOUNT).
+         */
+        put: operations["update_guardrail_rule_api_v1_tenants__tenant_id__sales_guardrails__rule_code__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate And Execute Action
+         * @description Evaluasi guardrail: Memeriksa toleransi otonom AI.
+         *     Bila melanggar batas (misal diskon > 10%, refund, cancel, kontrak khusus):
+         *     SELALU berhenti di status PENDING_APPROVAL dan dicatat ke Audit Ledger dengan persona_type.
+         */
+        post: operations["evaluate_and_execute_action_api_v1_sales_tenants__tenant_id__guardrails_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate And Execute Action
+         * @description Evaluasi guardrail: Memeriksa toleransi otonom AI.
+         *     Bila melanggar batas (misal diskon > 10%, refund, cancel, kontrak khusus):
+         *     SELALU berhenti di status PENDING_APPROVAL dan dicatat ke Audit Ledger dengan persona_type.
+         */
+        post: operations["evaluate_and_execute_action_api_v1_tenants__tenant_id__sales_guardrails_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Guardrail Approvals
+         * @description Mengambil daftar tiket antrean persetujuan manusia guardrail penjualan.
+         */
+        get: operations["list_guardrail_approvals_api_v1_sales_tenants__tenant_id__guardrails_approvals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Guardrail Approvals
+         * @description Mengambil daftar tiket antrean persetujuan manusia guardrail penjualan.
+         */
+        get: operations["list_guardrail_approvals_api_v1_tenants__tenant_id__sales_guardrails_approvals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/approvals/{approval_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Guardrail Approval
+         * @description Menyetujui atau menolak tiket eskalasi guardrail oleh staf manusia (Human-in-the-Loop).
+         */
+        post: operations["review_guardrail_approval_api_v1_sales_tenants__tenant_id__guardrails_approvals__approval_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/approvals/{approval_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Guardrail Approval
+         * @description Menyetujui atau menolak tiket eskalasi guardrail oleh staf manusia (Human-in-the-Loop).
+         */
+        post: operations["review_guardrail_approval_api_v1_tenants__tenant_id__sales_guardrails_approvals__approval_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Audit Logs
+         * @description Mengambil riwayat Audit Ledger aksi penjualan berisiko oleh AI Agent.
+         */
+        get: operations["get_guardrail_audit_logs_api_v1_sales_tenants__tenant_id__guardrails_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Audit Logs
+         * @description Mengambil riwayat Audit Ledger aksi penjualan berisiko oleh AI Agent.
+         */
+        get: operations["get_guardrail_audit_logs_api_v1_tenants__tenant_id__sales_guardrails_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sales/tenants/{tenant_id}/guardrails/mcp-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Mcp Tools
+         * @description Mengambil daftar perkakas risiko tinggi di MCP Tool Registry.
+         */
+        get: operations["get_guardrail_mcp_tools_api_v1_sales_tenants__tenant_id__guardrails_mcp_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/mcp-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Mcp Tools
+         * @description Mengambil daftar perkakas risiko tinggi di MCP Tool Registry.
+         */
+        get: operations["get_guardrail_mcp_tools_api_v1_tenants__tenant_id__sales_mcp_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales/guardrails/mcp-tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guardrail Mcp Tools
+         * @description Mengambil daftar perkakas risiko tinggi di MCP Tool Registry.
+         */
+        get: operations["get_guardrail_mcp_tools_api_v1_tenants__tenant_id__sales_guardrails_mcp_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/message-experiments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Message Experiments
+         * @description Mengambil daftar eksperimen pesan penjualan aktif dan selesai.
+         */
+        get: operations["list_message_experiments_api_v1_tenants__tenant_id__message_experiments_get"];
+        put?: never;
+        /**
+         * Create Message Experiment
+         * @description Mendaftarkan uji A/B pesan penjualan baru.
+         */
+        post: operations["create_message_experiment_api_v1_tenants__tenant_id__message_experiments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/message-experiments/{experiment_id}/conclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conclude Message Experiment
+         * @description Menghitung statistik Z-score dan menetapkan varian pemenang eksperimen.
+         */
+        post: operations["conclude_message_experiment_api_v1_tenants__tenant_id__message_experiments__experiment_id__conclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/revenue-intelligence/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Revenue Attribution
+         * @description Mengambil atribusi pendapatan first-touch lintas kanal komunikasi.
+         */
+        get: operations["get_revenue_attribution_api_v1_tenants__tenant_id__revenue_intelligence_attribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/sales-coach/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sales Coach Evaluations
+         * @description Mengambil rekomendasi pembinaan penjualan AI Sales Coach dari interaksi nyata.
+         */
+        get: operations["list_sales_coach_evaluations_api_v1_tenants__tenant_id__sales_coach_evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Selection Jobs
+         * @description Mengambil seluruh pekerjaan seleksi organisasi.
+         */
+        get: operations["list_selection_jobs_api_v1_tenants__tenant_id__jobs_get"];
+        put?: never;
+        /**
+         * Create Selection Job
+         * @description Membuat pekerjaan seleksi baru.
+         */
+        post: operations["create_selection_job_api_v1_tenants__tenant_id__jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Selection Jobs
+         * @description Mengambil seluruh pekerjaan seleksi organisasi.
+         */
+        get: operations["list_selection_jobs_api_v1_selection_tenants__tenant_id__jobs_get"];
+        put?: never;
+        /**
+         * Create Selection Job
+         * @description Membuat pekerjaan seleksi baru.
+         */
+        post: operations["create_selection_job_api_v1_selection_tenants__tenant_id__jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Selection Jobs
+         * @description Mengambil seluruh pekerjaan seleksi organisasi.
+         */
+        get: operations["list_selection_jobs_api_v1_tenants__tenant_id__selection_jobs_get"];
+        put?: never;
+        /**
+         * Create Selection Job
+         * @description Membuat pekerjaan seleksi baru.
+         */
+        post: operations["create_selection_job_api_v1_tenants__tenant_id__selection_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Job Detail
+         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         */
+        get: operations["get_selection_job_detail_api_v1_tenants__tenant_id__jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Job Detail
+         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         */
+        get: operations["get_selection_job_detail_api_v1_selection_tenants__tenant_id__jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Job Detail
+         * @description Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi.
+         */
+        get: operations["get_selection_job_detail_api_v1_tenants__tenant_id__selection_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Source Document
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         */
+        post: operations["upload_source_document_api_v1_tenants__tenant_id__jobs__job_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Source Document
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         */
+        post: operations["upload_source_document_api_v1_selection_tenants__tenant_id__jobs__job_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Source Document
+         * @description Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya.
+         */
+        post: operations["upload_source_document_api_v1_tenants__tenant_id__selection_jobs__job_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/calibrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibrate Selection Weights
+         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
+         */
+        post: operations["calibrate_selection_weights_api_v1_tenants__tenant_id__jobs__job_id__calibrate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibrate Selection Weights
+         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
+         */
+        post: operations["calibrate_selection_weights_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calibrate Selection Weights
+         * @description Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail.
+         */
+        post: operations["calibrate_selection_weights_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Scoring And Ranking
+         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         */
+        post: operations["execute_scoring_and_ranking_api_v1_tenants__tenant_id__jobs__job_id__score_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Scoring And Ranking
+         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         */
+        post: operations["execute_scoring_and_ranking_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Scoring And Ranking
+         * @description Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking.
+         */
+        post: operations["execute_scoring_and_ranking_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         */
+        post: operations["submit_human_review_api_v1_tenants__tenant_id__scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         */
+        post: operations["submit_human_review_api_v1_selection_tenants__tenant_id__scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/scores/{score_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Human Review
+         * @description Mencatat keputusan tinjauan manusia (wajib untuk integritas audit).
+         */
+        post: operations["submit_human_review_api_v1_tenants__tenant_id__selection_scores__score_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Selection Job
+         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
+         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         */
+        post: operations["finalize_selection_job_api_v1_tenants__tenant_id__jobs__job_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Selection Job
+         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
+         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         */
+        post: operations["finalize_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Selection Job
+         * @description Menyetujui hasil seleksi secara final (FINAL_APPROVED).
+         *     Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+         */
+        post: operations["finalize_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/jobs/{job_id}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Analytics
+         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         */
+        get: operations["get_selection_analytics_api_v1_tenants__tenant_id__jobs__job_id__analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/selection/tenants/{tenant_id}/jobs/{job_id}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Analytics
+         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         */
+        get: operations["get_selection_analytics_api_v1_selection_tenants__tenant_id__jobs__job_id__analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/selection/jobs/{job_id}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Selection Analytics
+         * @description Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas.
+         */
+        get: operations["get_selection_analytics_api_v1_tenants__tenant_id__selection_jobs__job_id__analytics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Templates */
+        get: operations["list_templates_api_v1_tenants__tenant_id__generative_templates_get"];
+        put?: never;
+        /** Create Template */
+        post: operations["create_template_api_v1_tenants__tenant_id__generative_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/brand-locks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Brand Locks */
+        get: operations["list_brand_locks_api_v1_tenants__tenant_id__generative_brand_locks_get"];
+        put?: never;
+        /** Create Brand Lock */
+        post: operations["create_brand_lock_api_v1_tenants__tenant_id__generative_brand_locks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_jobs_api_v1_tenants__tenant_id__generative_jobs_get"];
+        put?: never;
+        /** Create And Execute Job */
+        post: operations["create_and_execute_job_api_v1_tenants__tenant_id__generative_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job Detail */
+        get: operations["get_job_detail_api_v1_tenants__tenant_id__generative_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Artifacts */
+        get: operations["list_artifacts_api_v1_tenants__tenant_id__generative_artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/generative/scrub-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Scrub Logs */
+        get: operations["list_scrub_logs_api_v1_tenants__tenant_id__generative_scrub_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Fabric Connectors
+         * @description Mengambil daftar konektor Integration Fabric tenant.
+         */
+        get: operations["list_fabric_connectors_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors_get"];
+        put?: never;
+        /**
+         * Create Fabric Connector
+         * @description Membuat konektor Integration Fabric baru.
+         *     Kredensial dienkripsi dengan envelope KMS per-koneksi.
+         *     Status default adalah DRAFT/PENDING_DPIA (tidak dapat langsung CONNECTED).
+         */
+        post: operations["create_fabric_connector_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/connectors/{connector_id}/dpia": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Connector Dpia
+         * @description Mengambil catatan DPIA untuk konektor Fabric tertentu.
+         */
+        get: operations["get_connector_dpia_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__dpia_get"];
+        put?: never;
+        /**
+         * Create Or Update Dpia
+         * @description Mendaftarkan atau memperbarui Data Protection Impact Assessment (DPIA) untuk koneksi Fabric.
+         */
+        post: operations["create_or_update_dpia_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__dpia_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/connectors/{connector_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Fabric Connector
+         * @description Mengaktifkan koneksi Fabric menjadi 'CONNECTED'.
+         *     ATURAN MUTLAK (DOD):
+         *     DPIA wajib diisi lengkap (is_complete = true) dan disetujui (status = 'APPROVED')
+         *     SEBELUM koneksi dapat diaktifkan! Tanpa DPIA lengkap, sistem menolak aktivasi (422).
+         */
+        post: operations["activate_fabric_connector_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/connectors/{connector_id}/rotate-kms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Fabric Connector Kms
+         * @description Rotasi kunci KMS Envelope untuk konektor Fabric (PRD v2.2 Bagian 3.4, 3.5, 12).
+         *     Mendekripsi payload lama (legacy readability), re-wrap dengan key ID baru,
+         *     memvalidasi roundtrip, mengupdate tabel integration_fabric_connectors,
+         *     dan mencatat audit log 'integration.fabric.kms.rotate'.
+         */
+        post: operations["rotate_fabric_connector_kms_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__rotate_kms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Fabric Stream
+         * @description Memicu sinkronisasi streaming data Fabric.
+         *     Konektor wajib berstatus CONNECTED atau ACTIVE.
+         *     Mencatat log audit transaksional ke integration_fabric_sync_logs.
+         */
+        post: operations["sync_fabric_stream_api_v1_tenants__tenant_id__enterprise_integration_fabric_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/integration-fabric/sync-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Fabric Sync Logs
+         * @description Mengambil riwayat log sinkronisasi transaksional Integration Fabric.
+         */
+        get: operations["list_fabric_sync_logs_api_v1_tenants__tenant_id__enterprise_integration_fabric_sync_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/chief-of-staff/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Company Context Events
+         * @description Mengambil daftar company_context_events (sintesis korelasi lintas sistem).
+         *     Setiap event memuat source_types dan source_signals yang traceable.
+         */
+        get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_chief_of_staff_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Company Context Events
+         * @description Mengambil daftar company_context_events (sintesis korelasi lintas sistem).
+         *     Setiap event memuat source_types dan source_signals yang traceable.
+         */
+        get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_context_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/company-context/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Company Context Events
+         * @description Mengambil daftar company_context_events (sintesis korelasi lintas sistem).
+         *     Setiap event memuat source_types dan source_signals yang traceable.
+         */
+        get: operations["list_company_context_events_api_v1_tenants__tenant_id__enterprise_company_context_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Company Context Signals
+         * @description Mengambil daftar sinyal sumber dengan filter klasifikasi source_type.
+         */
+        get: operations["list_company_context_signals_api_v1_tenants__tenant_id__enterprise_context_signals_get"];
+        put?: never;
+        /**
+         * Ingest Company Context Signal
+         * @description Menerima sinyal baru dengan klasifikasi sumber data ('Native', 'Synced', 'Uploaded').
+         */
+        post: operations["ingest_company_context_signal_api_v1_tenants__tenant_id__enterprise_context_signals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/company-context/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Company Context Signals
+         * @description Mengambil daftar sinyal sumber dengan filter klasifikasi source_type.
+         */
+        get: operations["list_company_context_signals_api_v1_tenants__tenant_id__enterprise_company_context_signals_get"];
+        put?: never;
+        /**
+         * Ingest Company Context Signal
+         * @description Menerima sinyal baru dengan klasifikasi sumber data ('Native', 'Synced', 'Uploaded').
+         */
+        post: operations["ingest_company_context_signal_api_v1_tenants__tenant_id__enterprise_company_context_signals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context/correlate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correlate Company Context Signals
+         * @description Korelator sinyal lintas sistem persis orchestree/domains/enterprise/correlator.py (Bagian 8.13.1).
+         *     Menggabungkan sinyal lintas sistem berbeda menghasilkan satu company_context_events gabungan
+         *     yang dapat ditelusuri ke masing-masing sumber (Definition of Done).
+         */
+        post: operations["correlate_company_context_signals_api_v1_tenants__tenant_id__enterprise_context_correlate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/company-context/correlate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correlate Company Context Signals
+         * @description Korelator sinyal lintas sistem persis orchestree/domains/enterprise/correlator.py (Bagian 8.13.1).
+         *     Menggabungkan sinyal lintas sistem berbeda menghasilkan satu company_context_events gabungan
+         *     yang dapat ditelusuri ke masing-masing sumber (Definition of Done).
+         */
+        post: operations["correlate_company_context_signals_api_v1_tenants__tenant_id__enterprise_company_context_correlate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context-fabric/dimensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Context Fabric Dimensions
+         * @description Mengambil 8 Dimensi Inti Company Context Fabric korporat.
+         */
+        get: operations["list_context_fabric_dimensions_api_v1_tenants__tenant_id__enterprise_context_fabric_dimensions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context-fabric/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Context Knowledge Nodes
+         * @description Mengambil node pengetahuan 8 dimensi Company Context Fabric.
+         */
+        get: operations["list_context_knowledge_nodes_api_v1_tenants__tenant_id__enterprise_context_fabric_nodes_get"];
+        put?: never;
+        /**
+         * Create Or Update Context Knowledge Node
+         * @description Menambahkan atau memperbarui node pengetahuan dalam salah satu dari 8 dimensi Context Fabric.
+         */
+        post: operations["create_or_update_context_knowledge_node_api_v1_tenants__tenant_id__enterprise_context_fabric_nodes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/research-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tenant Research Policy
+         * @description Mengambil kebijakan riset tenant (khususnya status izin riset web publik).
+         */
+        get: operations["get_tenant_research_policy_api_v1_tenants__tenant_id__enterprise_research_policy_get"];
+        /**
+         * Update Tenant Research Policy
+         * @description Memperbarui kebijakan riset tenant.
+         *     Mengatur izin eksplisit riset web publik (Tingkat 6) untuk AI Research Agent.
+         */
+        put: operations["update_tenant_research_policy_api_v1_tenants__tenant_id__enterprise_research_policy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/context-fabric/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Research Agent Query
+         * @description Mengeksekusi riset korporat AI Research Agent (Bagian 8.6):
+         *     - Menerapkan 6 Tingkat Knowledge Priority Hierarchy
+         *     - Menegakkan izin riset web publik eksplisit dari tenant_research_policies
+         *     - Memproduksi jawaban traceable yang menyebutkan tingkat sumber yang dipakai
+         */
+        post: operations["execute_research_agent_query_api_v1_tenants__tenant_id__enterprise_context_fabric_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/research-agent/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Research Agent Query
+         * @description Mengeksekusi riset korporat AI Research Agent (Bagian 8.6):
+         *     - Menerapkan 6 Tingkat Knowledge Priority Hierarchy
+         *     - Menegakkan izin riset web publik eksplisit dari tenant_research_policies
+         *     - Memproduksi jawaban traceable yang menyebutkan tingkat sumber yang dipakai
+         */
+        post: operations["execute_research_agent_query_api_v1_tenants__tenant_id__enterprise_research_agent_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reports/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Automated Report Endpoint */
+        post: operations["generate_automated_report_endpoint_api_v1_tenants__tenant_id__enterprise_reports_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/automated/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Automated Report Endpoint */
+        post: operations["generate_automated_report_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Automated Reports Endpoint */
+        get: operations["list_automated_reports_endpoint_api_v1_tenants__tenant_id__enterprise_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/automated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Automated Reports Endpoint */
+        get: operations["list_automated_reports_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Automated Report Detail Endpoint */
+        get: operations["get_automated_report_detail_endpoint_api_v1_tenants__tenant_id__enterprise_reports__report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/automated/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Automated Report Detail Endpoint */
+        get: operations["get_automated_report_detail_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated__report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/data-points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Data Points Endpoint */
+        get: operations["list_report_data_points_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_data_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/conversational-query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Management Conversational Query Endpoint
+         * @description Management Conversational Query — drill-down multi-turn, jawaban difilter ABAC sebelum sampai ke penanya.
+         */
+        post: operations["management_conversational_query_endpoint_api_v1_tenants__tenant_id__enterprise_conversational_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/conversational/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Management Conversational Query Endpoint
+         * @description Management Conversational Query — drill-down multi-turn, jawaban difilter ABAC sebelum sampai ke penanya.
+         */
+        post: operations["management_conversational_query_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_conversational_query_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/reporting/conversational/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Conversational Session Turns Endpoint */
+        get: operations["get_conversational_session_turns_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_conversational_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/execution/auto-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Autonomous Task From Signal Endpoint
+         * @description Memformulasikan dan mendaftarkan task otonom dari sinyal terdeteksi (PRD v2.2 Bagian 8.13.3)
+         *     dengan aturan verifikasi data sumber nyata (TaskVerificationRule).
+         */
+        post: operations["create_autonomous_task_from_signal_endpoint_api_v1_tenants__tenant_id__enterprise_execution_auto_task_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/workforce/tasks/{task_id}/verify-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Task Source Completion Endpoint
+         * @description Memverifikasi penyelesaian task langsung terhadap data sumber nyata SSOT (PRD v2.2 Bagian 8.13.4).
+         *     DoD: Menolak penyelesaian manual klik DONE tanpa bukti data sumber nyata.
+         */
+        post: operations["verify_task_source_completion_endpoint_api_v1_tenants__tenant_id__enterprise_workforce_tasks__task_id__verify_source_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/workforce/monitoring-cycle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Workforce Monitoring Cycle Endpoint
+         * @description Menjalankan siklus pemantauan closed-loop otomatis (PRD v2.2 Bagian 8.13.4)
+         *     untuk seluruh task aktif yang terikat verifikasi sumber nyata.
+         */
+        post: operations["trigger_workforce_monitoring_cycle_endpoint_api_v1_tenants__tenant_id__enterprise_workforce_monitoring_cycle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/finance/cash-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cash Flow Summary Endpoint
+         * @description Menghitung ringkasan arus kas operasional (All-Tier: internal native, Enterprise: ERP eksternal).
+         */
+        get: operations["get_cash_flow_summary_endpoint_api_v1_tenants__tenant_id__enterprise_finance_cash_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/knowledge/fusion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fuse Knowledge Endpoint
+         * @description Menjalankan fusi pengetahuan terpadu 8 dimensi.
+         *     DoD: Rule dari AI Research Agent WAJIB ditahan di unapproved_ai_rules jika belum disetujui manusia.
+         */
+        post: operations["fuse_knowledge_endpoint_api_v1_tenants__tenant_id__enterprise_knowledge_fusion_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/events/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Event Endpoint
+         * @description Mengevaluasi event korporat terhadap knowledge rules.
+         *     DoD: Aturan AI yang belum disetujui manusia DIBLOKIR secara ketat.
+         */
+        post: operations["evaluate_event_endpoint_api_v1_tenants__tenant_id__enterprise_events_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/knowledge-rules/{rule_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Knowledge Rule Endpoint
+         * @description Persetujuan manusia eksplisit (Human-in-the-Loop) untuk Rule Knowledge baru dari AI Research Agent.
+         *     DoD: Hanya setelah disetujui manusia barulah rule aktif.
+         */
+        post: operations["approve_knowledge_rule_endpoint_api_v1_tenants__tenant_id__enterprise_knowledge_rules__rule_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/specialist-agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Specialist Agents Endpoint
+         * @description Daftar profil agen spesialis domain (Finance, Supply Chain, Legal, Commercial, Workforce).
+         */
+        get: operations["list_specialist_agents_endpoint_api_v1_tenants__tenant_id__enterprise_specialist_agents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/specialist-agents/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispatch Specialist Agent Endpoint
+         * @description Menjalankan eksekusi agen spesialis enterprise secara terpadu dengan penegakan tier.
+         */
+        post: operations["dispatch_specialist_agent_endpoint_api_v1_tenants__tenant_id__enterprise_specialist_agents_dispatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/enforcement-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Pdp Enforcement Points
+         * @description Verifikasi Penegakan 3 Titik PDP (PRD v2.2 Bagian 3.5).
+         */
+        get: operations["check_pdp_enforcement_points_api_v1_tenants__tenant_id__enterprise_enforcement_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/projects/{project_ref_id}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assess Project Health Endpoint
+         * @description Menghitung diagnostik kesehatan proyek (jadwal, anggaran, utilisasi sumber daya) dan menyimpannya.
+         */
+        post: operations["assess_project_health_endpoint_api_v1_tenants__tenant_id__enterprise_projects__project_ref_id__health_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/projects/{project_ref_id}/multi-agent-collaboration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Multi Agent Collaboration Endpoint
+         * @description Menjalankan kolaborasi multi-agent paralel lintas spesialis domain.
+         *     PENEGAKAN DEFINITION OF DONE:
+         *     - Menghasilkan SATU Executive Recommendation terpadu
+         *     - Setiap kontribusi agen dapat ditelusuri (traceability) via trace_id.
+         */
+        post: operations["run_multi_agent_collaboration_endpoint_api_v1_tenants__tenant_id__enterprise_projects__project_ref_id__multi_agent_collaboration_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/chief-of-staff/briefings/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Chief Of Staff Briefing Endpoint
+         * @description Menghasilkan Executive Morning Briefing lintas performa departemen.
+         *     Gated: Memerlukan tier 3.
+         *     Mensintesis:
+         *     - Specialist Agent data (Fase 31)
+         *     - agent_skill_confidence (riwayat nyata sejak Fase 5)
+         *     Menegakkan batasan otoritas: Murni koordinasi & sintesis tanpa eksekusi langsung.
+         *     Setiap aksi rekomendasi memerlukan HUMAN_APPROVAL.
+         */
+        post: operations["generate_chief_of_staff_briefing_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/chief-of-staff/briefings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Chief Of Staff Briefings Endpoint
+         * @description Mengambil riwayat briefing eksekutif.
+         *     Catatan PRD: Riwayat briefing tetap dapat dibaca (read-only) meski tenant didowngrade.
+         */
+        get: operations["list_chief_of_staff_briefings_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/enterprise/chief-of-staff/briefings/{briefing_id}/actions/{action_id}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Briefing Action Endpoint
+         * @description Persetujuan manusia atas usulan tindakan eksekutif Chief of Staff.
+         *     Menegakkan batasan: Arya tidak mengeksekusi sendiri, keputusan di tangan pimpinan manusia.
+         */
+        post: operations["approve_briefing_action_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings__briefing_id__actions__action_id__approval_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/permissions/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Permission Matrix
+         * @description Mengambil data matriks izin data:
+         *     - Baris: AI Agent Personas
+         *     - Kolom: Enterprise System Connections
+         *     - Sel: access_level ('NONE', 'READ_ONLY', 'READ_WRITE', 'ADMIN')
+         */
+        get: operations["get_permission_matrix_api_v1_tenants__tenant_id__permissions_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/permissions/matrix/cell": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Permission Cell
+         * @description Mengubah atau menghapus kebijakan izin per sel (persona x konektor).
+         *     HANYA TENANT_OWNER dan TENANT_ADMIN yang diizinkan.
+         *     Setiap perubahan dicatat ke Audit Ledger (audit_logs).
+         */
+        put: operations["update_permission_cell_api_v1_tenants__tenant_id__permissions_matrix_cell_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/permissions/evaluate-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Access Test
+         * @description Evaluasi uji otorisasi PDP langsung terhadap sumber data perusahaan.
+         *     Skenario Acceptance Criteria PRD v2.2:
+         *     AI HR Agent mencoba akses ERP.CorporateBanking tanpa policy -> Wajib DENIED_NO_POLICY tercatat di audit_logs.
+         */
+        post: operations["evaluate_access_test_api_v1_tenants__tenant_id__permissions_evaluate_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/permissions/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Permission Audit Logs
+         * @description Mengambil riwayat Audit Ledger khusus peristiwa izin data & evaluasi PDP.
+         */
+        get: operations["get_permission_audit_logs_api_v1_tenants__tenant_id__permissions_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/tokenopt/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Token Savings Summary
+         * @description Mengambil metrik ringkasan penghematan token, persentase cache hit, dan perbandingan biaya.
+         */
+        get: operations["get_token_savings_summary_api_v1_tenants__tenant_id__tokenopt_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/tokenopt/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Token Savings Logs
+         * @description Mengambil riwayat telemetri penghematan token dan audit cache hit/miss.
+         */
+        get: operations["get_token_savings_logs_api_v1_tenants__tenant_id__tokenopt_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agent-catalog/ingest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingest Skill Package
+         * @description Pipeline ingesti paket blueprint skill agen AI baru:
+         *     Validasi struktur, jalankan policy scanner, dan simpan dengan status awal INTERNAL.
+         */
+        post: operations["ingest_skill_package_api_v1_admin_agent_catalog_ingest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}/rollout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition Rollout Stage
+         * @description Mentransisikan status rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY).
+         *     Wajib lolos pemindai kebijakan ('PASSED') sebelum diizinkan melangkah.
+         */
+        post: operations["transition_rollout_stage_api_v1_admin_agent_catalog_blueprints__blueprint_id__rollout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agent-catalog/blueprints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List All Blueprints
+         * @description Mengambil katalog lengkap seluruh blueprint skill agen untuk Super Admin.
+         */
+        get: operations["list_all_blueprints_api_v1_admin_agent_catalog_blueprints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Blueprint Detail
+         * @description Mengambil detail satu blueprint agen berdasarkan ID atau package_id.
+         */
+        get: operations["get_blueprint_detail_api_v1_admin_agent_catalog_blueprints__blueprint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenants/{tenant_id}/agent-catalog/available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Available Blueprints For Tenant
+         * @description Mengambil daftar template agen yang tersedia untuk tenant ini:
+         *     - Paket GENERAL_AVAILABILITY
+         *     - Paket BETA_TENANT yang mengizinkan tenant_id ini
+         */
+        get: operations["list_available_blueprints_for_tenant_api_v1_tenants__tenant_id__agent_catalog_available_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/storage/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload File
+         * @description Unggah file dengan validasi ketat magic bytes (anti-eksekusi biner & skrip).
+         *     Mendukung kategori: documents, avatars, artifacts, attachments.
+         */
+        post: operations["upload_file_api_v1_storage_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/storage/{bucket}/{file_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Storage File
+         * @description Menyajikan berkas dari storage bucket.
+         *     Bucket 'documents' bersifat privat: WAJIB melalui signed URL valid bermasa berlaku pendek atau sesi terautentikasi.
+         *     Bucket 'avatars' dan 'artifacts' bersifat publik.
+         */
+        get: operations["get_storage_file_api_v1_storage__bucket___file_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/hub-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ringkasan Platform Global Super Admin (Casing Fixed)
+         * @description Mengembalikan statistik ringkasan operasional platform global untuk Konsol Super Admin.
+         *     Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
+         */
+        get: operations["get_admin_hub_overview_api_v1_admin_hub_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daftar Organisasi Tenant untuk Super Admin
+         * @description Mengembalikan daftar seluruh organisasi tenant untuk Super Admin Hub (Wajib MFA).
+         */
+        get: operations["list_admin_tenants_api_v1_admin_tenants_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/financial-command-center": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Financial Command Center Aggregation
+         * @description Mengembalikan ringkasan saldo ledger dan total revenue platform untuk Super Admin (Wajib MFA).
+         */
+        get: operations["get_financial_command_center_overview_api_v1_financial_command_center_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -216,230 +7182,614 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tenants/{tenant_id}/permissions/matrix": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get AI Data Permission Matrix
-         * @description Mengambil matriks izin data: baris AI Agent Personas, kolom Enterprise System Connections, sel access_level.
-         */
-        get: operations["get_permission_matrix"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/permissions/matrix/cell": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Update AI Data Permission Cell
-         * @description Memperbarui atau mencabut izin akses sel per persona x konektor. Hanya untuk TENANT_OWNER / TENANT_ADMIN. Tercatat di Audit Ledger.
-         */
-        put: operations["update_permission_cell"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/permissions/evaluate-test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Evaluate Test AI Data Access PDP
-         * @description Evaluasi uji otorisasi PDP langsung terhadap sumber data perusahaan. Default fail-closed: DENIED_NO_POLICY.
-         */
-        post: operations["evaluate_access_test"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/permissions/audit-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Permission Audit Logs
-         * @description Mengambil riwayat Audit Ledger khusus peristiwa izin data & evaluasi PDP.
-         */
-        get: operations["get_permission_audit_logs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/tokenopt/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Token Savings Summary
-         * @description Mengambil metrik ringkasan penghematan token, persentase cache hit, dan perbandingan biaya.
-         */
-        get: operations["get_token_savings_summary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/tokenopt/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Token Savings Logs
-         * @description Mengambil riwayat telemetri penghematan token dan audit cache hit/miss.
-         */
-        get: operations["get_token_savings_logs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/agent-catalog/ingest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Ingest Agent Blueprint Package
-         * @description Pipeline ingesti paket blueprint skill agen AI baru dengan validasi dan policy scanner.
-         */
-        post: operations["ingest_skill_package"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}/rollout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Transition Blueprint Rollout Stage
-         * @description Mentransisikan status rollout blueprint (INTERNAL -> BETA_TENANT -> GENERAL_AVAILABILITY). Wajib lolos pemindai kebijakan ('PASSED').
-         */
-        post: operations["transition_rollout_stage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/agent-catalog/blueprints": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List All Agent Blueprints
-         * @description Mengambil katalog lengkap seluruh blueprint skill agen untuk Super Admin.
-         */
-        get: operations["list_all_blueprints"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/agent-catalog/blueprints/{blueprint_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Blueprint Detail
-         * @description Mengambil detail satu blueprint agen berdasarkan ID atau package_id.
-         */
-        get: operations["get_blueprint_detail"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tenants/{tenant_id}/agent-catalog/available": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Available Blueprints For Tenant
-         * @description Mengambil daftar blueprint yang dapat diakses oleh tenant (GA atau BETA yang diizinkan).
-         */
-        get: operations["list_available_for_tenant"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionApprovalInput */
+        ActionApprovalInput: {
+            /**
+             * Decision
+             * @default APPROVED
+             */
+            decision: string;
+            /**
+             * Approved By
+             * @default Human Executive Reviewer
+             */
+            approved_by: string;
+            /** Review Notes */
+            review_notes?: string | null;
+        };
+        /** ActivateTrialRequest */
+        ActivateTrialRequest: {
+            /**
+             * Tenant Id
+             * @description ID Tenant yang ditautkan ke uji coba
+             */
+            tenant_id: string;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** ActivityTypeUpdatePayload */
+        ActivityTypeUpdatePayload: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Base Work Unit Min */
+            base_work_unit_min: number;
+            /** Base Work Unit Max */
+            base_work_unit_max: number;
+        };
+        /** AddCartItemRequest */
+        AddCartItemRequest: {
+            /** Product Id */
+            product_id: string;
+            /** Variant Id */
+            variant_id?: string | null;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** AdminHubOverviewResponse */
+        AdminHubOverviewResponse: {
+            tenants: components["schemas"]["TenantMetrics"];
+            prospects: components["schemas"]["ProspectMetrics"];
+            trial_slots: components["schemas"]["TrialSlotMetrics"];
+            llm: components["schemas"]["LlmMetrics"];
+            mcp: components["schemas"]["McpMetrics"];
+            /** Timestamp */
+            timestamp?: string;
+        };
+        /** AgentResponse */
+        AgentResponse: {
+            /** Id */
+            id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Department Id */
+            department_id: string | null;
+            /** Department Name */
+            department_name?: string | null;
+            /** Persona Type */
+            persona_type: string;
+            /** Job Title Id */
+            job_title_id?: string | null;
+            /** Job Title Name */
+            job_title_name?: string | null;
+            /** Job Title Code */
+            job_title_code?: string | null;
+            /** Category Tag */
+            category_tag?: string | null;
+            /** Structural Role Name */
+            structural_role_name?: string | null;
+            /** Level Code */
+            level_code?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+        };
+        /** ApproveKnowledgeRuleInput */
+        ApproveKnowledgeRuleInput: {
+            /** Approved By User Id */
+            approved_by_user_id: string;
+            /**
+             * Approved By Role
+             * @default MANAGER
+             */
+            approved_by_role: string;
+        };
+        /** ApproveTicketPayload */
+        ApproveTicketPayload: {
+            /** User Id */
+            user_id: string;
+            /** Resolution Notes */
+            resolution_notes: string;
+        };
+        /** AssignJobTitleRequest */
+        AssignJobTitleRequest: {
+            /**
+             * Job Title Id
+             * @description UUID jabatan AI resmi yang dipilih
+             */
+            job_title_id: string;
+        };
+        /** AutonomousTaskCreationInput */
+        AutonomousTaskCreationInput: {
+            /**
+             * Source Type
+             * @default Native
+             */
+            source_type: string;
+            /** Source System */
+            source_system: string;
+            /** Signal Type */
+            signal_type: string;
+            /** Title */
+            title: string;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Source Ref Id */
+            source_ref_id?: string | null;
+            /** Board Id */
+            board_id?: string | null;
+            /** Column Id */
+            column_id?: string | null;
+        };
+        /** BlueprintIngestRequest */
+        BlueprintIngestRequest: {
+            /** Package Id */
+            package_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default 1.0.0
+             */
+            version: string;
+            /** Description */
+            description: string;
+            /**
+             * Category
+             * @default operations
+             */
+            category: string;
+            /** System Prompt Template */
+            system_prompt_template: string;
+            /** Required Capabilities */
+            required_capabilities?: string[];
+            /** Tool Definitions */
+            tool_definitions?: {
+                [key: string]: unknown;
+            }[];
+            /** Default Config */
+            default_config?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Operator
+             * @default Super Admin
+             */
+            operator: string | null;
+        };
+        /** Body_upload_file_api_v1_storage_upload_post */
+        Body_upload_file_api_v1_storage_upload_post: {
+            /** File */
+            file: string;
+            /**
+             * Bucket
+             * @default documents
+             */
+            bucket: string;
+            /** Tenant Id */
+            tenant_id?: string | null;
+            /**
+             * Category
+             * @default attachments
+             */
+            category: string;
+        };
+        /** BrandLockCreate */
+        BrandLockCreate: {
+            /** Brand Name */
+            brand_name: string;
+            /** Logo Url */
+            logo_url?: string | null;
+            /**
+             * Primary Color
+             * @default #1FA35A
+             */
+            primary_color: string;
+            /**
+             * Secondary Color
+             * @default #0B1220
+             */
+            secondary_color: string | null;
+            /**
+             * Accent Color
+             * @default #38BDF8
+             */
+            accent_color: string | null;
+            /** Palette Hex Codes */
+            palette_hex_codes?: string[];
+            /** Typography Fonts */
+            typography_fonts?: string[];
+            /** Brand Voice Guidelines */
+            brand_voice_guidelines?: string | null;
+            /** Visual Style Keywords */
+            visual_style_keywords?: string[];
+            /** Negative Style Keywords */
+            negative_style_keywords?: string[];
+            /**
+             * Enforce Strict Palette
+             * @default true
+             */
+            enforce_strict_palette: boolean;
+            /**
+             * Enforce Logo Presence
+             * @default false
+             */
+            enforce_logo_presence: boolean;
+            /**
+             * Max Color Delta E
+             * @default 25
+             */
+            max_color_delta_e: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /** BuildHandoverSummaryPayload */
+        BuildHandoverSummaryPayload: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Lead Id */
+            lead_id?: string | null;
+            /**
+             * Trigger Reason
+             * @default EXPLICIT_HUMAN_REQUEST
+             */
+            trigger_reason: string;
+            /** Trigger Details */
+            trigger_details?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** CalibrateWeightsRequest */
+        CalibrateWeightsRequest: {
+            /**
+             * Human Feedback Notes
+             * @description Catatan panduan penyesuaian bobot dari reviewer
+             */
+            human_feedback_notes: string;
+            /**
+             * Criteria Adjustments
+             * @description Faktor pengali per kriteria (misal: {'tech_depth': 1.2, 'culture_fit': 0.8})
+             */
+            criteria_adjustments: {
+                [key: string]: number;
+            };
+            /**
+             * Human Reviewer Id
+             * @description UUID reviewer manusia
+             */
+            human_reviewer_id?: string | null;
+        };
+        /** ChatMessageRequest */
+        ChatMessageRequest: {
+            /**
+             * Message
+             * @description Pesan pertanyaan dari staf
+             */
+            message: string;
+            /**
+             * Tenant Id
+             * @description ID Tenant/Organisasi
+             */
+            tenant_id: string;
+            /**
+             * Membership Id
+             * @description ID Membership staf
+             */
+            membership_id?: string | null;
+            /**
+             * Session Id
+             * @description ID Sesi percakapan
+             */
+            session_id?: string | null;
+            /**
+             * System Prompt
+             * @description Petunjuk sistem
+             * @default Anda adalah asisten kognitif cerdas OrchestreeAI. Berikan jawaban yang tepat, ringkas, dan profesional.
+             */
+            system_prompt: string | null;
+            /**
+             * Preferred Provider
+             * @description nvidia, openrouter, gemini
+             */
+            preferred_provider?: string | null;
+            /**
+             * Preferred Model
+             * @description Model LLM spesifik
+             */
+            preferred_model?: string | null;
+        };
+        /** CheckoutCartRequest */
+        CheckoutCartRequest: {
+            /** Cart Id */
+            cart_id: string;
+            /** Customer Id */
+            customer_id: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Quotation Id */
+            quotation_id?: string | null;
+            /** Shipping Address */
+            shipping_address?: {
+                [key: string]: unknown;
+            };
+            /** Billing Address */
+            billing_address?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Shipping Amount
+             * @default 0
+             */
+            shipping_amount: number;
+            /**
+             * Discount Amount
+             * @default 0
+             */
+            discount_amount: number;
+            /** Courier Code */
+            courier_code?: string | null;
+            /** Courier Service */
+            courier_service?: string | null;
+        };
+        /** CompetitorTargetCreate */
+        CompetitorTargetCreate: {
+            /**
+             * Name
+             * @description Nama target kompetitor atau merek
+             */
+            name: string;
+            /**
+             * Domain
+             * @description Domain utama, e.g. company.com
+             */
+            domain: string;
+            /**
+             * Target Type
+             * @description web, marketplace, social, news
+             * @default web
+             */
+            target_type: string;
+            /**
+             * Target Url
+             * @description URL lengkap publik untuk pemantauan
+             */
+            target_url: string;
+            /**
+             * Category
+             * @description direct_competitor, indirect_competitor, market_trend
+             * @default direct_competitor
+             */
+            category: string;
+            /**
+             * Frequency
+             * @description hourly, daily, weekly, manual
+             * @default daily
+             */
+            frequency: string;
+            /**
+             * Crawler Adapter
+             * @description WebAdapter, MarketplaceAdapter, SocialAdapter
+             * @default WebAdapter
+             */
+            crawler_adapter: string;
+        };
+        /** ConfirmQrSessionRequest */
+        ConfirmQrSessionRequest: {
+            /**
+             * Session String
+             * @description Session string resmi Telegram dari otorisasi
+             */
+            session_string: string;
+            /**
+             * External Identifier
+             * @description Nomor telepon atau username Telegram akun terhubung
+             */
+            external_identifier: string;
+        };
+        /** ConsumeCreditApiRequest */
+        ConsumeCreditApiRequest: {
+            /**
+             * Reservation Id
+             * @description ID token reservasi
+             */
+            reservation_id: string;
+            /**
+             * Tenant Id
+             * @description ID organisasi/tenant
+             */
+            tenant_id: string;
+            /**
+             * Actual Cost
+             * @description Total kredit AI aktual yang dikonsumsi
+             */
+            actual_cost: number;
+            /**
+             * Execution Ref
+             * @description ID referensi eksekusi workflow/tool
+             */
+            execution_ref?: string | null;
+        };
+        /** ContextKnowledgeNodeInput */
+        ContextKnowledgeNodeInput: {
+            /**
+             * Dimension Code
+             * @description Salah satu dari 8 kode dimensi Company Context Fabric
+             */
+            dimension_code: string;
+            /**
+             * Node Key
+             * @description Kunci unik entitas pengetahuan dalam dimensi
+             */
+            node_key: string;
+            /**
+             * Title
+             * @description Judul entitas pengetahuan
+             */
+            title: string;
+            /**
+             * Content
+             * @description Konten isi pengetahuan domain terperinci
+             */
+            content: string;
+            /** Summary */
+            summary?: string | null;
+            /**
+             * Priority Level
+             * @description Prioritas 1-6 (1: Ground Truth s.d. 6: Web)
+             * @default 1
+             */
+            priority_level: number;
+            /**
+             * Source Classification
+             * @description 'Native', 'Synced', 'Uploaded', 'External'
+             * @default Native
+             */
+            source_classification: string;
+            /** Source Reference */
+            source_reference?: string | null;
+            /** Tags */
+            tags?: string[];
+            /**
+             * Is Verified
+             * @default true
+             */
+            is_verified: boolean;
+        };
+        /** ConversationalTurnInput */
+        ConversationalTurnInput: {
+            /** Session Id */
+            session_id?: string | null;
+            /** Query Text */
+            query_text: string;
+            /** User Id */
+            user_id?: string | null;
+            /**
+             * User Role
+             * @default STAFF
+             */
+            user_role: string;
+            /** User Department Id */
+            user_department_id?: string | null;
+        };
+        /** CreateAgentRequest */
+        CreateAgentRequest: {
+            /**
+             * Persona Type
+             * @description Tipe jabatan/persona AI
+             */
+            persona_type: string;
+            /**
+             * Display Name
+             * @description Nama tampilan agen AI
+             */
+            display_name: string;
+            /**
+             * Department Id
+             * @description UUID departemen penempatan
+             */
+            department_id?: string | null;
+            /**
+             * Status
+             * @description 'active', 'paused', atau 'error'
+             * @default active
+             */
+            status: string;
+            /**
+             * Job Title Id
+             * @description UUID jabatan AI terstandarisasi (Shadow Mapping)
+             */
+            job_title_id?: string | null;
+        };
+        /** CreateBoardRequest */
+        CreateBoardRequest: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+        };
+        /** CreateCampaignRequest */
+        CreateCampaignRequest: {
+            /** Name */
+            name: string;
+            /**
+             * Objective
+             * @default CONVERSION
+             */
+            objective: string;
+            segment_criteria?: components["schemas"]["SegmentCriteriaRequest"];
+            /** Channel Types */
+            channel_types?: string[];
+            /** Message Template */
+            message_template: string;
+            /** Scheduled At */
+            scheduled_at?: string | null;
+        };
+        /** CreateChannelAccountRequest */
+        CreateChannelAccountRequest: {
+            /**
+             * Channel Type
+             * @description Tipe kanal: telegram_mtproto, whatsapp_cloud, instagram, facebook, tiktok
+             */
+            channel_type: string;
+            /**
+             * Connection Mode
+             * @description Mode koneksi: official_business_api, mtproto_qr, platform_oauth
+             */
+            connection_mode: string;
+            /**
+             * Account Label
+             * @description Label akun organisasi
+             */
+            account_label: string;
+            /**
+             * External Identifier
+             * @description Nomor telepon atau ID akun resmi
+             */
+            external_identifier: string;
+            /** Credential Ref */
+            credential_ref?: string | null;
+            /** Department Id */
+            department_id?: string | null;
+        };
+        /** CreateCompanyCodeOnboardingRequest */
+        CreateCompanyCodeOnboardingRequest: {
+            /**
+             * Expires In Days
+             * @description Masa berlaku kode dalam hari
+             * @default 30
+             */
+            expires_in_days: number;
+            /**
+             * Max Uses
+             * @description Batas maksimum penggunaan
+             */
+            max_uses?: number | null;
+        };
+        /** CreateCompanyCodeOnboardingResponse */
+        CreateCompanyCodeOnboardingResponse: {
+            /** Code */
+            code: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Max Uses */
+            max_uses: number | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+        };
         /** CreateCompanyCodeRequest */
         CreateCompanyCodeRequest: {
             /**
@@ -466,6 +7816,883 @@ export interface components {
             status: string;
             /** Created At */
             created_at: string;
+        };
+        /** CreateDepartmentRequest */
+        CreateDepartmentRequest: {
+            /**
+             * Name
+             * @description Nama departemen
+             */
+            name: string;
+            /**
+             * Description
+             * @description Deskripsi operasional
+             */
+            description?: string | null;
+            /**
+             * Parent Department Id
+             * @description UUID departemen induk (opsional)
+             */
+            parent_department_id?: string | null;
+            /**
+             * Manager Membership Id
+             * @description UUID staf manajer departemen (opsional)
+             */
+            manager_membership_id?: string | null;
+            /**
+             * Color Tag
+             * @description Kode warna identifikasi visual
+             * @default #10B981
+             */
+            color_tag: string | null;
+        };
+        /** CreateLeadRequest */
+        CreateLeadRequest: {
+            /** Title */
+            title: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Company Name */
+            company_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /**
+             * Deal Value
+             * @default 0
+             */
+            deal_value: number;
+            /**
+             * Channel Type
+             * @default whatsapp
+             */
+            channel_type: string;
+            /**
+             * Source
+             * @default INBOUND_CHAT
+             */
+            source: string;
+        };
+        /** CreateMessageExperimentIn */
+        CreateMessageExperimentIn: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Channel Type
+             * @default WHATSAPP
+             */
+            channel_type: string;
+            /**
+             * Variant A Name
+             * @default Variant A (Kontrol)
+             */
+            variant_a_name: string;
+            /** Variant A Template */
+            variant_a_template: string;
+            /**
+             * Variant B Name
+             * @default Variant B (Eksperimen)
+             */
+            variant_b_name: string;
+            /** Variant B Template */
+            variant_b_template: string;
+            /**
+             * Min Sample Size // allowlist: statistical sample size for a/b testing experiment
+             * @default 50
+             */
+            min_sample_size: number;
+            /**
+             * Target Metric
+             * @default CONVERSION_RATE
+             */
+            target_metric: string;
+            /**
+             * Confidence Level Threshold
+             * @default 0.95
+             */
+            confidence_level_threshold: number;
+        };
+        /** CreatePersonaRuleRequest */
+        CreatePersonaRuleRequest: {
+            /** Rule Name */
+            rule_name: string;
+            /** Source Agent Id */
+            source_agent_id?: string | null;
+            /** Target Agent Id */
+            target_agent_id?: string | null;
+            /** Condition Type */
+            condition_type: string;
+            /** Condition Params */
+            condition_params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Priority
+             * @default 10
+             */
+            priority: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /** CreateProductRequest */
+        CreateProductRequest: {
+            /** Sku */
+            sku: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Category
+             * @default Umum
+             */
+            category: string;
+            /** Base Price */
+            base_price: number;
+            /**
+             * Currency
+             * @default IDR
+             */
+            currency: string;
+            /**
+             * Initial Stock
+             * @default 0
+             */
+            initial_stock: number;
+            /** Image Url */
+            image_url?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Variants */
+            variants?: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** CreatePromotionRequest */
+        CreatePromotionRequest: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /**
+             * Discount Type
+             * @default PERCENTAGE
+             */
+            discount_type: string;
+            /** Discount Value */
+            discount_value: number;
+            /**
+             * Min Order Amount
+             * @default 0
+             */
+            min_order_amount: number;
+            /** Max Discount Amount */
+            max_discount_amount?: number | null;
+            /** Applicable Product Ids */
+            applicable_product_ids?: string[];
+            /** Start Date */
+            start_date: string;
+            /** End Date */
+            end_date: string;
+        };
+        /** CreateQuotationRequest */
+        CreateQuotationRequest: {
+            /** Notes */
+            notes?: string | null;
+        };
+        /** CreateSelectionJobRequest */
+        CreateSelectionJobRequest: {
+            /**
+             * Title
+             * @description Judul pekerjaan seleksi
+             */
+            title: string;
+            /**
+             * @description Kategori seleksi
+             * @default RECRUITMENT
+             */
+            category: components["schemas"]["SelectionJobCategory"];
+            /**
+             * Description
+             * @description Deskripsi kualifikasi atau lingkup seleksi
+             */
+            description?: string | null;
+            /**
+             * Criteria
+             * @description Daftar kriteria evaluasi
+             */
+            criteria?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Weights
+             * @description Bobot kriteria (akan dinormalisasi ke total 1.0)
+             */
+            weights?: {
+                [key: string]: number;
+            } | null;
+        };
+        /** CreateServiceRequestPayload */
+        CreateServiceRequestPayload: {
+            /** Subject */
+            subject: string;
+            /** Description */
+            description: string;
+            category_override?: components["schemas"]["ServiceRequestCategory"] | null;
+            /** Customer Id */
+            customer_id?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /**
+             * Amount
+             * @default 0
+             */
+            amount: number;
+            /**
+             * Channel
+             * @default WHATSAPP
+             */
+            channel: string;
+            /** Attachments */
+            attachments?: {
+                [key: string]: unknown;
+            }[] | null;
+        };
+        /** CreateStaffRequest */
+        CreateStaffRequest: {
+            /** Full Name */
+            full_name: string;
+            /** Auth User Id */
+            auth_user_id?: string | null;
+            /** Department Id */
+            department_id?: string | null;
+            /**
+             * Role Code
+             * @description Peran anggota dalam tenant
+             * @default STAFF_HUMAN
+             */
+            role_code: string;
+            /** Email */
+            email?: string | null;
+        };
+        /** CreateTaskRequest */
+        CreateTaskRequest: {
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /** Column Id */
+            column_id?: string | null;
+            /**
+             * Priority
+             * @default medium
+             */
+            priority: string;
+            /** Assignee Id */
+            assignee_id?: string | null;
+            /** Assigned Agent Id */
+            assigned_agent_id?: string | null;
+        };
+        /** CreateWaybillRequest */
+        CreateWaybillRequest: {
+            /** Courier Code */
+            courier_code: string;
+            /** Courier Service */
+            courier_service: string;
+            /**
+             * Shipping Cost
+             * @default 0
+             */
+            shipping_cost: number;
+            /**
+             * Weight Grams
+             * @default 1000
+             */
+            weight_grams: number;
+            /** Origin Address */
+            origin_address?: {
+                [key: string]: unknown;
+            };
+            /** Destination Address */
+            destination_address?: {
+                [key: string]: unknown;
+            };
+        };
+        /** CreditEstimate */
+        CreditEstimate: {
+            /**
+             * Base
+             * @description Nilai dasar unit kerja dari jenis aktivitas AI
+             */
+            base: number;
+            /**
+             * Complexity
+             * @description Faktor pengali kompleksitas tugas
+             */
+            complexity: number;
+            /**
+             * Model
+             * @description Faktor pengali model LLM yang dipilih
+             */
+            model: number;
+            /**
+             * Tool
+             * @description Faktor pengali perkakas MCP berdasarkan risk tier
+             */
+            tool: number;
+            /**
+             * Execution
+             * @description Faktor pengali mode eksekusi
+             */
+            execution: number;
+            /**
+             * Final Estimate
+             * @description Total estimasi kredit AI yang dibutuhkan
+             */
+            final_estimate: number;
+        };
+        /** CreditTopupPackagePayload */
+        CreditTopupPackagePayload: {
+            /** Name */
+            name: string;
+            /** Credit Amount */
+            credit_amount: number;
+            /** Price Idr */
+            price_idr: number;
+            /** Validity Days */
+            validity_days: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /** DataQualityIssueInput */
+        DataQualityIssueInput: {
+            /**
+             * Entity Type
+             * @description Tipe entitas, e.g. competitor_price, product_stock
+             */
+            entity_type: string;
+            /**
+             * Entity Id
+             * @description Identitas entitas yang terdampak
+             */
+            entity_id: string;
+            /**
+             * Field Name
+             * @description Nama bidang data
+             */
+            field_name: string;
+            /**
+             * Issue Type
+             * @description CONFLICTING_SOURCES, STALE_DATA, PARTIAL_DATA, FALSE_AVAILABILITY_CLAIM
+             * @default CONFLICTING_SOURCES
+             */
+            issue_type: string;
+            /**
+             * Severity
+             * @description LOW, MEDIUM, HIGH, CRITICAL
+             * @default MEDIUM
+             */
+            severity: string;
+            /**
+             * Availability State
+             * @description AVAILABLE, STALE, CONFLICTING, PARTIAL, NOT_AVAILABLE
+             * @default CONFLICTING
+             */
+            availability_state: string;
+            /**
+             * Confidence Score
+             * @default 0
+             */
+            confidence_score: number;
+            /** Sources Involved */
+            sources_involved?: {
+                [key: string]: unknown;
+            }[];
+            /** Conflict Details */
+            conflict_details?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Requires Human Resolution
+             * @default true
+             */
+            requires_human_resolution: boolean;
+        };
+        /** DepartmentResponse */
+        DepartmentResponse: {
+            /** Id */
+            id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Parent Department Id */
+            parent_department_id: string | null;
+            /** Manager Membership Id */
+            manager_membership_id: string | null;
+            /** Manager Name */
+            manager_name?: string | null;
+            /** Color Tag */
+            color_tag: string | null;
+            /**
+             * Active Staff Count
+             * @default 0
+             */
+            active_staff_count: number;
+            /**
+             * Active Agent Count
+             * @default 0
+             */
+            active_agent_count: number;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Created At */
+            created_at: string;
+        };
+        /** DocumentCreateRequest */
+        DocumentCreateRequest: {
+            /**
+             * Title
+             * @description Judul dokumen memori
+             */
+            title: string;
+            /**
+             * Content
+             * @description Isi dokumen memori
+             */
+            content: string;
+            /**
+             * Summary
+             * @description Ringkasan opsional
+             */
+            summary?: string | null;
+            /**
+             * Category
+             * @description Kategori: knowledge, sop, policy, client_crm, financial
+             * @default knowledge
+             */
+            category: string;
+            /**
+             * Source Type
+             * @description manual, sop, workflow_execution, agent_reflection, conversation, document_upload
+             * @default manual
+             */
+            source_type: string;
+            /** Source Id */
+            source_id?: string | null;
+            /**
+             * Data Classification
+             * @description public, internal, confidential, restricted
+             * @default internal
+             */
+            data_classification: string;
+            /**
+             * Confidence
+             * @default 1
+             */
+            confidence: number;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** DpiaRecordInput */
+        DpiaRecordInput: {
+            /** Assessment Title */
+            assessment_title: string;
+            /** Data Controller Name */
+            data_controller_name: string;
+            /** Data Protection Officer */
+            data_protection_officer: string;
+            /** Processing Purpose */
+            processing_purpose: string;
+            /** Data Categories */
+            data_categories?: string[];
+            /** Data Subject Categories */
+            data_subject_categories?: string[];
+            /**
+             * Transfer Basis
+             * @default INTERNAL_LEGITIMATE_INTEREST
+             */
+            transfer_basis: string;
+            /** Security Measures Description */
+            security_measures_description: string;
+            /**
+             * Risk Level
+             * @default MEDIUM
+             */
+            risk_level: string;
+            /**
+             * Residual Risk
+             * @default LOW
+             */
+            residual_risk: string;
+            /**
+             * Status
+             * @default APPROVED
+             */
+            status: string;
+            /**
+             * Is Complete
+             * @default true
+             */
+            is_complete: boolean;
+            /** Review Notes */
+            review_notes?: string | null;
+        };
+        /** EstimateCreditRequest */
+        EstimateCreditRequest: {
+            /**
+             * Activity Code
+             * @description Kode aktivitas AI dari ai_activity_types
+             */
+            activity_code: string;
+            /**
+             * Complexity Code
+             * @description Tingkat kompleksitas: low, medium, high, very_high
+             * @default medium
+             */
+            complexity_code: string;
+            /**
+             * Llm Model Id
+             * @description Model LLM identifier atau ID
+             * @default default
+             */
+            llm_model_id: string;
+            /**
+             * Tool Risk Tier
+             * @description Risk tier MCP tool jika ada: low, medium, high
+             */
+            tool_risk_tier?: string | null;
+            /**
+             * Execution Mode
+             * @description Mode eksekusi: single_step, multi_step, autonomous
+             * @default single_step
+             */
+            execution_mode: string;
+        };
+        /** EvaluateActionRequest */
+        EvaluateActionRequest: {
+            /**
+             * Action Type
+             * @description Tipe aksi: DISCOUNT, REFUND, CANCEL_ORDER, CUSTOM_CONTRACT
+             */
+            action_type: string;
+            /**
+             * Actor Type
+             * @description Tipe aktor: ai_agent, human_user, system
+             * @default ai_agent
+             */
+            actor_type: string;
+            /**
+             * Actor Id
+             * @description UUID atau ID aktor pemohon
+             */
+            actor_id?: string | null;
+            /**
+             * Persona Type
+             * @description Persona AI pemohon (misal: sales_specialist)
+             * @default sales_specialist
+             */
+            persona_type: string;
+            /**
+             * Target Resource Type
+             * @description Jenis resource target: order, cart, customer, contract
+             * @default order
+             */
+            target_resource_type: string;
+            /**
+             * Target Resource Id
+             * @description ID resource target
+             */
+            target_resource_id?: string | null;
+            /**
+             * Payload
+             * @description Argumen aksi (misal: discount_pct, amount, order_id)
+             */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Request Id
+             * @description Request ID idempotensi/penelusuran
+             */
+            request_id?: string | null;
+        };
+        /** EvaluateHandoverPayload */
+        EvaluateHandoverPayload: {
+            /** Customer Message */
+            customer_message: string;
+            /**
+             * Model Confidence
+             * @default 1
+             */
+            model_confidence: number;
+            /** Objection Type */
+            objection_type?: string | null;
+            /**
+             * Refund Amount
+             * @default 0
+             */
+            refund_amount: number;
+        };
+        /** EvaluateTestInput */
+        EvaluateTestInput: {
+            /** Agent Persona Type */
+            agent_persona_type: string;
+            /** Connector Code */
+            connector_code: string;
+            /**
+             * Action
+             * @default data.read
+             */
+            action: string | null;
+            /**
+             * Data Classification
+             * @default internal
+             */
+            data_classification: string | null;
+            /**
+             * Resource Type
+             * @default enterprise_system
+             */
+            resource_type: string | null;
+        };
+        /** EventEvaluationInput */
+        EventEvaluationInput: {
+            /** Event Code */
+            event_code: string;
+            /** Context Data */
+            context_data?: {
+                [key: string]: unknown;
+            };
+        };
+        /** ExecuteInferenceIn */
+        ExecuteInferenceIn: {
+            /** Tenant Id */
+            tenant_id: string;
+            /**
+             * Task Type
+             * @default TEXT_GENERATION
+             */
+            task_type: string;
+            /** Prompt */
+            prompt: string;
+        };
+        /** ExecuteScoringRequest */
+        ExecuteScoringRequest: {
+            /**
+             * Model Used
+             * @description Identifier model LLM
+             * @default meta-llama/llama-3.3-70b-instruct
+             */
+            model_used: string | null;
+        };
+        /** FabricConnectorCreateInput */
+        FabricConnectorCreateInput: {
+            /** Connector Code */
+            connector_code: string;
+            /** Connector Name */
+            connector_name: string;
+            /**
+             * Connector Type
+             * @default ERP
+             */
+            connector_type: string;
+            /**
+             * Auth Type
+             * @default API_KEY
+             */
+            auth_type: string;
+            /** Credentials */
+            credentials?: {
+                [key: string]: unknown;
+            } | null;
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** FacilityItem */
+        FacilityItem: {
+            /** Facility Key */
+            facility_key: string;
+            /** Display Name */
+            display_name: string;
+            /** Display Order */
+            display_order: number;
+            /** Levels */
+            levels: {
+                [key: string]: string;
+            };
+        };
+        /** FacilityMatrixBatchUpdatePayload */
+        FacilityMatrixBatchUpdatePayload: {
+            /** Updates */
+            updates: components["schemas"]["FacilityMatrixCellUpdate"][];
+        };
+        /** FacilityMatrixCellUpdate */
+        FacilityMatrixCellUpdate: {
+            /** Plan Id */
+            plan_id: string;
+            /** Facility Key */
+            facility_key: string;
+            /** Level */
+            level: string;
+        };
+        /** FactorMultiplierUpdatePayload */
+        FactorMultiplierUpdatePayload: {
+            /** Multiplier */
+            multiplier: number;
+        };
+        /** FeedbackIn */
+        FeedbackIn: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Outcome Id */
+            outcome_id: string;
+            /** Human Feedback Score */
+            human_feedback_score: number;
+            /** Feedback Notes */
+            feedback_notes?: string | null;
+            /** Actor Id */
+            actor_id?: string | null;
+        };
+        /** FinalizeJobRequest */
+        FinalizeJobRequest: {
+            /**
+             * Reviewer Id
+             * @description UUID penanggung jawab persetujuan
+             */
+            reviewer_id: string;
+            /**
+             * Approval Notes
+             * @description Catatan persetujuan akhir komprehensif
+             */
+            approval_notes: string;
+        };
+        /** FinancialCommandCenterResponse */
+        FinancialCommandCenterResponse: {
+            /**
+             * Wallet Balance
+             * @default 0
+             */
+            wallet_balance: number;
+            /**
+             * Currency
+             * @default IDR
+             */
+            currency: string;
+            /**
+             * Total Revenue
+             * @default 0
+             */
+            total_revenue: number;
+            /**
+             * Circulating Credits
+             * @default 0
+             */
+            circulating_credits: number;
+            /**
+             * Reserved Credits
+             * @default 0
+             */
+            reserved_credits: number;
+            /**
+             * Total Invoices Paid
+             * @default 0
+             */
+            total_invoices_paid: number;
+            /**
+             * Status
+             * @default operational
+             */
+            status: string;
+            /**
+             * Ledger Active
+             * @default true
+             */
+            ledger_active: boolean;
+            /** Timestamp */
+            timestamp?: string;
+        };
+        /** GenerateBriefingInput */
+        GenerateBriefingInput: {
+            /** Briefing Date */
+            briefing_date?: string | null;
+        };
+        /** GenerateReportInput */
+        GenerateReportInput: {
+            /**
+             * Report Type
+             * @default DAILY
+             */
+            report_type: string;
+            /**
+             * Days Back
+             * @default 1
+             */
+            days_back: number;
+            /** Custom Title */
+            custom_title?: string | null;
+        };
+        /** GenerativeJobCreate */
+        GenerativeJobCreate: {
+            /**
+             * Job Type
+             * @default IMAGE_GENERATION
+             */
+            job_type: string;
+            /** Prompt */
+            prompt: string;
+            /** Negative Prompt */
+            negative_prompt?: string | null;
+            /**
+             * Aspect Ratio
+             * @default 1:1
+             */
+            aspect_ratio: string;
+            /** Style Preset */
+            style_preset?: string | null;
+            /**
+             * Model Used
+             * @default gpt-image-2
+             */
+            model_used: string;
+            /** Brand Lock Id */
+            brand_lock_id?: string | null;
+            /**
+             * Credit Cost
+             * @default 5
+             */
+            credit_cost: number;
+            /**
+             * Force Fail For Test
+             * @default false
+             */
+            force_fail_for_test: boolean;
+        };
+        /** GroundingValidateRequest */
+        GroundingValidateRequest: {
+            /** Text */
+            text: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
         };
         /** HRQueueItemResponse */
         HRQueueItemResponse: {
@@ -496,6 +8723,130 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HandoverRequest */
+        HandoverRequest: {
+            /**
+             * To Agent Type
+             * @description Target penugasan: 'AI' atau 'HUMAN'
+             */
+            to_agent_type: string;
+            /**
+             * Handover Reason
+             * @description Alasan pengalihan penanganan percakapan
+             */
+            handover_reason: string;
+            /** Assigned To User Id */
+            assigned_to_user_id?: string | null;
+        };
+        /**
+         * HumanReviewStatus
+         * @enum {string}
+         */
+        HumanReviewStatus: "PENDING" | "ACCEPTED" | "OVERRIDDEN" | "REJECTED";
+        /** HumanizeTextPayload */
+        HumanizeTextPayload: {
+            /** Text Content */
+            text_content: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Honorific
+             * @default Kak
+             */
+            honorific: string;
+            /**
+             * Enforce Grounding
+             * @default true
+             */
+            enforce_grounding: boolean;
+        };
+        /** IngestSignalInput */
+        IngestSignalInput: {
+            /**
+             * Source Type
+             * @description 'Native', 'Synced', atau 'Uploaded'
+             */
+            source_type: string;
+            /** Source System */
+            source_system: string;
+            /** Signal Type */
+            signal_type: string;
+            /** Title */
+            title: string;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+            /** Source Ref Id */
+            source_ref_id?: string | null;
+        };
+        /** JobLevelResponse */
+        JobLevelResponse: {
+            /** Id */
+            id: string;
+            /** Level Code */
+            level_code: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Level Rank */
+            level_rank: number;
+            /** Min Complexity Multiplier */
+            min_complexity_multiplier: number;
+            /**
+             * Is Reference
+             * @default true
+             */
+            is_reference: boolean;
+        };
+        /** JobSubtitleResponse */
+        JobSubtitleResponse: {
+            /** Id */
+            id: string;
+            /** Job Title Id */
+            job_title_id: string;
+            /** Subtitle Code */
+            subtitle_code: string;
+            /** Subtitle Name */
+            subtitle_name: string;
+            /** Description */
+            description?: string | null;
+            /** Focus Areas */
+            focus_areas?: string[];
+            /**
+             * Is Reference
+             * @default true
+             */
+            is_reference: boolean;
+        };
+        /** JobTitleMigrationReportResponse */
+        JobTitleMigrationReportResponse: {
+            /** Id */
+            id?: string | null;
+            /** Report Batch Id */
+            report_batch_id: string;
+            /** Tenant Id */
+            tenant_id?: string | null;
+            /** Total Agents Audited */
+            total_agents_audited: number;
+            /** Auto Mapped Count */
+            auto_mapped_count: number;
+            /** Ambiguous Count */
+            ambiguous_count: number;
+            /** Reconciliation Status */
+            reconciliation_status: string;
+            /** Mappings */
+            mappings: components["schemas"]["ReconciliationMappingItemModel"][];
+            /** Summary Notes */
+            summary_notes: string;
+            /** Generated At */
+            generated_at: string;
         };
         /** JoinCompanyRequest */
         JoinCompanyRequest: {
@@ -535,6 +8886,374 @@ export interface components {
             tenant_id: string;
             /** Message */
             message: string;
+        };
+        /** KnowledgeFusionInput */
+        KnowledgeFusionInput: {
+            /** Target Dimensions */
+            target_dimensions?: string[] | null;
+        };
+        /** LlmMetrics */
+        LlmMetrics: {
+            /**
+             * Providers Healthy
+             * @default 4
+             */
+            providers_healthy: number;
+            /**
+             * Providers Total
+             * @default 4
+             */
+            providers_total: number;
+        };
+        /** ManualCompleteInterceptInput */
+        ManualCompleteInterceptInput: {
+            /**
+             * Requested By
+             * @default user
+             */
+            requested_by: string;
+        };
+        /** ManualCreditAdjustmentPayload */
+        ManualCreditAdjustmentPayload: {
+            /**
+             * Tenant Id
+             * @description ID tenant tujuan penyesuaian kredit
+             */
+            tenant_id: string;
+            /**
+             * Amount
+             * @description Nominal penyesuaian kredit (positif atau negatif)
+             */
+            amount: number;
+            /**
+             * Reason
+             * @description Alasan wajib penyesuaian kredit
+             */
+            reason: string;
+        };
+        /** MarketplaceFulfillRequest */
+        MarketplaceFulfillRequest: {
+            /** Channel */
+            channel: string;
+            /** External Order Id */
+            external_order_id: string;
+            /** Tracking Number */
+            tracking_number: string;
+            /** Courier */
+            courier: string;
+        };
+        /** MatrixCellUpdateInput */
+        MatrixCellUpdateInput: {
+            /** Agent Persona Type */
+            agent_persona_type: string;
+            /** Connector Code */
+            connector_code: string;
+            /** Access Level */
+            access_level: string;
+            /**
+             * Data Classification
+             * @default internal
+             */
+            data_classification: string | null;
+            /**
+             * User Role
+             * @default TENANT_ADMIN
+             */
+            user_role: string | null;
+            /** User Id */
+            user_id?: string | null;
+        };
+        /** McpMetrics */
+        McpMetrics: {
+            /**
+             * Tools Total
+             * @default 4
+             */
+            tools_total: number;
+        };
+        /** MemorySearchResult */
+        MemorySearchResult: {
+            /** Document Id */
+            document_id: string;
+            /** Chunk Id */
+            chunk_id?: string | null;
+            /** Title */
+            title: string;
+            /** Content */
+            content: string;
+            /** Summary */
+            summary?: string | null;
+            /** Category */
+            category: string;
+            /** Data Classification */
+            data_classification: string;
+            /** Confidence */
+            confidence: number;
+            /** Rrf Score */
+            rrf_score: number;
+            /** Vector Rank */
+            vector_rank?: number | null;
+            /** Text Rank */
+            text_rank?: number | null;
+            /** Similarity */
+            similarity?: number | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** MfaVerifyRequest */
+        MfaVerifyRequest: {
+            /** Code */
+            code: string;
+            /** User Id */
+            user_id?: string | null;
+        };
+        /** MoveTaskRequest */
+        MoveTaskRequest: {
+            /** Target Column Id */
+            target_column_id: string;
+            /**
+             * New Position
+             * @default 0
+             */
+            new_position: number;
+            /** Tenant Id */
+            tenant_id?: string | null;
+        };
+        /** MultiAgentCollaborationInput */
+        MultiAgentCollaborationInput: {
+            /** Project Name */
+            project_name: string;
+            /** Metrics */
+            metrics?: {
+                [key: string]: unknown;
+            };
+            /** Specialist Agent Codes */
+            specialist_agent_codes?: string[] | null;
+        };
+        /** PersonaConfigRequest */
+        PersonaConfigRequest: {
+            /** Tone */
+            tone?: string | null;
+            /** Qualification Questions */
+            qualification_questions?: string[] | null;
+            /** Score Triggers */
+            score_triggers?: {
+                [key: string]: unknown;
+            } | null;
+            /** Handoff Instruction */
+            handoff_instruction?: string | null;
+        };
+        /** PlanFacilityMatrixResponse */
+        PlanFacilityMatrixResponse: {
+            /** Facilities */
+            facilities: components["schemas"]["FacilityItem"][];
+            /** Plans */
+            plans: components["schemas"]["SubscriptionPlanResponse"][];
+            /** Matrix */
+            matrix: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** ProjectHealthInput */
+        ProjectHealthInput: {
+            /** Project Name */
+            project_name: string;
+            /** Metrics */
+            metrics?: {
+                [key: string]: unknown;
+            };
+        };
+        /** PromptTemplateCreate */
+        PromptTemplateCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Category
+             * @default PRODUCT_SHOWCASE
+             */
+            category: string;
+            /** Template Body */
+            template_body: string;
+            /** Default Negative Prompt */
+            default_negative_prompt?: string | null;
+            /**
+             * Recommended Aspect Ratio
+             * @default 1:1
+             */
+            recommended_aspect_ratio: string;
+            /** Style Tags */
+            style_tags?: string[];
+            /**
+             * Credit Estimate
+             * @default 5
+             */
+            credit_estimate: number;
+        };
+        /** ProspectMetrics */
+        ProspectMetrics: {
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Selected
+             * @default 0
+             */
+            selected: number;
+            /**
+             * Active Trials
+             * @default 0
+             */
+            active_trials: number;
+            /**
+             * Scheduled Meetings
+             * @default 0
+             */
+            scheduled_meetings: number;
+        };
+        /** ProspectRegistrationRequest */
+        ProspectRegistrationRequest: {
+            /** Full Name */
+            full_name: string;
+            /**
+             * Work Email
+             * Format: email
+             */
+            work_email: string;
+            /** Phone Number */
+            phone_number?: string | null;
+            /** Company Name */
+            company_name: string;
+            /** Company Scale */
+            company_scale?: string | null;
+            /**
+             * Interest Type
+             * @description direct_trial_or_subscription / demo_request / enterprise_discussion
+             */
+            interest_type: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Turnstile Token
+             * @description Cloudflare Turnstile Bot Integrity Token
+             */
+            turnstile_token?: string | null;
+        };
+        /** ProspectRegistrationResponse */
+        ProspectRegistrationResponse: {
+            /** Id */
+            id: string;
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            /** Created At */
+            created_at: string;
+            /** Allocated Slot Number */
+            allocated_slot_number?: number | null;
+            /** Trial Expires At */
+            trial_expires_at?: string | null;
+        };
+        /** PublicJoinRequest */
+        PublicJoinRequest: {
+            /** Company Code */
+            company_code: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /**
+             * Turnstile Token
+             * @description Cloudflare Turnstile Bot Integrity Token
+             */
+            turnstile_token?: string | null;
+        };
+        /** PublicRegisterRequest */
+        PublicRegisterRequest: {
+            /** Company Name */
+            company_name: string;
+            /** Admin Name */
+            admin_name: string;
+            /**
+             * Admin Email
+             * Format: email
+             */
+            admin_email: string;
+            /**
+             * Turnstile Token
+             * @description Cloudflare Turnstile Bot Integrity Token
+             */
+            turnstile_token?: string | null;
+        };
+        /** QualificationAnswerRequest */
+        QualificationAnswerRequest: {
+            /** Question Key */
+            question_key: string;
+            /** Question Text */
+            question_text: string;
+            /** Answer Text */
+            answer_text: string;
+            /**
+             * Score Weight
+             * @default 12.5
+             */
+            score_weight: number;
+        };
+        /** ReconciliationMappingItemModel */
+        ReconciliationMappingItemModel: {
+            /** Agent Id */
+            agent_id: string;
+            /** Agent Display Name */
+            agent_display_name: string;
+            /** Department Name */
+            department_name?: string | null;
+            /** Persona Type */
+            persona_type: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Resolution Status */
+            resolution_status: string;
+            /** Target Job Title Id */
+            target_job_title_id?: string | null;
+            /** Target Job Title Code */
+            target_job_title_code?: string | null;
+            /** Target Title Name */
+            target_title_name?: string | null;
+            /** Structural Role Name */
+            structural_role_name?: string | null;
+            /** Level Code */
+            level_code?: string | null;
+            /** Confidence */
+            confidence: string;
+            /** Requires Manual Review */
+            requires_manual_review: boolean;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** RefundCreditApiRequest */
+        RefundCreditApiRequest: {
+            /**
+             * Reservation Id
+             * @description ID token reservasi yang akan dikembalikan
+             */
+            reservation_id: string;
+            /**
+             * Tenant Id
+             * @description ID organisasi/tenant
+             */
+            tenant_id: string;
+            /**
+             * Reason
+             * @description Alasan pengembalian reservasi
+             * @default Eksekusi dibatalkan atau gagal
+             */
+            reason: string;
         };
         /** RegisterTenantRequest */
         RegisterTenantRequest: {
@@ -582,6 +9301,172 @@ export interface components {
             /** Created At */
             created_at: string;
         };
+        /** RejectTicketPayload */
+        RejectTicketPayload: {
+            /** User Id */
+            user_id: string;
+            /** Rejection Reason */
+            rejection_reason: string;
+        };
+        /** ReportGenerateRequest */
+        ReportGenerateRequest: {
+            /**
+             * Report Type
+             * @description weekly_digest, monthly_landscape, battle_card
+             * @default weekly_digest
+             */
+            report_type: string;
+            /**
+             * Title
+             * @description Judul laporan intelijen
+             */
+            title: string;
+            /** Period Start */
+            period_start: string;
+            /** Period End */
+            period_end: string;
+        };
+        /** ResearchAgentQueryInput */
+        ResearchAgentQueryInput: {
+            /**
+             * Query
+             * @description Pertanyaan riset korporat eksekutif
+             */
+            query: string;
+            /**
+             * Research Objective
+             * @description Tujuan strategis atau konteks investigasi
+             */
+            research_objective?: string | null;
+            /**
+             * Explicit Sources
+             * @description Sumber tambahan ad-hoc
+             */
+            explicit_sources?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Allow Web Override
+             * @description Override izin web jika tenant mengizinkan
+             */
+            allow_web_override?: boolean | null;
+        };
+        /** ResearchPolicyUpdateInput */
+        ResearchPolicyUpdateInput: {
+            /**
+             * Allow Public Web Search
+             * @description Izin eksplisit tenant untuk riset web publik
+             */
+            allow_public_web_search: boolean;
+            /**
+             * Max Research Depth
+             * @default 3
+             */
+            max_research_depth: number | null;
+            /**
+             * Require Traceability Citations
+             * @default true
+             */
+            require_traceability_citations: boolean | null;
+            /** Allowed Domains */
+            allowed_domains?: string[] | null;
+            /** Blocked Domains */
+            blocked_domains?: string[] | null;
+        };
+        /** ReserveCreditApiRequest */
+        ReserveCreditApiRequest: {
+            /**
+             * Tenant Id
+             * @description ID organisasi/tenant
+             */
+            tenant_id?: string | null;
+            /** @description Hasil kalkulasi estimate_credit_cost */
+            estimate: components["schemas"]["CreditEstimate"];
+            /**
+             * Activity Type Id
+             * @description ID atau kode tipe aktivitas AI
+             */
+            activity_type_id: string;
+            /**
+             * Reference Type
+             * @description Tipe referensi tugas AI
+             * @default ai_task
+             */
+            reference_type: string;
+            /**
+             * Reference Id
+             * @description ID referensi konteks tugas
+             */
+            reference_id?: string | null;
+            /**
+             * Execution Ref
+             * @description ID workflow execution atau tool invocation
+             */
+            execution_ref?: string | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ResolveIssueInput */
+        ResolveIssueInput: {
+            /**
+             * Resolved By
+             * @description Nama atau identitas pengambil keputusan manusia
+             */
+            resolved_by: string;
+            /**
+             * Chosen Source
+             * @description Sumber data terpilih atau MANUAL_OVERRIDE
+             */
+            chosen_source: string;
+            /**
+             * Resolution Notes
+             * @description Justifikasi resolusi manusia
+             */
+            resolution_notes?: string | null;
+            /**
+             * Reconciled Value
+             * @description Nilai final yang disahkan
+             */
+            reconciled_value?: unknown | null;
+        };
+        /** ReviewApprovalRequest */
+        ReviewApprovalRequest: {
+            /**
+             * Decision
+             * @description Keputusan: APPROVED atau REJECTED
+             */
+            decision: string;
+            /**
+             * Reviewer User Id
+             * @description UUID staf manusia yang menyetujui/menolak
+             */
+            reviewer_user_id?: string | null;
+            /**
+             * Approval Notes
+             * @description Catatan persetujuan
+             */
+            approval_notes?: string | null;
+            /**
+             * Rejection Reason
+             * @description Alasan penolakan jika ditolak
+             */
+            rejection_reason?: string | null;
+        };
+        /** ReviewHRApprovalRequest */
+        ReviewHRApprovalRequest: {
+            /**
+             * Decision
+             * @description 'approved' atau 'rejected'
+             */
+            decision: string;
+            /**
+             * Reason
+             * @description Alasan review jika ditolak
+             */
+            reason?: string | null;
+        };
         /** ReviewHRQueueRequest */
         ReviewHRQueueRequest: {
             /**
@@ -605,6 +9490,226 @@ export interface components {
             reviewed_at: string;
             /** Message */
             message: string;
+        };
+        /** RolloutTransitionRequest */
+        RolloutTransitionRequest: {
+            /** Target Stage */
+            target_stage: string;
+            /** Allowed Tenant Ids */
+            allowed_tenant_ids?: string[] | null;
+            /**
+             * Operator
+             * @default Super Admin
+             */
+            operator: string | null;
+        };
+        /** ScheduleAbandonedCartPayload */
+        ScheduleAbandonedCartPayload: {
+            /** Cart Id */
+            cart_id: string;
+            /** Customer Id */
+            customer_id?: string | null;
+            /**
+             * Cart Value
+             * @default 0
+             */
+            cart_value: number;
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Channel
+             * @default WHATSAPP
+             */
+            channel: string;
+            /**
+             * Delay Minutes
+             * @default 30
+             */
+            delay_minutes: number;
+            /**
+             * Discount Code
+             * @default PULIH10
+             */
+            discount_code: string;
+        };
+        /** ScheduleCalendarPostRequest */
+        ScheduleCalendarPostRequest: {
+            /** Title */
+            title: string;
+            /** Caption */
+            caption: string;
+            /** Scheduled Publish At */
+            scheduled_publish_at: string;
+            /** Media Urls */
+            media_urls?: string[];
+            /** Channels */
+            channels?: string[];
+            /**
+             * Disclose Ai Generated
+             * @default false
+             */
+            disclose_ai_generated: boolean;
+        };
+        /** ScheduleMeetingRequest */
+        ScheduleMeetingRequest: {
+            /**
+             * Meeting Date
+             * @description ISO 8601 string tanggal pertemuan
+             */
+            meeting_date: string;
+            /** Meeting Link */
+            meeting_link?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** ScrubMediaRequest */
+        ScrubMediaRequest: {
+            /**
+             * Filename
+             * @default post_creative.jpg
+             */
+            filename: string;
+            /** Raw Base64 */
+            raw_base64?: string | null;
+        };
+        /** SegmentCriteriaRequest */
+        SegmentCriteriaRequest: {
+            /** Tiers */
+            tiers?: string[] | null;
+            /** Min Total Spent */
+            min_total_spent?: number | null;
+            /** Max Total Spent */
+            max_total_spent?: number | null;
+            /** Min Orders */
+            min_orders?: number | null;
+            /** Inactive Days */
+            inactive_days?: number | null;
+            /** City */
+            city?: string | null;
+            /** Channel Preference */
+            channel_preference?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
+        /**
+         * SelectionJobCategory
+         * @enum {string}
+         */
+        SelectionJobCategory: "RECRUITMENT" | "VENDOR_SELECTION" | "TENDER_EVALUATION" | "LEAD_QUALIFICATION" | "DOCUMENT_AUDIT";
+        /** SendMessageRequest */
+        SendMessageRequest: {
+            /**
+             * Content Text
+             * @description Isi teks pesan
+             */
+            content_text: string;
+            /** Media Urls */
+            media_urls?: string[] | null;
+        };
+        /**
+         * ServiceRequestCategory
+         * @enum {string}
+         */
+        ServiceRequestCategory: "REFUND" | "RETURN" | "COMPLAINT" | "CANCELLATION" | "TECHNICAL_SUPPORT" | "GENERAL_INQUIRY";
+        /** SimulatePaymentRequest */
+        SimulatePaymentRequest: {
+            /**
+             * Invoice Number
+             * @description Nomor faktur yang akan disettle
+             */
+            invoice_number: string;
+            /**
+             * Payment Reference
+             * @description ID transaksi referensi dari gateway
+             */
+            payment_reference?: string | null;
+        };
+        /** SocialWebhookCommentPayload */
+        SocialWebhookCommentPayload: {
+            /**
+             * Platform
+             * @default INSTAGRAM
+             */
+            platform: string;
+            /** Comment Id */
+            comment_id: string;
+            /** Media Id */
+            media_id: string;
+            /** Author Id */
+            author_id: string;
+            /** Author Username */
+            author_username: string;
+            /** Comment Text */
+            comment_text: string;
+        };
+        /**
+         * SourceDocumentType
+         * @enum {string}
+         */
+        SourceDocumentType: "RESUME" | "PROPOSAL" | "PORTFOLIO" | "CERTIFICATE" | "INTERVIEW_TRANSCRIPT" | "FINANCIAL_RECORD";
+        /** SpecialistAgentDispatchInput */
+        SpecialistAgentDispatchInput: {
+            /** Agent Role */
+            agent_role: string;
+            /** Task */
+            task: string;
+            /** Project Ref Id */
+            project_ref_id?: string | null;
+            /** Parameters */
+            parameters?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** StaffMemberResponse */
+        StaffMemberResponse: {
+            /** Id */
+            id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Auth User Id */
+            auth_user_id: string;
+            /** Full Name */
+            full_name: string;
+            /** Department Id */
+            department_id: string | null;
+            /** Department Name */
+            department_name?: string | null;
+            /** Role Code */
+            role_code: string;
+            /** Role Description */
+            role_description?: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string;
+        };
+        /** StandardizedJobTitleResponse */
+        StandardizedJobTitleResponse: {
+            /** Id */
+            id: string;
+            /** Title Code */
+            title_code: string;
+            /** Title Name */
+            title_name: string;
+            /** Category Tag */
+            category_tag: string;
+            /** Badge Stars */
+            badge_stars: string;
+            /** Primary Duties */
+            primary_duties: string;
+            /** Recommended Tools */
+            recommended_tools: string[];
+            /** Primary Deliverable */
+            primary_deliverable: string;
+            /**
+             * Is Reference
+             * @default true
+             */
+            is_reference: boolean;
+            structural_role: components["schemas"]["StructuralRoleResponse"];
+            job_level: components["schemas"]["JobLevelResponse"];
+            /** Subtitles */
+            subtitles?: components["schemas"]["JobSubtitleResponse"][];
         };
         /** StartupCheckResult */
         StartupCheckResult: {
@@ -635,6 +9740,551 @@ export interface components {
             /** Checks */
             checks: components["schemas"]["StartupCheckResult"][];
         };
+        /** StructuralRoleResponse */
+        StructuralRoleResponse: {
+            /** Id */
+            id: string;
+            /** Role Code */
+            role_code: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Hierarchy Rank */
+            hierarchy_rank: number;
+            /**
+             * Is Reference
+             * @default true
+             */
+            is_reference: boolean;
+        };
+        /** SubmitReviewRequest */
+        SubmitReviewRequest: {
+            /** @description Keputusan tinjauan: ACCEPTED, OVERRIDDEN, REJECTED */
+            decision: components["schemas"]["HumanReviewStatus"];
+            /**
+             * Override Score
+             * @description Skor override manusia jika disesuaikan
+             */
+            override_score?: number | null;
+            /**
+             * Reviewer Notes
+             * @description Catatan justifikasi tinjauan manusia
+             */
+            reviewer_notes: string;
+            /**
+             * Reviewer Id
+             * @description UUID reviewer manusia
+             */
+            reviewer_id?: string | null;
+        };
+        /** SubscriptionPlanResponse */
+        SubscriptionPlanResponse: {
+            /** Id */
+            id: string;
+            /** Plan Code */
+            plan_code: string;
+            /** Tier Level */
+            tier_level: number;
+            /** Display Name */
+            display_name: string;
+            /** Price Monthly */
+            price_monthly?: number | null;
+            /** Monthly Price Idr */
+            monthly_price_idr?: number | null;
+            /** Ai Credit Allowance */
+            ai_credit_allowance?: number | null;
+            /** Human Staff Limit */
+            human_staff_limit?: number | null;
+            /** Ai Agent Limit */
+            ai_agent_limit?: number | null;
+            /**
+             * Is Trial
+             * @default false
+             */
+            is_trial: boolean;
+            /** Trial Duration Days */
+            trial_duration_days?: number | null;
+            /**
+             * Is Custom Quote
+             * @default false
+             */
+            is_custom_quote: boolean;
+            /**
+             * Display Order
+             * @default 0
+             */
+            display_order: number;
+            /**
+             * Currency
+             * @default IDR
+             */
+            currency: string;
+        };
+        /** SubscriptionPlanUpdatePayload */
+        SubscriptionPlanUpdatePayload: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Monthly Price Idr */
+            monthly_price_idr?: number | null;
+            /** Price Monthly */
+            price_monthly?: number | null;
+            /** Ai Credit Allowance */
+            ai_credit_allowance?: number | null;
+            /** Human Staff Limit */
+            human_staff_limit?: number | null;
+            /** Ai Agent Limit */
+            ai_agent_limit?: number | null;
+            /** Is Trial */
+            is_trial?: boolean | null;
+            /** Trial Duration Days */
+            trial_duration_days?: number | null;
+            /** Is Custom Quote */
+            is_custom_quote?: boolean | null;
+            /** Display Order */
+            display_order?: number | null;
+        };
+        /** SyncStreamInput */
+        SyncStreamInput: {
+            /** Connector Code */
+            connector_code: string;
+            /**
+             * Sync Type
+             * @default MANUAL
+             */
+            sync_type: string;
+        };
+        /** TelegramDeeplinkRequest */
+        TelegramDeeplinkRequest: {
+            /**
+             * Tenant Id
+             * @description ID Tenant/Organisasi
+             */
+            tenant_id: string;
+            /**
+             * Membership Id
+             * @description ID Membership staf
+             */
+            membership_id: string;
+        };
+        /** TenantChatIn */
+        TenantChatIn: {
+            /** Message */
+            message: string;
+            /** Context */
+            context?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** TenantMetrics */
+        TenantMetrics: {
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Active
+             * @default 0
+             */
+            active: number;
+            /**
+             * Trial
+             * @default 0
+             */
+            trial: number;
+        };
+        /** TenantSubscriptionOverrideRequest */
+        TenantSubscriptionOverrideRequest: {
+            /**
+             * Tenant Id
+             * @description ID tenant yang akan di-override
+             */
+            tenant_id: string;
+            /**
+             * Is Unlimited Override
+             * @description True untuk akun unlimited tanpa batas kredit
+             */
+            is_unlimited_override: boolean;
+            /**
+             * Unlimited Reason
+             * @description Alasan wajib diisi jika is_unlimited_override=true
+             */
+            unlimited_reason?: string | null;
+        };
+        /** TenantWallet */
+        TenantWallet: {
+            /** Id */
+            id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Balance */
+            balance: string;
+            /** Reserved Balance */
+            reserved_balance: string;
+            /** Available Balance */
+            available_balance: string;
+            /** Low Balance Threshold */
+            low_balance_threshold: string;
+            /**
+             * Currency
+             * @default IDR
+             */
+            currency: string;
+            /**
+             * Auto Topup Enabled
+             * @default false
+             */
+            auto_topup_enabled: boolean;
+            /**
+             * Auto Topup Amount
+             * @default 0.0000
+             */
+            auto_topup_amount: string;
+            /**
+             * Is Low Balance
+             * @default false
+             */
+            is_low_balance: boolean;
+        };
+        /** TestCreditEstimatePayload */
+        TestCreditEstimatePayload: {
+            /** Activity Code */
+            activity_code: string;
+            /**
+             * Complexity Code
+             * @default medium
+             */
+            complexity_code: string;
+            /**
+             * Model Identifier
+             * @default gemini-1.5-flash
+             */
+            model_identifier: string;
+            /** Tool Risk Tier */
+            tool_risk_tier?: string | null;
+            /**
+             * Execution Mode
+             * @default single_step
+             */
+            execution_mode: string;
+        };
+        /** TestHandoverRequest */
+        TestHandoverRequest: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Source Agent Id */
+            source_agent_id?: string | null;
+            /** Target Agent Id */
+            target_agent_id?: string | null;
+            /** Handover Reason */
+            handover_reason: string;
+            /** Summary Context */
+            summary_context: string;
+        };
+        /** ToggleAiDisclosureRequest */
+        ToggleAiDisclosureRequest: {
+            /** Disclose Ai Generated */
+            disclose_ai_generated: boolean;
+        };
+        /** TokenSavingsLogItem */
+        TokenSavingsLogItem: {
+            /** Id */
+            id: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** Cache Hit */
+            cache_hit: boolean;
+            /** Task Type */
+            task_type: string;
+            /** Original Prompt Tokens */
+            original_prompt_tokens: number;
+            /** Tokens Saved */
+            tokens_saved: number;
+            /** Cost Without Cache Usd */
+            cost_without_cache_usd: number;
+            /** Cost With Cache Usd */
+            cost_with_cache_usd: number;
+            /** Cost Saved Usd */
+            cost_saved_usd: number;
+            /** Latency Saved Ms */
+            latency_saved_ms: number;
+            /** Model Tier Selected */
+            model_tier_selected: string;
+            /** Model Id Selected */
+            model_id_selected: string;
+            /** Similarity Score */
+            similarity_score?: number | null;
+            /** Created At */
+            created_at: unknown;
+        };
+        /** TokenSavingsSummaryResponse */
+        TokenSavingsSummaryResponse: {
+            /** Total Queries */
+            total_queries: number;
+            /** Cache Hits */
+            cache_hits: number;
+            /** Cache Misses */
+            cache_misses: number;
+            /** Cache Hit Rate Pct */
+            cache_hit_rate_pct: number;
+            /** Total Tokens Saved */
+            total_tokens_saved: number;
+            /** Total Cost Saved Usd */
+            total_cost_saved_usd: number;
+            /** Total Cost Spent Usd */
+            total_cost_spent_usd: number;
+            /** Total Cost Baseline Usd */
+            total_cost_baseline_usd: number;
+            /** Avg Latency Saved Ms */
+            avg_latency_saved_ms: number;
+        };
+        /** TopUpRequest */
+        TopUpRequest: {
+            /**
+             * Tenant Id
+             * @description ID Organisasi/Tenant
+             */
+            tenant_id?: string | null;
+            /**
+             * Amount
+             * @description Nominal top up dalam mata uang IDR
+             */
+            amount: number | string;
+            /**
+             * Payment Gateway
+             * @description Pilihan gateway: midtrans atau xendit
+             * @default midtrans
+             */
+            payment_gateway: string;
+            /**
+             * Package Name
+             * @description Nama paket kredit
+             * @default Top Up Kredit Standar
+             */
+            package_name: string | null;
+            /**
+             * Package Id
+             * @description ID paket credit_topup_packages (opsional)
+             */
+            package_id?: string | null;
+        };
+        /** TopUpResponse */
+        TopUpResponse: {
+            /** Invoice Id */
+            invoice_id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /** Amount */
+            amount: number;
+            /** Currency */
+            currency: string;
+            /** Status */
+            status: string;
+            /** Payment Gateway */
+            payment_gateway: string;
+            /** Payment Url */
+            payment_url: string;
+            /** Client Key */
+            client_key?: string | null;
+        };
+        /** TransparencyConsentRequest */
+        TransparencyConsentRequest: {
+            /** User Id */
+            user_id: string;
+            /** User Role */
+            user_role: string;
+            /**
+             * Accept Metadata Only
+             * @default true
+             */
+            accept_metadata_only: boolean;
+        };
+        /** TrialSlotMetrics */
+        TrialSlotMetrics: {
+            /**
+             * Capacity
+             * @default 36
+             */
+            capacity: number;
+            /**
+             * Available
+             * @default 36
+             */
+            available: number;
+            /**
+             * Reserved
+             * @default 0
+             */
+            reserved: number;
+            /**
+             * Allocated
+             * @default 0
+             */
+            allocated: number;
+            /**
+             * Duration Days
+             * @default 7
+             */
+            duration_days: number;
+        };
+        /** TriggerCorrelationInput */
+        TriggerCorrelationInput: {
+            /** Context Theme */
+            context_theme?: string | null;
+            /** Signals */
+            signals?: components["schemas"]["IngestSignalInput"][] | null;
+        };
+        /** UpdateDepartmentRequest */
+        UpdateDepartmentRequest: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Parent Department Id */
+            parent_department_id?: string | null;
+            /** Manager Membership Id */
+            manager_membership_id?: string | null;
+            /** Color Tag */
+            color_tag?: string | null;
+            /**
+             * Deleted
+             * @description Set true untuk mengajukan soft delete
+             */
+            deleted?: boolean | null;
+        };
+        /** UpdateGuardrailRuleRequest */
+        UpdateGuardrailRuleRequest: {
+            /** Max Autonomous Discount Pct */
+            max_autonomous_discount_pct?: number | null;
+            /** Max Autonomous Amount */
+            max_autonomous_amount?: number | null;
+            /** Requires Human Approval */
+            requires_human_approval?: boolean | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** UpdateLeadStageRequest */
+        UpdateLeadStageRequest: {
+            /** Stage */
+            stage: string;
+        };
+        /** UpdateProductRequest */
+        UpdateProductRequest: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Base Price */
+            base_price?: number | null;
+            /** Status */
+            status?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /** UpdateSalesStageRequest */
+        UpdateSalesStageRequest: {
+            /** Conversation Id */
+            conversation_id: string;
+            /** Stage */
+            stage: string;
+            /**
+             * Trigger Reason
+             * @default Interaksi pelanggan
+             */
+            trigger_reason: string;
+        };
+        /** UpdateStockRequest */
+        UpdateStockRequest: {
+            /** Quantity */
+            quantity: number;
+            /**
+             * Warehouse Location
+             * @default DEFAULT
+             */
+            warehouse_location: string;
+        };
+        /** UpdateSubscriptionPreferencesRequest */
+        UpdateSubscriptionPreferencesRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Membership Id */
+            membership_id: string;
+            /** Notif Types */
+            notif_types?: string[] | null;
+            /** Send Times */
+            send_times?: string[] | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** UploadDocumentRequest */
+        UploadDocumentRequest: {
+            /**
+             * Document Name
+             * @description Nama berkas (misal: Resume_John.pdf)
+             */
+            document_name: string;
+            /**
+             * Candidate Name
+             * @description Nama kandidat atau vendor
+             */
+            candidate_name: string;
+            /**
+             * @description Jenis berkas sumber
+             * @default RESUME
+             */
+            source_type: components["schemas"]["SourceDocumentType"];
+            /**
+             * Candidate Email
+             * @description Email kandidat/vendor
+             */
+            candidate_email?: string | null;
+            /**
+             * Candidate Phone
+             * @description Nomor telepon kandidat/vendor
+             */
+            candidate_phone?: string | null;
+            /**
+             * Raw Text
+             * @description Teks konten dokumen untuk ekstraksi data understanding
+             */
+            raw_text?: string | null;
+            /**
+             * File Url
+             * @description URL berkas
+             */
+            file_url?: string | null;
+        };
+        /** ValidateAvailabilityInput */
+        ValidateAvailabilityInput: {
+            /**
+             * Claimed State
+             * @description Klaim ketersediaan data dari AI/LLM
+             * @default AVAILABLE
+             */
+            claimed_state: string;
+            /** Actual Data */
+            actual_data?: {
+                [key: string]: unknown;
+            } | null;
+            /** Required Fields */
+            required_fields?: string[] | null;
+            /** Sources */
+            sources?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Data Timestamp */
+            data_timestamp?: string | null;
+            /**
+             * Ttl Hours
+             * @default 24
+             */
+            ttl_hours: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -647,6 +10297,184 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WebAuthnLoginChallengeRequest */
+        WebAuthnLoginChallengeRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tenant Membership Id */
+            tenant_membership_id: string;
+        };
+        /** WebAuthnRegisterChallengeRequest */
+        WebAuthnRegisterChallengeRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tenant Membership Id */
+            tenant_membership_id: string;
+        };
+        /** WebAuthnRegisterVerifyRequest */
+        WebAuthnRegisterVerifyRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tenant Membership Id */
+            tenant_membership_id: string;
+            /** Credential Id */
+            credential_id: string;
+            /**
+             * Public Key
+             * @default verified_key
+             */
+            public_key: string | null;
+            /**
+             * Sign Count
+             * @default 0
+             */
+            sign_count: number | null;
+        };
+        /** WebAuthnVerifyAttendanceRequest */
+        WebAuthnVerifyAttendanceRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Tenant Membership Id */
+            tenant_membership_id: string;
+            /** Credential Id */
+            credential_id: string;
+            /** Sign Count */
+            sign_count: number;
+            /**
+             * Check Type
+             * @description 'in' atau 'out'
+             * @default in
+             */
+            check_type: string;
+        };
+        /** WebPushSubscribeRequest */
+        WebPushSubscribeRequest: {
+            /** Tenant Id */
+            tenant_id: string;
+            /** Membership Id */
+            membership_id: string;
+            /** Endpoint */
+            endpoint: string;
+            /** P256Dh */
+            p256dh: string;
+            /** Auth Token */
+            auth_token: string;
+            /** User Agent */
+            user_agent?: string | null;
+        };
+        /** WebhookSignatureIn */
+        WebhookSignatureIn: {
+            /** Order Id */
+            order_id?: string | null;
+            /**
+             * Status Code
+             * @default 200
+             */
+            status_code: string | null;
+            /**
+             * Gross Amount
+             * @default 0
+             */
+            gross_amount: string | null;
+            /** Server Key */
+            server_key?: string | null;
+        };
+        /** WhatsAppOTPRequest */
+        WhatsAppOTPRequest: {
+            /**
+             * Phone Number
+             * @description Nomor telepon dalam format E.164 (mis. +628123456789)
+             */
+            phone_number: string;
+            /**
+             * Tenant Id
+             * @description ID Tenant/Organisasi
+             */
+            tenant_id: string;
+            /**
+             * Membership Id
+             * @description ID Membership staf
+             */
+            membership_id: string;
+        };
+        /** WhatsAppOTPVerify */
+        WhatsAppOTPVerify: {
+            /**
+             * Verification Code
+             * @description 6 digit kode OTP
+             */
+            verification_code: string;
+            /**
+             * Tenant Id
+             * @description ID Tenant/Organisasi
+             */
+            tenant_id: string;
+            /**
+             * Membership Id
+             * @description ID Membership staf
+             */
+            membership_id: string;
+        };
+        /** WorkflowDispatchIn */
+        WorkflowDispatchIn: {
+            /**
+             * Tenant Id
+             * @description ID Tenant pemilik alur kerja
+             */
+            tenant_id: string;
+            /**
+             * Intent Text
+             * @description Teks intent / instruksi kerja bisnis
+             */
+            intent_text: string;
+            /**
+             * Workflow Definition Id
+             * @description Opsional ID definisi alur kerja spesifik
+             */
+            workflow_definition_id?: string | null;
+            /**
+             * Actor Id
+             * @description ID aktor pemicu
+             */
+            actor_id?: string | null;
+            /**
+             * Actor Type
+             * @description ai_agent, user, atau system
+             * @default ai_agent
+             */
+            actor_type: string;
+            /** Context Data */
+            context_data?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** WorkflowDispatchResult */
+        WorkflowDispatchResult: {
+            /** Execution Id */
+            execution_id: string;
+            /** Tenant Id */
+            tenant_id: string;
+            /** Workflow Definition Id */
+            workflow_definition_id: string | null;
+            /** Status */
+            status: string;
+            /** Current Node Id */
+            current_node_id: string | null;
+            /** Intent Text */
+            intent_text: string;
+            /** Context Data */
+            context_data: {
+                [key: string]: unknown;
+            };
+            /** Output Payload */
+            output_payload: {
+                [key: string]: unknown;
+            };
+            /** Nodes Executed */
+            nodes_executed: string[];
+            /** Error Message */
+            error_message?: string | null;
         };
     };
     responses: never;
@@ -713,6 +10541,97 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StartupGateReport"];
+                };
+            };
+        };
+    };
+    health_live_api_v1_health_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    health_ready_api_v1_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    health_startup_api_v1_health_startup_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartupGateReport"];
+                };
+            };
+        };
+    };
+    verify_company_code_endpoint_api_v1_auth_verify_company_code_get: {
+        parameters: {
+            query: {
+                code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -857,7 +10776,73 @@ export interface operations {
             };
         };
     };
-    register_tenant_api_v1_onboarding_register_tenant_post: {
+    list_current_tenant_members_api_v1_tenant_members_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tenant_members_api_v1_tenants__tenant_id__members_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_tenant_api_v1_onboarding_tenants_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -890,7 +10875,7 @@ export interface operations {
             };
         };
     };
-    join_company_api_v1_onboarding_join_company_post: {
+    join_company_api_v1_onboarding_join_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -923,10 +10908,51 @@ export interface operations {
             };
         };
     };
-    root__get: {
+    create_company_code_onboarding_api_v1_onboarding_company_codes_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCompanyCodeOnboardingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateCompanyCodeOnboardingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_hr_approvals_api_v1_onboarding_hr_approvals_get: {
+        parameters: {
+            query?: {
+                queue_status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -941,106 +10967,34 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-        };
-    };
-    get_permission_matrix: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tenant_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Matriks izin data agen AI bertenant. */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    update_permission_cell: {
+    review_hr_approval_api_v1_onboarding_hr_approvals__id__review_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
             path: {
-                tenant_id: string;
+                id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Hasil pembaruan sel matriks izin dan pencatatan audit. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewHRApprovalRequest"];
             };
         };
-    };
-    evaluate_access_test: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tenant_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Keputusan ABAC PDP dan entri audit log nyata. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_permission_audit_logs: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tenant_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Daftar entri audit log izin data. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_token_savings_summary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tenant_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -1051,17 +11005,22 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_token_savings_logs: {
+    list_public_subscription_plans_public_subscription_plans_get: {
         parameters: {
-            query?: {
-                limit?: number;
-            };
+            query?: never;
             header?: never;
-            path: {
-                tenant_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1072,12 +11031,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SubscriptionPlanResponse"][];
                 };
             };
         };
     };
-    ingest_skill_package: {
+    get_public_plan_facility_matrix_public_plan_facility_matrix_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanFacilityMatrixResponse"];
+                };
+            };
+        };
+    };
+    register_prospect_public_prospects_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1086,11 +11065,962 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["ProspectRegistrationRequest"];
             };
         };
         responses: {
-            /** @description Created */
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProspectRegistrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_register_turnstile_public_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicRegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_join_turnstile_public_join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicJoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_public_subscription_plans_api_v1_public_subscription_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionPlanResponse"][];
+                };
+            };
+        };
+    };
+    get_public_plan_facility_matrix_api_v1_public_plan_facility_matrix_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanFacilityMatrixResponse"];
+                };
+            };
+        };
+    };
+    register_prospect_api_v1_public_prospects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProspectRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProspectRegistrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_register_turnstile_api_v1_public_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicRegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_join_turnstile_api_v1_public_join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicJoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_console_mfa_api_v1_console_sec_auth_mfa_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_departments_api_v1_tenants__tenant_id__departments_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_department_api_v1_tenants__tenant_id__departments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDepartmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_department_api_v1_tenants__tenant_id__departments__department_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                department_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDepartmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_staff_api_v1_tenants__tenant_id__staff_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMemberResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_or_assign_staff_api_v1_tenants__tenant_id__staff_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStaffRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agents_api_v1_tenants__tenant_id__agents_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_agent_api_v1_tenants__tenant_id__agents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_titles_api_v1_tenants__tenant_id__job_titles_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandardizedJobTitleResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_reconciliation_report_api_v1_tenants__tenant_id__job_titles_reconciliation_report_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobTitleMigrationReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_job_title_reconcile_api_v1_tenants__tenant_id__job_titles_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobTitleMigrationReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_agent_job_title_api_v1_tenants__tenant_id__agents__agent_id__job_title_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignJobTitleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_chart_api_v1_tenants__tenant_id__org_chart_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance_overview_api_v1_tenants__tenant_id__performance_overview_get: {
+        parameters: {
+            query?: {
+                period?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_monthly_performance_detail_api_v1_tenants__tenant_id__performance_monthly_get: {
+        parameters: {
+            query?: {
+                period?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_daily_performance_metrics_api_v1_tenants__tenant_id__performance_daily_get: {
+        parameters: {
+            query?: {
+                metric_date?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_performance_scoring_api_v1_tenants__tenant_id__performance_scoring_trigger_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_performance_alerts_api_v1_tenants__tenant_id__performance_alerts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_performance_alert_api_v1_tenants__tenant_id__performance_alerts__alert_id__acknowledge_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tenant_boards_api_v1_tenants__tenant_id__boards_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_board_api_v1_tenants__tenant_id__boards_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBoardRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -1099,27 +12029,144 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Bad Request */
-            400: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
-    transition_rollout_stage: {
+    get_board_detail_api_v1_tenants__tenant_id__boards__board_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
             path: {
-                blueprint_id: string;
+                tenant_id: string;
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_task_api_v1_tenants__tenant_id__boards__board_id__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                board_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": components["schemas"]["CreateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_board_events_api_v1_tenants__tenant_id__boards__board_id__events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_task_api_v1_tasks__task_id__move_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveTaskRequest"];
             };
         };
         responses: {
@@ -1132,22 +12179,813 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Policy Scan Required */
+            /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
-    list_all_blueprints: {
+    webauthn_register_challenge_api_v1_attendance_webauthn_register_options_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnRegisterChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_register_challenge_api_v1_attendance_webauthn_register_challenge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnRegisterChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_register_verify_api_v1_attendance_webauthn_register_verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnRegisterVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_login_challenge_api_v1_attendance_webauthn_login_options_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnLoginChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_login_challenge_api_v1_attendance_webauthn_authenticate_challenge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnLoginChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_login_challenge_api_v1_attendance_webauthn_login_challenge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnLoginChallengeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_verify_attendance_api_v1_attendance_webauthn_login_verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnVerifyAttendanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_verify_attendance_api_v1_attendance_webauthn_authenticate_verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnVerifyAttendanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webauthn_verify_attendance_api_v1_attendance_webauthn_verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAuthnVerifyAttendanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_attendance_records_api_v1_attendance_records_get: {
         parameters: {
             query?: {
-                stage?: string;
-                category?: string;
-                policy_status?: string;
+                tenant_id?: string | null;
+                tenant_membership_id?: string | null;
             };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_attendance_credentials_api_v1_attendance_credentials_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispatch_workflow_api_v1_orchestration_workflows_dispatch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowDispatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowDispatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_llm_providers_api_v1_admin_llm_providers_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-MFA-Verified"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_mcp_tools_api_v1_admin_mcp_tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_inference_endpoint_api_v1_orchestration_execute_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteInferenceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tenant_orchestration_chat_api_v1_tenants__tenant_id__orchestration_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantChatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_orchestration_executions_api_v1_orchestration_executions_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_decision_outcomes_api_v1_learning_outcomes_get: {
+        parameters: {
+            query: {
+                /** @description ID Tenant */
+                tenant_id: string;
+                limit?: number;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_confidences_api_v1_learning_confidence_get: {
+        parameters: {
+            query: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lessons_learned_api_v1_learning_lessons_get: {
+        parameters: {
+            query: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_growth_logs_api_v1_learning_growth_get: {
+        parameters: {
+            query: {
+                /** @description ID Tenant */
+                tenant_id: string;
+                limit?: number;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_human_feedback_api_v1_learning_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_subscription_plans_api_v1_billing_plans_get: {
+        parameters: {
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1165,10 +13003,10891 @@ export interface operations {
             };
         };
     };
-    get_blueprint_detail: {
+    list_facility_catalog_api_v1_billing_facilities_get: {
         parameters: {
             query?: never;
             header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_topup_packages_api_v1_billing_topup_packages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_activity_types_api_v1_billing_activity_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_credit_factors_api_v1_billing_factors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    calculate_credit_estimate_api_v1_billing_estimate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateCreditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reserve_credit_endpoint_api_v1_billing_reserve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReserveCreditApiRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consume_credit_endpoint_api_v1_billing_consume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeCreditApiRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_credit_endpoint_api_v1_billing_refund_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundCreditApiRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wallet_summary_current_api_v1_billing_wallet_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_credit_wallet_summary_path_api_v1_billing_tenants__tenant_id__credit_wallet_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_credit_reservations_api_v1_billing_reservations_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_wallet_api_v1_billing_wallets__tenant_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantWallet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_wallet_api_v1_billing_wallet_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantWallet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_transactions_api_v1_billing_transactions_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invoices_api_v1_billing_invoices_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_topup_invoice_api_v1_billing_topup_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopUpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopUpResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sandbox_settle_payment_api_v1_billing_sandbox_settle_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulatePaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_subscription_plans_api_v1_billing_admin_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_subscription_plan_api_v1_billing_admin_plans__plan_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionPlanUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_facility_matrix_api_v1_billing_admin_facility_matrix_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_facility_matrix_api_v1_billing_admin_facility_matrix_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FacilityMatrixBatchUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_formula_factors_api_v1_billing_admin_formula_factors_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_activity_type_api_v1_billing_admin_formula_factors_activity_type__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityTypeUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_complexity_factor_api_v1_billing_admin_formula_factors_complexity__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactorMultiplierUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_model_cost_factor_api_v1_billing_admin_formula_factors_model__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactorMultiplierUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_tool_factor_api_v1_billing_admin_formula_factors_tool__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactorMultiplierUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_execution_factor_api_v1_billing_admin_formula_factors_execution__item_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactorMultiplierUpdatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_test_estimate_formula_api_v1_billing_admin_formula_factors_test_estimate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestCreditEstimatePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_topup_packages_api_v1_billing_admin_topup_packages_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_topup_package_api_v1_billing_admin_topup_packages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditTopupPackagePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_topup_package_api_v1_billing_admin_topup_packages__package_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditTopupPackagePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_topup_package_api_v1_billing_admin_topup_packages__package_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_tenant_subscriptions_api_v1_billing_admin_tenant_subscriptions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_tenant_unlimited_override_api_v1_billing_tenant_subscriptions_override_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantSubscriptionOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_tenant_unlimited_override_api_v1_billing_admin_tenant_override_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantSubscriptionOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_manual_credit_adjustment_api_v1_billing_admin_manual_adjustment_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualCreditAdjustmentPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_financial_command_center_api_v1_billing_admin_command_center_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_summary_direct_api_v1_tenants__tenant_id__credit_wallet_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_subscription_tier_api_v1_tenants__tenant_id__subscription_tier_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_tenant_subscription_tier_api_v1_tenants__tenant_id__subscription_change_tier_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_billing_wallet_direct_api_v1_tenants__tenant_id__billing_wallet_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handle_midtrans_webhook_api_v1_webhooks_payment_midtrans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    handle_xendit_webhook_api_v1_webhooks_payment_xendit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-callback-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_meta_whatsapp_webhook_api_v1_webhooks_whatsapp_get: {
+        parameters: {
+            query?: {
+                "hub.mode"?: string | null;
+                "hub.challenge"?: string | null;
+                "hub.verify_token"?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handle_whatsapp_webhook_api_v1_webhooks_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    handle_telegram_bot_webhook_api_v1_webhooks_telegram_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    handle_telegram_bot_webhook_api_v1_webhooks_telegram_bot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    api_request_whatsapp_otp_api_v1_proactive_channels_whatsapp_request_otp_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatsAppOTPRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_verify_whatsapp_otp_api_v1_proactive_channels_whatsapp_verify_otp_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatsAppOTPVerify"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_generate_telegram_deeplink_api_v1_proactive_channels_telegram_deeplink_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelegramDeeplinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_get_subscriptions_api_v1_proactive_subscriptions_get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                membership_id: string;
+            };
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_update_subscription_api_v1_proactive_subscriptions__channel__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                channel: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubscriptionPreferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_get_logs_api_v1_proactive_logs_get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                membership_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_get_notifications_api_v1_proactive_notifications_get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                membership_id: string;
+                unread_only?: boolean;
+                limit?: number;
+            };
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_mark_notification_read_api_v1_proactive_notifications__notification_id__read_patch: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                membership_id: string;
+            };
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_mark_all_read_api_v1_proactive_notifications_read_all_post: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                membership_id: string;
+            };
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_register_web_push_api_v1_proactive_push_subscribe_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebPushSubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_trigger_scheduler_api_v1_proactive_scheduler_trigger_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_chat_message_api_v1_chat_messages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-user-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_tenant_memory_api_v1_tenants__tenant_id__memory_search_get: {
+        parameters: {
+            query: {
+                /** @description Kata kunci atau pertanyaan semantik */
+                q: string;
+                /** @description Filter kategori memori */
+                category?: string | null;
+                /** @description Batas hasil yang dikembalikan */
+                top_k?: number;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySearchResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_tenant_memory_document_api_v1_tenants__tenant_id__memory_documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consolidate_tenant_memory_api_v1_tenants__tenant_id__memory_consolidate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path: {
+                /** @description ID Tenant */
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_competitor_targets_api_v1_tenants__tenant_id__competitor_targets_get: {
+        parameters: {
+            query?: {
+                is_active?: boolean | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_competitor_target_api_v1_tenants__tenant_id__competitor_targets_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitorTargetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_crawl_target_api_v1_tenants__tenant_id__competitor_targets__target_id__crawl_post: {
+        parameters: {
+            query?: {
+                force_refresh?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                target_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_snapshots_api_v1_tenants__tenant_id__competitor_snapshots_get: {
+        parameters: {
+            query?: {
+                target_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_changes_api_v1_tenants__tenant_id__competitor_changes_get: {
+        parameters: {
+            query?: {
+                target_id?: string | null;
+                severity?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_insights_api_v1_tenants__tenant_id__competitor_insights_get: {
+        parameters: {
+            query?: {
+                dispatch_action?: string | null;
+                category?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispatch_insight_proactive_api_v1_tenants__tenant_id__competitor_insights__insight_id__dispatch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                insight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reports_api_v1_tenants__tenant_id__competitor_reports_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_report_api_v1_tenants__tenant_id__competitor_reports_generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_world_monitor_api_v1_tenants__tenant_id__intelligence_world_monitor_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vibe_prospecting_api_v1_tenants__tenant_id__intelligence_vibe_prospecting_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_data_quality_issues_api_v1_tenants__tenant_id__intelligence_data_quality_issues_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                issue_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_data_quality_issue_api_v1_tenants__tenant_id__intelligence_data_quality_issues_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataQualityIssueInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_data_quality_issue_api_v1_tenants__tenant_id__intelligence_data_quality_issues__issue_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIssueInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_data_availability_api_v1_tenants__tenant_id__intelligence_validate_availability_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateAvailabilityInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_quality_summary_api_v1_tenants__tenant_id__intelligence_data_quality_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_brain_live_inventory_api_v1_tenants__tenant_id__brain_inventory_live_get: {
+        parameters: {
+            query?: {
+                search?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_catalog_to_brain_api_v1_tenants__tenant_id__brain_sync_catalog_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_api_v1_admin_integrations_catalog_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_catalog_api_v1_integrations_catalog_get: {
+        parameters: {
+            query?: {
+                category?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_connections_api_v1_tenants__tenant_id__integrations_connections_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_health_api_v1_tenants__tenant_id__integrations_connections__connection_id__health_check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_connection_api_v1_tenants__tenant_id__integrations_connections__connection_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_integration_sync_logs_api_v1_tenants__tenant_id__integrations_sync_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_connection_token_api_v1_tenants__tenant_id__integrations_connections__connection_id__refresh_token_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_connection_sync_api_v1_tenants__tenant_id__integrations_connections__connection_id__sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    consent_transparency_notice_api_v1_tenants__tenant_id__integrations_connections__connection_id__transparency_consent_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransparencyConsentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prospects_admin_prospects_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trial_slots_overview_admin_trial_slots_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    allocate_prospect_slot_admin_prospects__prospect_id__select_trial_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_prospect_meeting_admin_prospects__prospect_id__schedule_meeting_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleMeetingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_prospect_trial_admin_prospects__prospect_id__activate_trial_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateTrialRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_prospect_admin_prospects__prospect_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_web_integrity_logs_admin_web_integrity_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prospects_api_v1_admin_prospects_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trial_slots_overview_api_v1_admin_trial_slots_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    allocate_prospect_slot_api_v1_admin_prospects__prospect_id__select_trial_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_prospect_meeting_api_v1_admin_prospects__prospect_id__schedule_meeting_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleMeetingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_prospect_trial_api_v1_admin_prospects__prospect_id__activate_trial_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivateTrialRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_prospect_api_v1_admin_prospects__prospect_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                prospect_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_web_integrity_logs_api_v1_admin_web_integrity_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_channel_accounts_api_v1_tenants__tenant_id__channel_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_channel_account_api_v1_tenants__tenant_id__channel_accounts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChannelAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_mtproto_qr_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_session_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                ca_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_channel_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_session_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                ca_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_mtproto_qr_status_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                ca_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_mtproto_session_api_v1_tenants__tenant_id__channel_accounts__ca_id__qr_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                ca_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmQrSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_conversations_api_v1_tenants__tenant_id__conversations_get: {
+        parameters: {
+            query?: {
+                channel_type?: string | null;
+                status?: string | null;
+                assigned_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversation_messages_api_v1_tenants__tenant_id__conversations__conv_id__messages_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                conv_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_outbound_message_api_v1_tenants__tenant_id__conversations__conv_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                conv_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handover_conversation_api_v1_tenants__tenant_id__conversations__conv_id__handover_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                conv_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_customers_api_v1_tenants__tenant_id__customers_get: {
+        parameters: {
+            query?: {
+                search?: string | null;
+                lifecycle_stage?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_merge_reviews_api_v1_tenants__tenant_id__customers_merge_reviews_get: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_customer_merge_api_v1_tenants__tenant_id__customers_merge_reviews__log_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                log_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_customer_merge_api_v1_tenants__tenant_id__customers_merge_reviews__log_id__rollback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                log_id: string;
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inbound_webhook_handler_api_v1_webhooks_omnichannel_inbound_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-hub-signature-256"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_products_api_v1_commerce_products_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+                status?: string | null;
+                search?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_product_api_v1_commerce_products_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_products_api_v1_tenants__tenant_id__commerce_products_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                search?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_product_api_v1_tenants__tenant_id__commerce_products_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_product_api_v1_commerce_products__product_id__put: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_product_api_v1_tenants__tenant_id__commerce_products__product_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                product_id: string;
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_stock_api_v1_commerce_products__product_id__stock_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateStockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_stock_api_v1_tenants__tenant_id__commerce_products__product_id__stock_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                product_id: string;
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateStockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_stock_api_v1_tenants__tenant_id__commerce_products__product_id__stock_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                product_id: string;
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateStockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_promotions_api_v1_commerce_promotions_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_promotion_api_v1_commerce_promotions_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreatePromotionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_promotions_api_v1_tenants__tenant_id__commerce_promotions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_promotion_api_v1_tenants__tenant_id__commerce_promotions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreatePromotionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_or_create_cart_api_v1_cart__customer_id__get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                conversation_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                customer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_cart_item_api_v1_cart__cart_id__items_post: {
+        parameters: {
+            query: {
+                tenant_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                cart_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AddCartItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_cart_item_api_v1_cart__cart_id__items__item_id__delete: {
+        parameters: {
+            query: {
+                tenant_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                cart_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_quotation_api_v1_cart__cart_id__quotation_post: {
+        parameters: {
+            query: {
+                tenant_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                cart_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateQuotationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkout_cart_api_v1_cart_checkout_post: {
+        parameters: {
+            query: {
+                tenant_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckoutCartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_orders_api_v1_tenants__tenant_id__commerce_orders_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                payment_status?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_orders_api_v1_orders_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+                status?: string | null;
+                payment_status?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_waybill_api_v1_tenants__tenant_id__commerce_orders__order_id__waybill_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                order_id: string;
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateWaybillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_waybill_api_v1_orders__order_id__waybill_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateWaybillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_rates_api_v1_shipping_rates_get: {
+        parameters: {
+            query: {
+                tenant_id: string;
+                origin_postal?: string;
+                destination_postal?: string;
+                weight_grams?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_tracking_api_v1_tenants__tenant_id__commerce_shipping_tracking_get: {
+        parameters: {
+            query?: {
+                order_number?: string | null;
+                tracking_number?: string | null;
+                conversation_id?: string | null;
+                customer_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shipping_tracking_api_v1_shipping_tracking_get: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+                order_number?: string | null;
+                tracking_number?: string | null;
+                conversation_id?: string | null;
+                customer_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_grounding_api_v1_tenants__tenant_id__commerce_validate_grounding_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GroundingValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_grounding_api_v1_grounding_validate_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GroundingValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_webhook_signature_endpoint_api_v1_commerce_webhook_signature_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookSignatureIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_sales_stage_api_v1_conversations_sales_stage_put: {
+        parameters: {
+            query: {
+                tenant_id: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateSalesStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receive_payment_webhook_api_v1_webhooks_payment__gateway__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Gateway pembayaran: midtrans atau xendit */
+                gateway: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_crm_pipeline_api_v1_tenants__tenant_id__crm_pipeline_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_leads_api_v1_tenants__tenant_id__crm_leads_get: {
+        parameters: {
+            query?: {
+                stage?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_lead_api_v1_tenants__tenant_id__crm_leads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLeadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lead_detail_api_v1_tenants__tenant_id__crm_leads__lead_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_lead_timeline_api_v1_tenants__tenant_id__crm_leads__lead_id__timeline_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_lead_stage_api_v1_tenants__tenant_id__crm_leads__lead_id__stage_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLeadStageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_lead_qualification_api_v1_tenants__tenant_id__crm_leads__lead_id__qualification_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualificationAnswerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recalculate_lead_score_api_v1_tenants__tenant_id__crm_leads__lead_id__recalculate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                lead_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_crm_personas_api_v1_tenants__tenant_id__crm_personas_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_persona_config_api_v1_tenants__tenant_id__crm_personas__agent_id__config_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                agent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonaConfigRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_persona_rules_api_v1_tenants__tenant_id__crm_persona_rules_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_persona_rule_api_v1_tenants__tenant_id__crm_persona_rules_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePersonaRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_persona_rule_api_v1_tenants__tenant_id__crm_persona_rules__rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_persona_handovers_api_v1_tenants__tenant_id__crm_persona_handovers_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_or_dispatch_handover_api_v1_tenants__tenant_id__crm_persona_handovers_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestHandoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_audience_segment_api_v1_tenants__tenant_id__marketing_segments_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentCriteriaRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_marketing_campaign_api_v1_tenants__tenant_id__marketing_campaigns_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCampaignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_marketing_campaign_api_v1_tenants__tenant_id__marketing_campaigns__campaign_id__execute_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCampaignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_content_calendar_api_v1_tenants__tenant_id__marketing_calendar_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_calendar_post_api_v1_tenants__tenant_id__marketing_calendar_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleCalendarPostRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scrub_calendar_media_metadata_api_v1_tenants__tenant_id__marketing_calendar__item_id__scrub_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScrubMediaRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_calendar_post_api_v1_tenants__tenant_id__marketing_calendar__item_id__publish_post: {
+        parameters: {
+            query?: {
+                scrub_status?: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    toggle_post_ai_disclosure_api_v1_tenants__tenant_id__marketing_calendar__item_id__disclosure_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleAiDisclosureRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_marketplace_integrations_api_v1_tenants__tenant_id__marketing_marketplaces_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_marketplace_orders_api_v1_tenants__tenant_id__marketing_marketplaces_sync_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fulfill_marketplace_order_api_v1_tenants__tenant_id__marketing_marketplaces_fulfill_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketplaceFulfillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receive_instagram_webhook_api_v1_webhooks_social_instagram_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocialWebhookCommentPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receive_tiktok_webhook_api_v1_webhooks_social_tiktok_post: {
+        parameters: {
+            query?: {
+                tenant_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocialWebhookCommentPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_service_requests_endpoint_api_v1_tenants__tenant_id__service_requests_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                category?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_service_request_endpoint_api_v1_tenants__tenant_id__service_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceRequestPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_service_request_endpoint_api_v1_tenants__tenant_id__service_requests__ticket_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveTicketPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_service_request_endpoint_api_v1_tenants__tenant_id__service_requests__ticket_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectTicketPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_handover_endpoint_api_v1_tenants__tenant_id__service_handover_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateHandoverPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    build_handover_summary_endpoint_api_v1_tenants__tenant_id__service_handover_summary_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildHandoverSummaryPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    humanize_output_endpoint_api_v1_tenants__tenant_id__service_humanize_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanizeTextPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_abandoned_carts_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_abandoned_cart_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_schedule_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleAbandonedCartPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    process_abandoned_carts_endpoint_api_v1_tenants__tenant_id__service_abandoned_carts_process_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_rules_api_v1_sales_tenants__tenant_id__guardrails_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_rules_api_v1_tenants__tenant_id__sales_guardrails_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_guardrail_rule_api_v1_sales_tenants__tenant_id__guardrails__rule_code__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                rule_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGuardrailRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_guardrail_rule_api_v1_tenants__tenant_id__sales_guardrails__rule_code__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                rule_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateGuardrailRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_and_execute_action_api_v1_sales_tenants__tenant_id__guardrails_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_and_execute_action_api_v1_tenants__tenant_id__sales_guardrails_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_guardrail_approvals_api_v1_sales_tenants__tenant_id__guardrails_approvals_get: {
+        parameters: {
+            query?: {
+                /** @description Filter status: PENDING_APPROVAL, APPROVED, REJECTED */
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_guardrail_approvals_api_v1_tenants__tenant_id__sales_guardrails_approvals_get: {
+        parameters: {
+            query?: {
+                /** @description Filter status: PENDING_APPROVAL, APPROVED, REJECTED */
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_guardrail_approval_api_v1_sales_tenants__tenant_id__guardrails_approvals__approval_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_guardrail_approval_api_v1_tenants__tenant_id__sales_guardrails_approvals__approval_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_audit_logs_api_v1_sales_tenants__tenant_id__guardrails_audit_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_audit_logs_api_v1_tenants__tenant_id__sales_guardrails_audit_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_mcp_tools_api_v1_sales_tenants__tenant_id__guardrails_mcp_tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_mcp_tools_api_v1_tenants__tenant_id__sales_mcp_tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_guardrail_mcp_tools_api_v1_tenants__tenant_id__sales_guardrails_mcp_tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_message_experiments_api_v1_tenants__tenant_id__message_experiments_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_message_experiment_api_v1_tenants__tenant_id__message_experiments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMessageExperimentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    conclude_message_experiment_api_v1_tenants__tenant_id__message_experiments__experiment_id__conclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                experiment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_revenue_attribution_api_v1_tenants__tenant_id__revenue_intelligence_attribution_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sales_coach_evaluations_api_v1_tenants__tenant_id__sales_coach_evaluations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_selection_jobs_api_v1_tenants__tenant_id__jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_selection_job_api_v1_tenants__tenant_id__jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSelectionJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_selection_jobs_api_v1_selection_tenants__tenant_id__jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_selection_job_api_v1_selection_tenants__tenant_id__jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSelectionJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_selection_jobs_api_v1_tenants__tenant_id__selection_jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_selection_job_api_v1_tenants__tenant_id__selection_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSelectionJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_job_detail_api_v1_tenants__tenant_id__jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_job_detail_api_v1_selection_tenants__tenant_id__jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_job_detail_api_v1_tenants__tenant_id__selection_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_source_document_api_v1_tenants__tenant_id__jobs__job_id__documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_source_document_api_v1_selection_tenants__tenant_id__jobs__job_id__documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_source_document_api_v1_tenants__tenant_id__selection_jobs__job_id__documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calibrate_selection_weights_api_v1_tenants__tenant_id__jobs__job_id__calibrate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calibrate_selection_weights_api_v1_selection_tenants__tenant_id__jobs__job_id__calibrate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calibrate_selection_weights_api_v1_tenants__tenant_id__selection_jobs__job_id__calibrate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CalibrateWeightsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_scoring_and_ranking_api_v1_tenants__tenant_id__jobs__job_id__score_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteScoringRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_scoring_and_ranking_api_v1_selection_tenants__tenant_id__jobs__job_id__score_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteScoringRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_scoring_and_ranking_api_v1_tenants__tenant_id__selection_jobs__job_id__score_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteScoringRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_human_review_api_v1_tenants__tenant_id__scores__score_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                score_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_human_review_api_v1_selection_tenants__tenant_id__scores__score_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                score_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_human_review_api_v1_tenants__tenant_id__selection_scores__score_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                score_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_selection_job_api_v1_tenants__tenant_id__jobs__job_id__finalize_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinalizeJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_selection_job_api_v1_selection_tenants__tenant_id__jobs__job_id__finalize_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinalizeJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_selection_job_api_v1_tenants__tenant_id__selection_jobs__job_id__finalize_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinalizeJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_tenants__tenant_id__jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_selection_tenants__tenant_id__jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_selection_analytics_api_v1_tenants__tenant_id__selection_jobs__job_id__analytics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_templates_api_v1_tenants__tenant_id__generative_templates_get: {
+        parameters: {
+            query?: {
+                /** @description Filter berdasarkan kategori template */
+                category?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_template_api_v1_tenants__tenant_id__generative_templates_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromptTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_brand_locks_api_v1_tenants__tenant_id__generative_brand_locks_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_brand_lock_api_v1_tenants__tenant_id__generative_brand_locks_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandLockCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_api_v1_tenants__tenant_id__generative_jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_and_execute_job_api_v1_tenants__tenant_id__generative_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerativeJobCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_detail_api_v1_tenants__tenant_id__generative_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_artifacts_api_v1_tenants__tenant_id__generative_artifacts_get: {
+        parameters: {
+            query?: {
+                verified_only?: boolean;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scrub_logs_api_v1_tenants__tenant_id__generative_scrub_logs_get: {
+        parameters: {
+            query?: {
+                artifact_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_fabric_connectors_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_fabric_connector_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FabricConnectorCreateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connector_dpia_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__dpia_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connector_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_or_update_dpia_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__dpia_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connector_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DpiaRecordInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activate_fabric_connector_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connector_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_fabric_connector_kms_api_v1_tenants__tenant_id__enterprise_integration_fabric_connectors__connector_id__rotate_kms_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                connector_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_fabric_stream_api_v1_tenants__tenant_id__enterprise_integration_fabric_sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncStreamInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_fabric_sync_logs_api_v1_tenants__tenant_id__enterprise_integration_fabric_sync_logs_get: {
+        parameters: {
+            query?: {
+                connector_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_company_context_events_api_v1_tenants__tenant_id__enterprise_chief_of_staff_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_company_context_events_api_v1_tenants__tenant_id__enterprise_context_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_company_context_events_api_v1_tenants__tenant_id__enterprise_company_context_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_company_context_signals_api_v1_tenants__tenant_id__enterprise_context_signals_get: {
+        parameters: {
+            query?: {
+                source_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_company_context_signal_api_v1_tenants__tenant_id__enterprise_context_signals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestSignalInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_company_context_signals_api_v1_tenants__tenant_id__enterprise_company_context_signals_get: {
+        parameters: {
+            query?: {
+                source_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_company_context_signal_api_v1_tenants__tenant_id__enterprise_company_context_signals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestSignalInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlate_company_context_signals_api_v1_tenants__tenant_id__enterprise_context_correlate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerCorrelationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    correlate_company_context_signals_api_v1_tenants__tenant_id__enterprise_company_context_correlate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerCorrelationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_context_fabric_dimensions_api_v1_tenants__tenant_id__enterprise_context_fabric_dimensions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_context_knowledge_nodes_api_v1_tenants__tenant_id__enterprise_context_fabric_nodes_get: {
+        parameters: {
+            query?: {
+                dimension_code?: string | null;
+                priority_level?: number | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_or_update_context_knowledge_node_api_v1_tenants__tenant_id__enterprise_context_fabric_nodes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContextKnowledgeNodeInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tenant_research_policy_api_v1_tenants__tenant_id__enterprise_research_policy_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tenant_research_policy_api_v1_tenants__tenant_id__enterprise_research_policy_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchPolicyUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_research_agent_query_api_v1_tenants__tenant_id__enterprise_context_fabric_query_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchAgentQueryInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_research_agent_query_api_v1_tenants__tenant_id__enterprise_research_agent_query_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchAgentQueryInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_automated_report_endpoint_api_v1_tenants__tenant_id__enterprise_reports_generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateReportInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_automated_report_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated_generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateReportInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_automated_reports_endpoint_api_v1_tenants__tenant_id__enterprise_reports_get: {
+        parameters: {
+            query?: {
+                report_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_automated_reports_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated_get: {
+        parameters: {
+            query?: {
+                report_type?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_automated_report_detail_endpoint_api_v1_tenants__tenant_id__enterprise_reports__report_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_automated_report_detail_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_automated__report_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_report_data_points_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_data_points_get: {
+        parameters: {
+            query?: {
+                metric_key?: string | null;
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    management_conversational_query_endpoint_api_v1_tenants__tenant_id__enterprise_conversational_query_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationalTurnInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    management_conversational_query_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_conversational_query_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConversationalTurnInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversational_session_turns_endpoint_api_v1_tenants__tenant_id__enterprise_reporting_conversational_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_autonomous_task_from_signal_endpoint_api_v1_tenants__tenant_id__enterprise_execution_auto_task_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutonomousTaskCreationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_task_source_completion_endpoint_api_v1_tenants__tenant_id__enterprise_workforce_tasks__task_id__verify_source_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualCompleteInterceptInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_workforce_monitoring_cycle_endpoint_api_v1_tenants__tenant_id__enterprise_workforce_monitoring_cycle_post: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cash_flow_summary_endpoint_api_v1_tenants__tenant_id__enterprise_finance_cash_flow_get: {
+        parameters: {
+            query?: {
+                period_start?: string | null;
+                period_end?: string | null;
+                current_cash_balance?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fuse_knowledge_endpoint_api_v1_tenants__tenant_id__enterprise_knowledge_fusion_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeFusionInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_event_endpoint_api_v1_tenants__tenant_id__enterprise_events_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventEvaluationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_knowledge_rule_endpoint_api_v1_tenants__tenant_id__enterprise_knowledge_rules__rule_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveKnowledgeRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_specialist_agents_endpoint_api_v1_tenants__tenant_id__enterprise_specialist_agents_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispatch_specialist_agent_endpoint_api_v1_tenants__tenant_id__enterprise_specialist_agents_dispatch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialistAgentDispatchInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_pdp_enforcement_points_api_v1_tenants__tenant_id__enterprise_enforcement_check_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assess_project_health_endpoint_api_v1_tenants__tenant_id__enterprise_projects__project_ref_id__health_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                project_ref_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectHealthInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_multi_agent_collaboration_endpoint_api_v1_tenants__tenant_id__enterprise_projects__project_ref_id__multi_agent_collaboration_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                project_ref_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MultiAgentCollaborationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_chief_of_staff_briefing_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings_generate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GenerateBriefingInput"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chief_of_staff_briefings_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_briefing_action_endpoint_api_v1_tenants__tenant_id__enterprise_chief_of_staff_briefings__briefing_id__actions__action_id__approval_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+                briefing_id: string;
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionApprovalInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_permission_matrix_api_v1_tenants__tenant_id__permissions_matrix_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_permission_cell_api_v1_tenants__tenant_id__permissions_matrix_cell_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatrixCellUpdateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_access_test_api_v1_tenants__tenant_id__permissions_evaluate_test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluateTestInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_permission_audit_logs_api_v1_tenants__tenant_id__permissions_audit_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_token_savings_summary_api_v1_tenants__tenant_id__tokenopt_summary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenSavingsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_token_savings_logs_api_v1_tenants__tenant_id__tokenopt_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenSavingsLogItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_skill_package_api_v1_admin_agent_catalog_ingest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlueprintIngestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transition_rollout_stage_api_v1_admin_agent_catalog_blueprints__blueprint_id__rollout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path: {
+                blueprint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolloutTransitionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_all_blueprints_api_v1_admin_agent_catalog_blueprints_get: {
+        parameters: {
+            query?: {
+                stage?: string | null;
+                category?: string | null;
+                policy_status?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_blueprint_detail_api_v1_admin_agent_catalog_blueprints__blueprint_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
             path: {
                 blueprint_id: string;
             };
@@ -1185,24 +23904,229 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Not Found */
-            404: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
-    list_available_for_tenant: {
+    list_available_blueprints_for_tenant_api_v1_tenants__tenant_id__agent_catalog_available_get: {
         parameters: {
             query?: {
-                category?: string;
+                category?: string | null;
             };
-            header?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
             path: {
                 tenant_id: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_file_api_v1_storage_upload_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "X-Tenant-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_file_api_v1_storage_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_storage_file_api_v1_storage__bucket___file_path__get: {
+        parameters: {
+            query?: {
+                token?: string | null;
+                expires?: number | null;
+                authorization?: string | null;
+            };
+            header?: never;
+            path: {
+                bucket: string;
+                file_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_hub_overview_api_v1_admin_hub_overview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminHubOverviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_tenants_api_v1_admin_tenants_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_financial_command_center_overview_api_v1_financial_command_center_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialCommandCenterResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    root__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

@@ -34,6 +34,8 @@ const FORBIDDEN_PATTERNS = [
   { pattern: /cloudsql/i, name: 'cloudsql' },
   // CI Guard: Dilarang keras email test/dummy/pentest hardcode
   { pattern: /\b(test|demo|dummy|pentest)@/i, name: 'test email literal' },
+  { pattern: /@test\.com/i, name: 'test.com domain literal' },
+  { pattern: /example\.com/i, name: 'example.com domain literal' },
   { pattern: /admin@admin/i, name: 'admin@admin literal' },
   { pattern: /\b(password123|admin\/admin|admin:admin)\b/i, name: 'default test credentials' },
   // CI Guard: Dilarang hardcoded JWT token atau Secret Key
@@ -75,7 +77,9 @@ const IGNORED_FILES = new Set([
   'pnpm-lock.yaml',
   'AGENTS.md',
   'CLAUDE.md',
-  'GEMINI.md'
+  'GEMINI.md',
+  'openapi.base.json',
+  'openapi.json'
 ]);
 
 const ALLOWLIST_COMMENT = /allowlist\s*:\s*.+/i;

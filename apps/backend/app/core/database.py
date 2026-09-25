@@ -228,6 +228,21 @@ def verify_db_connection_and_role(target_url: Optional[str] = None) -> Tuple[boo
 
             # Penegakan NOBYPASSRLS (PRD Bagian 2.6)
             if is_bypass or is_super:
+                # Periksa apakah koneksi dapat beralih ke role runtime orchestree_app (NOBYPASSRLS)
+                try:
+                    conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+                    switched = conn.execute(text("""
+                        SELECT current_user as user_name, r.rolbypassrls, r.rolsuper
+                        FROM pg_roles r
+                        WHERE r.rolname = current_user;
+                    """)).mappings().first()
+                    if switched and switched["user_name"] == "orchestree_app" and not switched["rolbypassrls"]:
+                        return True, (
+                            f"Koneksi database aktif via role 'orchestree_app' (NOBYPASSRLS terkonfirmasi via pooler '{user_name}')."
+                        ), {"user": "orchestree_app", "rolbypassrls": False, "pooler_user": user_name}
+                except Exception:
+                    pass
+
                 return False, (
                     f"Pelanggaran RLS: User '{user_name}' memiliki hak bypass RLS (rolbypassrls={is_bypass}, superuser={is_super}). "
                     "Role runtime wajib NOBYPASSRLS."

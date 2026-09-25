@@ -60,20 +60,8 @@ class CourierAggregatorService:
             couriers = ["jne", "jnt", "sicepat", "anteraja"]
 
         if not self.api_key:
-            # Fallback perhitungan standar logistik domestik saat API Key belum diisi oleh tenant
-            base_rate = 10000 + max(0, (weight_grams - 1000) // 1000) * 8000
-            rates = []
-            for c in couriers:
-                multiplier = 1.0 if c == "jne" else (0.95 if c == "sicepat" else 1.05)
-                rates.append({
-                    "courier_code": c.upper(),
-                    "courier_service": "REG",
-                    "courier_name": c.capitalize(),
-                    "shipping_cost": round(base_rate * multiplier),
-                    "estimated_days": "2-3",
-                    "currency": "IDR",
-                })
-            return rates
+            logger.warning("COURIER_AGGREGATOR_API_KEY tidak dikonfigurasi. Tarif pengiriman kurir tidak dapat dihitung.")
+            return []
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -104,17 +92,7 @@ class CourierAggregatorService:
         except Exception as e:
             logger.error(f"Gagal memanggil API kurir resmi: {e}")
 
-        # Default fallback terukur
-        return [
-            {
-                "courier_code": "JNE",
-                "courier_service": "REG",
-                "courier_name": "JNE Regular",
-                "shipping_cost": 12000,
-                "estimated_days": "2-3 hari",
-                "currency": "IDR",
-            }
-        ]
+        return []
 
     async def create_waybill(
         self,

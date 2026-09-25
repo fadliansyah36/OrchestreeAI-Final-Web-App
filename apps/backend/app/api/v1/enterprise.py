@@ -2567,7 +2567,7 @@ class ActionApprovalInput(BaseModel):
 
 
 @router.post("/chief-of-staff/briefings/generate")
-@router.post("/chief_of_staff/briefings/generate")
+@router.post("/chief_of_staff/briefings/generate", include_in_schema=False)
 async def generate_chief_of_staff_briefing_endpoint(
     tenant_id: str,
     input_data: Optional[GenerateBriefingInput] = None,
@@ -2717,7 +2717,7 @@ async def generate_chief_of_staff_briefing_endpoint(
 
 
 @router.get("/chief-of-staff/briefings")
-@router.get("/chief_of_staff/briefings")
+@router.get("/chief_of_staff/briefings", include_in_schema=False)
 async def list_chief_of_staff_briefings_endpoint(
     tenant_id: str,
     db=Depends(get_db_connection),
@@ -2744,7 +2744,7 @@ async def list_chief_of_staff_briefings_endpoint(
 
 
 @router.post("/chief-of-staff/briefings/{briefing_id}/actions/{action_id}/approval")
-@router.post("/chief_of_staff/briefings/{briefing_id}/actions/{action_id}/approval")
+@router.post("/chief_of_staff/briefings/{briefing_id}/actions/{action_id}/approval", include_in_schema=False)
 async def approve_briefing_action_endpoint(
     tenant_id: str,
     briefing_id: str,

@@ -10,6 +10,7 @@ Sesuai PRD v2.2 Bagian 6.2, 18.1, 15:
 
 from datetime import datetime, timezone
 import json
+import logging
 import secrets
 from typing import Any, Dict, List, Optional
 import uuid
@@ -19,6 +20,8 @@ import sqlalchemy as sa
 from app.core.database import get_database_engine
 from app.domains.workforce.task_sync import emit_task_realtime_event
 from app.authz.pdp import require_capability
+
+logger = logging.getLogger("orchestree.kanban_attendance")
 
 router = APIRouter(
     tags=["Kanban Board, Tasks & WebAuthn Attendance"],
@@ -478,8 +481,8 @@ async def webauthn_register_challenge(payload: WebAuthnRegisterChallengeRequest)
             ).mappings().first()
             if row and row["full_name"]:
                 member_name = row["full_name"]
-    except Exception:
-        pass
+    except Exception as err:
+        logger.warning("Gagal mengambil nama anggota tenant membership: %s", err)
 
     return {
         "challenge": challenge,
