@@ -31,12 +31,30 @@ class InsufficientCreditException(Exception):
 
 
 class CreditEstimate(BaseModel):
-    base: float = Field(..., description="Nilai dasar unit kerja dari jenis aktivitas AI")
-    complexity: float = Field(..., description="Faktor pengali kompleksitas tugas")
-    model: float = Field(..., description="Faktor pengali model LLM yang dipilih")
-    tool: float = Field(..., description="Faktor pengali perkakas MCP berdasarkan risk tier")
-    execution: float = Field(..., description="Faktor pengali mode eksekusi")
+    base: float = Field(default=0.0, description="Nilai dasar unit kerja dari jenis aktivitas AI")
+    complexity: float = Field(default=1.0, description="Faktor pengali kompleksitas tugas")
+    model: float = Field(default=1.0, description="Faktor pengali model LLM yang dipilih")
+    tool: float = Field(default=1.0, description="Faktor pengali perkakas MCP berdasarkan risk tier")
+    execution: float = Field(default=1.0, description="Faktor pengali mode eksekusi")
     final_estimate: float = Field(..., description="Total estimasi kredit AI yang dibutuhkan")
+    activity_code: Optional[str] = None
+    base_work_units: Optional[float] = None
+    complexity_multiplier: Optional[float] = None
+    model_multiplier: Optional[float] = None
+    tool_multiplier: Optional[float] = None
+    execution_multiplier: Optional[float] = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.base_work_units is not None and self.base == 0.0:
+            self.base = self.base_work_units
+        if self.complexity_multiplier is not None and self.complexity == 1.0:
+            self.complexity = self.complexity_multiplier
+        if self.model_multiplier is not None and self.model == 1.0:
+            self.model = self.model_multiplier
+        if self.tool_multiplier is not None and self.tool == 1.0:
+            self.tool = self.tool_multiplier
+        if self.execution_multiplier is not None and self.execution == 1.0:
+            self.execution = self.execution_multiplier
 
     def dict(self, *args, **kwargs) -> Dict[str, Any]:
         return self.model_dump(*args, **kwargs)
@@ -52,6 +70,7 @@ class ReservationToken(BaseModel):
     reference_id: str = ""
     execution_ref: Optional[str] = None
     status: str = "reserved"
+    is_unlimited_override: bool = False
 
 
 class Factor(BaseModel):

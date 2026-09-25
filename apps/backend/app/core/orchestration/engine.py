@@ -376,6 +376,23 @@ class OrchestrationEngine:
                     node_output = await self._execute_deliver(req, context)
                     final_output = node_output
                     context["delivery"] = node_output
+                elif node.type in [
+                    "SELECTION_READ",
+                    "SELECTION_UNDERSTAND",
+                    "SELECTION_VALIDATE",
+                    "SELECTION_SELECT",
+                    "SELECTION_SCORE",
+                    "SELECTION_RANK",
+                    "SELECTION_ANALYZE",
+                    "SELECTION_VISUALIZE",
+                    "SELECTION_RECOMMEND",
+                    "SELECTION_RESULT",
+                ]:
+                    from app.domains.selection.pipeline import execute_selection_pipeline_node
+                    node_output = await execute_selection_pipeline_node(node.type, req, node, context, execution_id)
+                    context[node.type.lower()] = node_output
+                    if node.type == "SELECTION_RESULT":
+                        final_output = node_output
 
                 # Catat penyelesaian node run
                 await self._save_node_run_finish(

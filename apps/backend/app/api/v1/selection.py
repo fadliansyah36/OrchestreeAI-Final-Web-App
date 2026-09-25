@@ -1,12 +1,13 @@
-"""Universal Selection Hub & Scoring Engine API (Bagian 13.1, 17.5)
+"""Universal AI Selection & Intelligence API (PRD v2.2 Bagian 13.1 & 17.5)
 
 Menyediakan REST endpoint untuk:
-- Manajemen Pekerjaan Seleksi Multi-Kategori (Rekrutmen, Vendor, Tender)
-- Multi-Source Upload & Data Understanding (LLM Parsing)
-- Kalibrasi Berkelanjutan Bobot Kriteria Berdasarkan Umpan Balik Reviewer
-- Scoring Deterministik & Perangkingan dengan Reproducibility Hash (SHA-256)
-- Human Review Gate Wajib Sebelum Persetujuan Akhir
-- Analitik Distribusi Skor & Audit Trail
+- Manajemen Pekerjaan Seleksi Multi-Kategori (Rekrutmen, Vendor, Keuangan, Penjualan, Operasional)
+- Multi-Source Ingestion (Berkas Excel/CSV/PDF, Prompt Langsung, Integrasi Fabric, Omnichannel Forward)
+- Eksekusi 10 Tahap Pipeline Seleksi via Cognitive Orchestration Engine
+- Scoring Deterministik & Grounding Enforcement Matematis
+- Dynamic Analytics Snapshot & Automatic Diagram Selection
+- Sintesis Narasi Insight & Rekomendasi Tindakan AI
+- Human Review Gate & Audit Trail Persetujuan
 """
 
 from typing import Any, Dict, List, Optional
@@ -14,12 +15,13 @@ from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import BaseModel, Field
 from app.authz.pdp import require_capability
 
-from orchestree.domains.selection.scoring import (
-    UniversalSelectionService,
-    SelectionJobCategory,
-    SourceDocumentType,
-    HumanReviewStatus,
+from app.domains.selection.models import (
+    PipelineStage,
+    SourceChannel,
+    CriteriaSourceType,
+    DecisionStatus,
 )
+from app.domains.selection.service import SelectionDomainService
 
 router = APIRouter(
     prefix="",
@@ -29,52 +31,76 @@ router = APIRouter(
 
 
 class CreateSelectionJobRequest(BaseModel):
-    title: str = Field(..., description="Judul pekerjaan seleksi")
-    category: SelectionJobCategory = Field(default=SelectionJobCategory.RECRUITMENT, description="Kategori seleksi")
+    title: str = Field(..., min_length=3, description="Judul pekerjaan seleksi")
+    instruction_prompt: Optional[str] = Field(default=None, description="Perintah instruksi evaluasi seleksi")
     description: Optional[str] = Field(default=None, description="Deskripsi kualifikasi atau lingkup seleksi")
+    domain_category: Optional[str] = Field(default=None, description="Kategori domain: recruitment, supplier, finance, sales, general")
+    category: Optional[str] = Field(default=None, description="Kategori kompatibilitas mundur")
+    calibration_profile_id: Optional[str] = Field(default=None, description="UUID profil kalibrasi (jika ada)")
     criteria: Optional[List[Dict[str, Any]]] = Field(default=None, description="Daftar kriteria evaluasi")
-    weights: Optional[Dict[str, float]] = Field(default=None, description="Bobot kriteria (akan dinormalisasi ke total 1.0)")
+    weights: Optional[Dict[str, float]] = Field(default=None, description="Bobot kriteria awal")
+    source_documents: Optional[List[Dict[str, Any]]] = Field(default=None, description="Dokumen awal yang disertakan")
 
 
 class UploadDocumentRequest(BaseModel):
-    document_name: str = Field(..., description="Nama berkas (misal: Resume_John.pdf)")
-    candidate_name: str = Field(..., description="Nama kandidat atau vendor")
-    source_type: SourceDocumentType = Field(default=SourceDocumentType.RESUME, description="Jenis berkas sumber")
-    candidate_email: Optional[str] = Field(default=None, description="Email kandidat/vendor")
-    candidate_phone: Optional[str] = Field(default=None, description="Nomor telepon kandidat/vendor")
-    raw_text: Optional[str] = Field(default=None, description="Teks konten dokumen untuk ekstraksi data understanding")
+    document_name: Optional[str] = Field(default=None, description="Nama berkas atau label dokumen")
+    candidate_name: Optional[str] = Field(default=None, description="Nama kandidat atau vendor")
+    source_type: Optional[str] = Field(default="RESUME", description="Jenis berkas sumber (kompatibilitas)")
+    source_channel: Optional[SourceChannel] = Field(default=SourceChannel.FILE_UPLOAD, description="Kanal sumber: file_upload, prompt_text, api, dst")
+    raw_text: Optional[str] = Field(default=None, description="Teks konten dokumen untuk ekstraksi")
     file_url: Optional[str] = Field(default=None, description="URL berkas")
+    file_artifact_id: Optional[str] = Field(default=None, description="UUID berkas di file_artifacts")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata saluran tambahan")
 
 
-class CalibrateWeightsRequest(BaseModel):
-    human_feedback_notes: str = Field(..., min_length=5, description="Catatan panduan penyesuaian bobot dari reviewer")
-    criteria_adjustments: Dict[str, float] = Field(..., description="Faktor pengali per kriteria (misal: {'tech_depth': 1.2, 'culture_fit': 0.8})")
-    human_reviewer_id: Optional[str] = Field(default=None, description="UUID reviewer manusia")
-
-
-class ExecuteScoringRequest(BaseModel):
+class ExecutePipelineRequest(BaseModel):
     model_used: Optional[str] = Field(default="meta-llama/llama-3.3-70b-instruct", description="Identifier model LLM")
+    actor_id: Optional[str] = Field(default=None, description="UUID aktor pelaksana")
+    actor_type: Optional[str] = Field(default="human_user", description="Tipe aktor: human_user atau ai_agent")
 
 
 class SubmitReviewRequest(BaseModel):
-    decision: HumanReviewStatus = Field(..., description="Keputusan tinjauan: ACCEPTED, OVERRIDDEN, REJECTED")
+    decision: Optional[str] = Field(default=None, description="Keputusan tinjauan: approved, rejected, overridden (atau ACCEPTED, OVERRIDDEN, REJECTED)")
+    decision_status: Optional[str] = Field(default=None, description="Status keputusan baru")
     override_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Skor override manusia jika disesuaikan")
-    reviewer_notes: str = Field(..., min_length=5, description="Catatan justifikasi tinjauan manusia")
+    reviewer_notes: Optional[str] = Field(default=None, description="Catatan justifikasi tinjauan manusia")
     reviewer_id: Optional[str] = Field(default=None, description="UUID reviewer manusia")
 
 
-class FinalizeJobRequest(BaseModel):
-    reviewer_id: str = Field(..., description="UUID penanggung jawab persetujuan")
-    approval_notes: str = Field(..., min_length=10, description="Catatan persetujuan akhir komprehensif")
+# ---------------------------------------------------------------------------
+# Katalog Domain Categories
+# ---------------------------------------------------------------------------
 
+@router.get("/selection/domain-categories")
+@router.get("/selection/tenants/{tenant_id}/domain-categories")
+async def get_selection_domain_categories():
+    """Mengambil katalog kategori domain evaluasi seleksi."""
+    try:
+        categories = SelectionDomainService.get_domain_categories()
+        return {"status": "success", "data": categories}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Pekerjaan Seleksi (Jobs)
+# ---------------------------------------------------------------------------
 
 @router.get("/tenants/{tenant_id}/selection/jobs")
 @router.get("/selection/tenants/{tenant_id}/jobs")
 @router.get("/tenants/{tenant_id}/jobs")
-async def list_selection_jobs(tenant_id: str, status: Optional[str] = Query(None)):
+async def list_selection_jobs(
+    tenant_id: str,
+    domain_category: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+):
     """Mengambil seluruh pekerjaan seleksi organisasi."""
     try:
-        jobs = UniversalSelectionService.get_jobs(tenant_id, status=status)
+        jobs = SelectionDomainService.list_jobs(
+            tenant_id=tenant_id,
+            domain_category=domain_category,
+            pipeline_stage=status,
+        )
         return {"status": "success", "tenant_id": tenant_id, "data": jobs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -86,13 +112,17 @@ async def list_selection_jobs(tenant_id: str, status: Optional[str] = Query(None
 async def create_selection_job(tenant_id: str, request: CreateSelectionJobRequest):
     """Membuat pekerjaan seleksi baru."""
     try:
-        job = UniversalSelectionService.create_selection_job(
+        prompt = request.instruction_prompt or request.description or f"Seleksi cerdas untuk {request.title}"
+        domain_cat = request.domain_category or (request.category.lower() if request.category else "general")
+
+        job = SelectionDomainService.create_job(
             tenant_id=tenant_id,
             title=request.title,
-            category=request.category,
-            description=request.description,
+            instruction_prompt=prompt,
+            domain_category=domain_cat,
+            calibration_profile_id=request.calibration_profile_id,
             criteria=request.criteria,
-            weights=request.weights,
+            source_documents=request.source_documents,
         )
         return {"status": "success", "tenant_id": tenant_id, "data": job}
     except Exception as e:
@@ -103,9 +133,9 @@ async def create_selection_job(tenant_id: str, request: CreateSelectionJobReques
 @router.get("/selection/tenants/{tenant_id}/jobs/{job_id}")
 @router.get("/tenants/{tenant_id}/jobs/{job_id}")
 async def get_selection_job_detail(tenant_id: str, job_id: str):
-    """Mengambil rincian pekerjaan seleksi beserta dokumen, hasil scoring, dan riwayat kalibrasi."""
+    """Mengambil rincian pekerjaan seleksi beserta kriteria dan progres."""
     try:
-        job = UniversalSelectionService.get_job_detail(tenant_id, job_id)
+        job = SelectionDomainService.get_job_detail(tenant_id, job_id)
         return {"status": "success", "tenant_id": tenant_id, "data": job}
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
@@ -113,114 +143,162 @@ async def get_selection_job_detail(tenant_id: str, job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ---------------------------------------------------------------------------
+# Multi-Source Document Ingestion
+# ---------------------------------------------------------------------------
+
 @router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/documents")
 @router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/documents")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/documents")
 async def upload_source_document(tenant_id: str, job_id: str, request: UploadDocumentRequest):
-    """Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi dan mengekstraksi fiturnya."""
+    """Menambahkan dokumen sumber pelamar/vendor ke pekerjaan seleksi."""
     try:
-        doc = UniversalSelectionService.upload_source_document(
+        channel_val = request.source_channel.value if isinstance(request.source_channel, SourceChannel) else str(request.source_channel)
+        doc_name = request.document_name or request.candidate_name or "Dokumen Sumber"
+        raw_text = request.raw_text or ""
+        if request.candidate_name and request.candidate_name not in raw_text:
+            raw_text = f"Nama Entitas: {request.candidate_name}\n" + raw_text
+
+        doc = SelectionDomainService.add_source_document(
             tenant_id=tenant_id,
             job_id=job_id,
-            document_name=request.document_name,
-            candidate_name=request.candidate_name,
-            source_type=request.source_type,
-            candidate_email=request.candidate_email,
-            candidate_phone=request.candidate_phone,
-            raw_text=request.raw_text,
-            file_url=request.file_url,
+            source_channel=channel_val,
+            raw_text=raw_text,
+            file_artifact_id=request.file_artifact_id,
+            document_name=doc_name,
         )
         return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": doc}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/calibrate")
-@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/calibrate")
-@router.post("/tenants/{tenant_id}/jobs/{job_id}/calibrate")
-async def calibrate_selection_weights(tenant_id: str, job_id: str, request: CalibrateWeightsRequest):
-    """Mengadaptasi bobot kriteria berlandaskan umpan balik manusia dan mencatat ke audit trail."""
-    try:
-        result = UniversalSelectionService.calibrate_weights(
-            tenant_id=tenant_id,
-            job_id=job_id,
-            human_feedback_notes=request.human_feedback_notes,
-            criteria_adjustments=request.criteria_adjustments,
-            human_reviewer_id=request.human_reviewer_id,
-        )
-        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": result}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+# ---------------------------------------------------------------------------
+# Eksekusi Pipeline 10 Tahap via Orchestration Engine
+# ---------------------------------------------------------------------------
 
-
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/run")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/run")
 @router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/score")
 @router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/score")
 @router.post("/tenants/{tenant_id}/jobs/{job_id}/score")
-async def execute_scoring_and_ranking(tenant_id: str, job_id: str, request: ExecuteScoringRequest):
-    """Menjalankan scoring deterministik, menghasilkan Reproducibility Hash, dan menyusun ranking."""
-    try:
-        job = UniversalSelectionService.execute_scoring_and_ranking(
-            tenant_id=tenant_id,
-            job_id=job_id,
-            model_used=request.model_used or "meta-llama/llama-3.3-70b-instruct",
-        )
-        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": job}
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/tenants/{tenant_id}/selection/scores/{score_id}/review")
-@router.post("/selection/tenants/{tenant_id}/scores/{score_id}/review")
-@router.post("/tenants/{tenant_id}/scores/{score_id}/review")
-async def submit_human_review(tenant_id: str, score_id: str, request: SubmitReviewRequest):
-    """Mencatat keputusan tinjauan manusia (wajib untuk integritas audit)."""
-    try:
-        result = UniversalSelectionService.submit_human_review(
-            tenant_id=tenant_id,
-            scoring_result_id=score_id,
-            human_decision=request.decision,
-            human_override_score=request.override_score,
-            human_reviewer_notes=request.reviewer_notes,
-            human_reviewer_id=request.reviewer_id,
-        )
-        return {"status": "success", "tenant_id": tenant_id, "data": result}
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/finalize")
-@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/finalize")
-@router.post("/tenants/{tenant_id}/jobs/{job_id}/finalize")
-async def finalize_selection_job(tenant_id: str, job_id: str, request: FinalizeJobRequest):
+async def execute_selection_pipeline(
+    tenant_id: str,
+    job_id: str,
+    request: Optional[ExecutePipelineRequest] = None,
+):
     """
-    Menyetujui hasil seleksi secara final (FINAL_APPROVED).
-    Menolak jika Human Review pada setiap kandidat belum diselesaikan!
+    Menjalankan alur 10 tahap pipeline seleksi kognitif melalui Orchestration Engine.
+    Tahap: READ -> UNDERSTAND -> VALIDATE -> SELECT -> SCORE -> RANK -> ANALYZE -> VISUALIZE -> RECOMMEND -> RESULT.
     """
     try:
-        job = UniversalSelectionService.finalize_selection_job(
+        actor_id = request.actor_id if request else None
+        actor_type = request.actor_type if request else "human_user"
+
+        result = await SelectionDomainService.run_pipeline(
             tenant_id=tenant_id,
             job_id=job_id,
-            human_reviewer_id=request.reviewer_id,
-            human_review_notes=request.approval_notes,
+            actor_id=actor_id,
+            actor_type=actor_type,
         )
-        return {"status": "success", "tenant_id": tenant_id, "data": job}
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": result}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ---------------------------------------------------------------------------
+# Hasil Scoring & Ranking
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/results")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/results")
+async def get_selection_results(tenant_id: str, job_id: str):
+    """Mengambil hasil scoring berbobot dan perangkingan entitas."""
+    try:
+        results = SelectionDomainService.get_job_results(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Insight Naratif AI
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/insights")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/insights")
+async def get_selection_insights(tenant_id: str, job_id: str):
+    """Mengambil insight naratif AI (ranking reasons, strengths, weaknesses, risks, recommendations)."""
+    try:
+        insights = SelectionDomainService.get_job_insights(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": insights}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Analitik Dinamis Tersimpan
+# ---------------------------------------------------------------------------
 
 @router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/analytics")
 @router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/analytics")
 @router.get("/tenants/{tenant_id}/jobs/{job_id}/analytics")
 async def get_selection_analytics(tenant_id: str, job_id: str):
-    """Mengambil analitik distribusi, rerata kriteria, dan verifikasi hash reproduksibilitas."""
+    """Mengambil snapshot analitik dinamis (KPI, distribusi, statistik, perbandingan)."""
     try:
-        analytics = UniversalSelectionService.get_selection_analytics(tenant_id, job_id)
-        return {"status": "success", "tenant_id": tenant_id, "data": analytics}
+        analytics = SelectionDomainService.get_job_analytics(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": analytics}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Visualisasi Otomatis
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/visualizations")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/visualizations")
+async def get_selection_visualizations(tenant_id: str, job_id: str):
+    """Mengambil diagram visualisasi data yang dipilih secara otomatis oleh AI."""
+    try:
+        visualizations = SelectionDomainService.get_job_visualizations(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": visualizations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Human Review Gate
+# ---------------------------------------------------------------------------
+
+@router.post("/tenants/{tenant_id}/selection/scores/{score_id}/review")
+@router.post("/selection/tenants/{tenant_id}/scores/{score_id}/review")
+@router.post("/tenants/{tenant_id}/scores/{score_id}/review")
+async def submit_human_review(tenant_id: str, score_id: str, request: SubmitReviewRequest):
+    """Mencatat keputusan tinjauan manusia terhadap hasil scoring kandidat/vendor."""
+    try:
+        decision_raw = request.decision_status or request.decision or "approved"
+        # Normalisasi status
+        norm_status = decision_raw.lower()
+        if norm_status in ["accepted", "approved"]:
+            norm_status = "approved"
+        elif norm_status in ["overridden", "override"]:
+            norm_status = "overridden"
+        elif norm_status in ["rejected", "reject"]:
+            norm_status = "rejected"
+        else:
+            norm_status = "approved"
+
+        result = SelectionDomainService.submit_review(
+            tenant_id=tenant_id,
+            score_id=score_id,
+            decision_status=norm_status,
+            reviewer_notes=request.reviewer_notes,
+            reviewer_id=request.reviewer_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
