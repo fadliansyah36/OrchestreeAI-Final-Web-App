@@ -2,11 +2,26 @@ import React from 'react';
 
 export function SkeletonLoader({
   className = 'h-6 w-full',
-  id = 'skeleton-loader'
+  id = 'skeleton-loader',
+  count = 1,
 }: {
   className?: string;
   id?: string;
+  count?: number;
 }) {
+  if (count > 1) {
+    return (
+      <div id={id} className="space-y-3 w-full">
+        {Array.from({ length: count }).map((_, idx) => (
+          <div
+            key={idx}
+            className={`animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800/80 ${className}`}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       id={id}

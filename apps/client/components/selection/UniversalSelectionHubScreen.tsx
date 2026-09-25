@@ -29,10 +29,16 @@ import {
   Layers,
   PieChart as PieIcon,
   BrainCircuit,
-  ArrowLeft
+  ArrowLeft,
+  History,
+  Zap,
 } from 'lucide-react';
 import { SelectionAnalyticsScreen } from './SelectionAnalyticsScreen';
 import { SelectionInsightPanel } from './SelectionInsightPanel';
+import { SelectionResultScreen, SelectionScoringResultItem } from './SelectionResultScreen';
+import { SelectionHistoryScreen } from './SelectionHistoryScreen';
+import { SelectionReviewScreen } from './SelectionReviewScreen';
+import { SelectionAutomationScreen } from './SelectionAutomationScreen';
 import {
   ResponsiveContainer,
   BarChart,
@@ -152,7 +158,8 @@ export function UniversalSelectionHubScreen({
   const [jobs, setJobs] = useState<SelectionJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<SelectionJob | null>(null);
-  const [activeTab, setActiveTab] = useState<'ranking' | 'upload' | 'calibration' | 'analytics'>('ranking');
+  const [activeTab, setActiveTab] = useState<'results' | 'ranking' | 'review' | 'history' | 'automation' | 'upload' | 'calibration' | 'analytics'>('results');
+  const [jobResults, setJobResults] = useState<SelectionScoringResultItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -267,6 +274,18 @@ export function UniversalSelectionHubScreen({
     }
   };
 
+  const fetchJobResults = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${jobId}/results`);
+      if (res.ok) {
+        const j = await res.json();
+        setJobResults(j.data || []);
+      }
+    } catch (err) {
+      console.error('Gagal mengambil hasil penilaian:', err);
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
   }, [tenantId]);
@@ -275,6 +294,7 @@ export function UniversalSelectionHubScreen({
     if (selectedJobId) {
       fetchJobDetail(selectedJobId);
       fetchAnalyticsAndVisualizations(selectedJobId);
+      fetchJobResults(selectedJobId);
     }
   }, [selectedJobId]);
 
@@ -291,6 +311,7 @@ export function UniversalSelectionHubScreen({
         showFeedback('Scoring deterministik selesai! Perangkingan terverifikasi dengan hash reproduksibilitas.');
         await fetchJobDetail(currentJob.id);
         fetchAnalyticsAndVisualizations(currentJob.id);
+        fetchJobResults(currentJob.id);
         fetchJobs();
       } else {
         const err = await res.json();
@@ -674,27 +695,92 @@ export function UniversalSelectionHubScreen({
       </div>
 
       {/* Navigasi Tab */}
-      <div className="flex border-b border-slate-800 space-x-1">
+      <div className="flex border-b border-slate-800 space-x-1 overflow-x-auto">
         <button
-          onClick={() => setActiveTab('ranking')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
-            activeTab === 'ranking'
+          onClick={() => setActiveTab('results')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'results'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
           <Award className="w-4 h-4" />
-          Perangkingan & Tinjauan Manusia
-          {scores.length > 0 && (
+          Hasil Seleksi (Dashboard)
+          {jobResults.length > 0 && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-              {scores.length}
+              {jobResults.length}
             </span>
           )}
         </button>
 
         <button
+          onClick={() => setActiveTab('review')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'review'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          Tinjauan Manusia
+          {unreviewedCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
+              {unreviewedCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ranking')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'ranking'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Hash className="w-4 h-4" />
+          Perangkingan Algoritmik
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'history'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Riwayat & Komparasi
+        </button>
+
+        <button
+          onClick={() => setActiveTab('automation')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'automation'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          Otomasi Pemicu
+        </button>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
+            activeTab === 'analytics'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Analitik & Visualisasi
+        </button>
+
+        <button
           onClick={() => setActiveTab('upload')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
             activeTab === 'upload'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -709,28 +795,143 @@ export function UniversalSelectionHubScreen({
 
         <button
           onClick={() => setActiveTab('calibration')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition ${
             activeTab === 'calibration'
               ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
           <Sliders className="w-4 h-4" />
-          Kriteria & Kalibrasi Berkelanjutan
-        </button>
-
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 transition ${
-            activeTab === 'analytics'
-              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          Analitik & Jejak Audit
+          Kriteria & Kalibrasi
         </button>
       </div>
+
+      {/* Tab: Results (BAGIAN A) */}
+      {activeTab === 'results' && (
+        <SelectionResultScreen
+          tenantId={tenantId || ''}
+          jobInfo={
+            currentJob
+              ? {
+                  id: currentJob.id,
+                  title: currentJob.title,
+                  domain_category: (currentJob as any).domain_category || currentJob.category,
+                  instruction_prompt: (currentJob as any).instruction_prompt || currentJob.description,
+                  pipeline_stage: (currentJob as any).pipeline_stage || currentJob.status,
+                  stage_progress_pct: (currentJob as any).stage_progress_pct || (currentJob.status === 'FINAL_APPROVED' ? 100 : 80),
+                  total_documents: currentJob.total_documents,
+                  created_at: currentJob.created_at,
+                  completed_at: (currentJob as any).completed_at,
+                  criteria: (currentJob as any).criteria,
+                }
+              : null
+          }
+          results={
+            jobResults.length > 0
+              ? jobResults
+              : scores.map((s) => ({
+                  id: s.id,
+                  entity_label: s.candidate_name,
+                  total_score: s.overall_score || 0,
+                  score_breakdown: s.criterion_breakdown || {},
+                  rank_position: s.rank_position || 1,
+                  priority_level: (s.rank_position || 1) <= 3 ? 'high' : 'medium',
+                  recommendation_classification:
+                    (s.overall_score || 0) >= 80 ? 'selected' : (s.overall_score || 0) >= 60 ? 'review' : 'rejected',
+                  risk_score: Math.max(0, 100 - (s.overall_score || 0)),
+                  confidence_score: 92.5,
+                  quality_score: 98.0,
+                  decision_status: s.human_reviewed ? (s.human_review_status || 'ACCEPTED').toLowerCase() : 'pending',
+                  reviewer_notes: s.human_reviewer_notes,
+                }))
+          }
+          insights={insightsData}
+          isLoading={isLoading}
+          onOpenReview={() => setActiveTab('review')}
+          onOpenRerun={() => setActiveTab('history')}
+          onOpenCompare={() => setActiveTab('history')}
+        />
+      )}
+
+      {/* Tab: Review (BAGIAN D) */}
+      {activeTab === 'review' && (
+        <SelectionReviewScreen
+          tenantId={tenantId || ''}
+          jobId={currentJob?.id || selectedJobId || ''}
+          jobTitle={currentJob?.title || ''}
+          domainCategory={(currentJob as any)?.domain_category || currentJob?.category || 'general'}
+          pipelineStage={(currentJob as any)?.pipeline_stage || currentJob?.status || 'in_review'}
+          candidates={
+            jobResults.length > 0
+              ? jobResults.map((r) => ({
+                  id: r.id,
+                  entity_label: r.entity_label,
+                  total_score: r.total_score,
+                  rank_position: r.rank_position,
+                  previous_rank_position: r.previous_rank_position,
+                  score_breakdown: r.score_breakdown,
+                  decision_status: r.decision_status || 'pending',
+                  recommendation_classification: r.recommendation_classification || undefined,
+                  risk_score: r.risk_score || undefined,
+                  confidence_score: r.confidence_score || undefined,
+                  quality_score: r.quality_score || undefined,
+                  reviewer_notes: r.reviewer_notes,
+                }))
+              : scores.map((s) => ({
+                  id: s.id,
+                  entity_label: s.candidate_name,
+                  total_score: s.overall_score || 0,
+                  rank_position: s.rank_position || 1,
+                  score_breakdown: s.criterion_breakdown || {},
+                  decision_status: s.human_reviewed ? (s.human_review_status || 'ACCEPTED').toLowerCase() : 'pending',
+                  recommendation_classification:
+                    (s.overall_score || 0) >= 80 ? 'selected' : (s.overall_score || 0) >= 60 ? 'review' : 'rejected',
+                  reviewer_notes: s.human_reviewer_notes,
+                }))
+          }
+          isLoading={isLoading}
+          onRefresh={() => {
+            if (selectedJobId) {
+              fetchJobDetail(selectedJobId);
+              fetchJobResults(selectedJobId);
+            }
+          }}
+          onFinalizeJob={() => {
+            if (selectedJobId) {
+              fetchJobDetail(selectedJobId);
+              fetchJobResults(selectedJobId);
+              fetchJobs();
+            }
+          }}
+        />
+      )}
+
+      {/* Tab: History (BAGIAN B) */}
+      {activeTab === 'history' && (
+        <SelectionHistoryScreen
+          tenantId={tenantId || ''}
+          onReopenJob={(jobId) => {
+            setSelectedJobId(jobId);
+            setActiveTab('results');
+          }}
+          onInitiateRerun={(jobId) => {
+            setSelectedJobId(jobId);
+            fetchJobs();
+            setActiveTab('results');
+          }}
+        />
+      )}
+
+      {/* Tab: Automation (BAGIAN F) */}
+      {activeTab === 'automation' && (
+        <SelectionAutomationScreen
+          tenantId={tenantId || ''}
+          onOpenJob={(jobId) => {
+            setSelectedJobId(jobId);
+            setActiveTab('results');
+          }}
+        />
+      )}
 
       {/* Tab 1: Ranking */}
       {activeTab === 'ranking' && (

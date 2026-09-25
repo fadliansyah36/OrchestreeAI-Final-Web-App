@@ -110,6 +110,46 @@ class ChartType(str, Enum):
     RANKING_CHART = "ranking_chart"
 
 
+class TriggerType(str, Enum):
+    NEW_FILE_UPLOAD = "new_file_upload"
+    SCHEDULED = "scheduled"
+    WEBHOOK = "webhook"
+    WORKFLOW_TRIGGER = "workflow_trigger"
+
+
+class ExportFormat(str, Enum):
+    PDF = "pdf"
+    EXCEL = "excel"
+    CSV = "csv"
+
+
+class ReportType(str, Enum):
+    EXECUTIVE_SUMMARY = "executive_summary"
+    DETAILED_SELECTION = "detailed_selection"
+    RANKING_ANALYTICS = "ranking_analytics"
+
+
+class ReviewDecision(str, Enum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    OVERRIDDEN = "overridden"
+
+
+PROTECTED_HUMAN_REVIEW_DOMAINS = ["recruitment", "finance", "procurement", "supplier"]
+
+STRUCTURAL_AI_AGENT_ROLES = [
+    {"role_key": "hr_agent", "title": "HR Agent", "department": "Human Resources", "domain_categories": ["recruitment"]},
+    {"role_key": "finance_agent", "title": "Finance Agent", "department": "Finance & Treasury", "domain_categories": ["finance"]},
+    {"role_key": "procurement_agent", "title": "Procurement Agent", "department": "Procurement & Vendor", "domain_categories": ["supplier", "procurement"]},
+    {"role_key": "sales_agent", "title": "Sales Agent", "department": "Sales & Revenue", "domain_categories": ["sales"]},
+    {"role_key": "marketing_agent", "title": "Marketing Agent", "department": "Marketing & Growth", "domain_categories": ["marketing", "sales"]},
+    {"role_key": "project_agent", "title": "Project Agent", "department": "Project Delivery", "domain_categories": ["general", "operations"]},
+    {"role_key": "operations_agent", "title": "Mining Agent / Operations Agent", "department": "Operations", "domain_categories": ["general", "supplier"]},
+    {"role_key": "research_agent", "title": "Research Agent", "department": "Market Intelligence", "domain_categories": ["general", "sales"]},
+    {"role_key": "chief_of_staff", "title": "Chief of Staff Agent", "department": "Executive Leadership", "domain_categories": ["general", "recruitment", "finance"]},
+]
+
+
 # ---------------------------------------------------------------------------
 # Pydantic Request / DTO Schemas
 # ---------------------------------------------------------------------------
@@ -140,17 +180,49 @@ class CreateSelectionJobInput(BaseModel):
     initiated_by_agent_id: Optional[str] = Field(default=None, description="ID AI Agent pemicu jika dari otomasi")
 
 
+class RerunSelectionJobInput(BaseModel):
+    title: Optional[str] = Field(default=None, description="Judul baru untuk job rerun")
+    instruction_prompt: Optional[str] = Field(default=None, description="Prompt evaluasi baru atau disesuaikan")
+    criteria: Optional[List[Dict[str, Any]]] = Field(default=None, description="Kriteria baru atau disesuaikan")
+    calibration_profile_id: Optional[str] = Field(default=None, description="Profil kalibrasi baru")
+    initiated_by_agent_id: Optional[str] = Field(default=None, description="ID AI Agent pemicu")
+
+
+class ExportSelectionReportInput(BaseModel):
+    format: str = Field(default="pdf", description="Format laporan: pdf, excel, csv")
+    report_type: str = Field(default="executive_summary", description="Tipe laporan: executive_summary, detailed_selection, ranking_analytics")
+
+
+class ReviewResultInput(BaseModel):
+    decision: str = Field(..., description="Keputusan: approved, rejected, overridden")
+    override_rank: Optional[int] = Field(default=None, ge=1, description="Posisi peringkat baru jika overridden")
+    override_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Skor override baru jika overridden")
+    notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan peninjau (wajib untuk rejected/overridden)")
+
+
+class CreateAutomationTriggerInput(BaseModel):
+    trigger_name: str = Field(..., min_length=3, max_length=200, description="Nama pemicu otomasi")
+    trigger_type: TriggerType = Field(..., description="Jenis pemicu: new_file_upload, scheduled, webhook, workflow_trigger")
+    trigger_config: Dict[str, Any] = Field(default_factory=dict, description="Konfigurasi pemicu (cron, folder watch, webhook secret)")
+    target_agent_id: Optional[str] = Field(default=None, description="ID AI Agent pelaksana")
+    criteria_template: Optional[List[Dict[str, Any]]] = Field(default=None, description="Template kriteria seleksi")
+    calibration_profile_id: Optional[str] = Field(default=None, description="ID profil kalibrasi")
+    is_active: bool = Field(default=True, description="Status aktif pemicu")
+
+
 class ScoringResultDetail(BaseModel):
     id: str
     entity_label: str
     total_score: float
     score_breakdown: Dict[str, float]
     rank_position: Optional[int] = None
+    previous_rank_position: Optional[int] = None
     priority_level: Optional[PriorityLevel] = None
     recommendation_classification: Optional[RecommendationClass] = None
     risk_score: Optional[float] = None
     confidence_score: Optional[float] = None
     decision_status: DecisionStatus = DecisionStatus.PENDING
+    reviewer_notes: Optional[str] = None
     source_document_id: Optional[str] = None
 
 
@@ -170,3 +242,4 @@ class SelectionJobDetail(BaseModel):
     criteria: List[Dict[str, Any]] = Field(default_factory=list)
     total_documents: int = 0
     results: List[ScoringResultDetail] = Field(default_factory=list)
+

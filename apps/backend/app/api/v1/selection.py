@@ -11,7 +11,9 @@ Menyediakan REST endpoint untuk:
 """
 
 from typing import Any, Dict, List, Optional
+import os
 from fastapi import APIRouter, HTTPException, Query, status, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ConfigDict
 from app.authz.pdp import require_capability
 
@@ -44,6 +46,45 @@ class CreateSelectionJobRequest(StrictSelectionRequestModel):
     criteria: Optional[List[Dict[str, Any]]] = Field(default=None, description="Daftar kriteria evaluasi")
     weights: Optional[Dict[str, float]] = Field(default=None, description="Bobot kriteria awal")
     source_documents: Optional[List[Dict[str, Any]]] = Field(default=None, description="Dokumen awal yang disertakan")
+    initiated_by_agent_id: Optional[str] = Field(default=None, max_length=100, description="UUID AI Agent pemicu")
+
+
+class RerunSelectionJobRequest(StrictSelectionRequestModel):
+    title: Optional[str] = Field(default=None, max_length=200, description="Judul baru untuk job rerun")
+    instruction_prompt: Optional[str] = Field(default=None, max_length=5000, description="Prompt evaluasi baru atau disesuaikan")
+    criteria: Optional[List[Dict[str, Any]]] = Field(default=None, description="Kriteria baru atau disesuaikan")
+    calibration_profile_id: Optional[str] = Field(default=None, max_length=100, description="Profil kalibrasi baru")
+    initiated_by_agent_id: Optional[str] = Field(default=None, max_length=100, description="UUID AI Agent pemicu")
+
+
+class ExportSelectionReportRequest(StrictSelectionRequestModel):
+    format: Optional[str] = Field(default="pdf", max_length=20, description="Format: pdf, excel, csv")
+    report_type: Optional[str] = Field(default="detailed_selection", max_length=50, description="Tipe laporan")
+
+
+class CreateAutomationTriggerRequest(StrictSelectionRequestModel):
+    trigger_name: str = Field(..., min_length=3, max_length=200, description="Nama pemicu otomasi")
+    trigger_type: str = Field(..., max_length=50, description="new_file_upload, scheduled, webhook, workflow_trigger")
+    trigger_config: Dict[str, Any] = Field(default_factory=dict, description="Konfigurasi pemicu")
+    target_agent_id: Optional[str] = Field(default=None, max_length=100, description="UUID AI Agent pelaksana")
+    criteria_template: Optional[List[Dict[str, Any]]] = Field(default=None, description="Template kriteria")
+    calibration_profile_id: Optional[str] = Field(default=None, max_length=100, description="UUID profil kalibrasi")
+    is_active: bool = Field(default=True, description="Status aktif")
+
+
+class UpdateAutomationTriggerRequest(StrictSelectionRequestModel):
+    trigger_name: Optional[str] = Field(default=None, max_length=200)
+    trigger_config: Optional[Dict[str, Any]] = Field(default=None)
+    target_agent_id: Optional[str] = Field(default=None, max_length=100)
+    criteria_template: Optional[List[Dict[str, Any]]] = Field(default=None)
+    calibration_profile_id: Optional[str] = Field(default=None, max_length=100)
+    is_active: Optional[bool] = Field(default=None)
+
+
+class FileUploadEventRequest(StrictSelectionRequestModel):
+    document_name: str = Field(..., min_length=1, max_length=200)
+    raw_text: Optional[str] = Field(default=None, max_length=50000)
+    file_artifact_id: Optional[str] = Field(default=None, max_length=100)
 
 
 class UploadDocumentRequest(StrictSelectionRequestModel):
@@ -64,9 +105,11 @@ class ExecutePipelineRequest(StrictSelectionRequestModel):
 
 
 class SubmitReviewRequest(StrictSelectionRequestModel):
-    decision: Optional[str] = Field(default=None, max_length=50, description="Keputusan tinjauan: approved, rejected, overridden (atau ACCEPTED, OVERRIDDEN, REJECTED)")
+    decision: Optional[str] = Field(default=None, max_length=50, description="Keputusan tinjauan: approved, rejected, overridden")
     decision_status: Optional[str] = Field(default=None, max_length=50, description="Status keputusan baru")
     override_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Skor override manusia jika disesuaikan")
+    override_rank: Optional[int] = Field(default=None, ge=1, description="Posisi peringkat baru jika overridden")
+    notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan justifikasi tinjauan manusia")
     reviewer_notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan justifikasi tinjauan manusia")
     reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID reviewer manusia")
 
@@ -138,6 +181,7 @@ async def create_selection_job(tenant_id: str, request: CreateSelectionJobReques
             calibration_profile_id=request.calibration_profile_id,
             criteria=request.criteria,
             source_documents=request.source_documents,
+            initiated_by_agent_id=request.initiated_by_agent_id,
         )
         return {"status": "success", "tenant_id": tenant_id, "data": job}
     except Exception as e:
@@ -352,6 +396,269 @@ async def calibrate_selection_job(tenant_id: str, job_id: str, request: Calibrat
         return {"status": "success", "tenant_id": tenant_id, "data": result}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN B: Riwayat Seleksi, Rerun & Perbandingan (Compare)
+# ---------------------------------------------------------------------------
+
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/rerun")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/rerun")
+async def create_selection_rerun(tenant_id: str, job_id: str, request: RerunSelectionJobRequest):
+    """
+    Membuat pekerjaan seleksi baru dari pekerjaan yang sudah ada dengan variasi kriteria/kalibrasi.
+    Mencatat diff kriteria ke selection_reruns.
+    """
+    try:
+        result = SelectionDomainService.create_rerun(
+            tenant_id=tenant_id,
+            original_job_id=job_id,
+            title=request.title,
+            instruction_prompt=request.instruction_prompt,
+            criteria=request.criteria,
+            calibration_profile_id=request.calibration_profile_id,
+            initiated_by_agent_id=request.initiated_by_agent_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/reruns")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/reruns")
+async def get_selection_reruns(tenant_id: str, job_id: str):
+    """Mengambil riwayat eksekusi ulang (rerun) yang terhubung dengan pekerjaan seleksi."""
+    try:
+        reruns = SelectionDomainService.get_job_reruns(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": reruns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/compare/{target_job_id}")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/compare/{target_job_id}")
+async def compare_selection_jobs(tenant_id: str, job_id: str, target_job_id: str):
+    """
+    Membandingkan dua pekerjaan seleksi berdampingan:
+    Menghitung perbedaan peringkat dan skor per entitas yang sama dari hasil komputasi nyata.
+    """
+    try:
+        comparison = SelectionDomainService.compare_jobs(
+            tenant_id=tenant_id,
+            job_id_1=job_id,
+            job_id_2=target_job_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": comparison}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN C: Ekspor Laporan Nyata & Audit Ledger (PDF, Excel, CSV)
+# ---------------------------------------------------------------------------
+
+@router.post("/tenants/{tenant_id}/selection/{job_id}/export")
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/export")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/export")
+async def export_selection_report(tenant_id: str, job_id: str, request: ExportSelectionReportRequest):
+    """
+    Menghasilkan dokumen laporan nyata dalam format PDF, Excel (xlsx), atau CSV,
+    menyimpannya ke penyimpanan aman, dan mencatat ekspor ke Audit Ledger.
+    """
+    try:
+        report_meta = SelectionDomainService.export_report(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            export_format=request.format or "pdf",
+            report_type=request.report_type or "detailed_selection",
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": report_meta}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/selection/reports/download")
+async def download_selection_report(tenant_id: str, filename: str):
+    """Mengunduh berkas laporan hasil ekspor."""
+    safe_filename = os.path.basename(filename)
+    file_path = os.path.join("storage_data", "documents", "tenants", tenant_id, "selection_reports", safe_filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Berkas laporan tidak ditemukan.")
+
+    media_type = "application/octet-stream"
+    if safe_filename.endswith(".csv"):
+        media_type = "text/csv"
+    elif safe_filename.endswith(".xlsx"):
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif safe_filename.endswith(".pdf"):
+        media_type = "application/pdf"
+
+    return FileResponse(file_path, filename=safe_filename, media_type=media_type)
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN D: Tinjauan Manusia & Persetujuan (Human Review & Approval)
+# ---------------------------------------------------------------------------
+
+@router.patch("/tenants/{tenant_id}/selection/results/{result_id}/review")
+@router.post("/tenants/{tenant_id}/selection/results/{result_id}/review")
+async def review_selection_result(tenant_id: str, result_id: str, request: SubmitReviewRequest):
+    """
+    Tinjauan manusia terhadap hasil skor kandidat individual.
+    Mendukung keputusan: approved, rejected, overridden.
+    Wajib menyertakan catatan untuk keputusan rejected atau overridden.
+    Menyimpan previous_rank_position dan merekam audit trail perubahan manual.
+    """
+    try:
+        decision_val = request.decision or request.decision_status or "approved"
+        notes_val = request.notes or request.reviewer_notes
+
+        result = SelectionDomainService.submit_result_review(
+            tenant_id=tenant_id,
+            result_id=result_id,
+            decision=decision_val,
+            override_rank=request.override_rank,
+            override_score=request.override_score,
+            notes=notes_val,
+            reviewer_id=request.reviewer_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN E: Integrasi AI Agent & 15 Jabatan Utama
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/eligible-agents")
+@router.get("/selection/tenants/{tenant_id}/eligible-agents")
+async def get_selection_eligible_agents(tenant_id: str):
+    """Mengambil daftar AI Agent organisasi yang relevan dengan 15 Jabatan Utama."""
+    try:
+        agents = SelectionDomainService.list_eligible_agents(tenant_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": agents}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# BAGIAN F: Otomasi Seleksi Proaktif & Pemicu (Automation Triggers)
+# ---------------------------------------------------------------------------
+
+@router.get("/tenants/{tenant_id}/selection/triggers")
+@router.get("/selection/tenants/{tenant_id}/triggers")
+async def list_selection_triggers(tenant_id: str):
+    """Mengambil daftar pemicu seleksi otomatis (terjadwal, berkas, webhook)."""
+    try:
+        triggers = SelectionDomainService.list_automation_triggers(tenant_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": triggers}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/triggers")
+@router.post("/selection/tenants/{tenant_id}/triggers")
+async def create_selection_trigger(tenant_id: str, request: CreateAutomationTriggerRequest):
+    """Membuat pemicu seleksi otomatis baru."""
+    try:
+        trigger = SelectionDomainService.create_automation_trigger(
+            tenant_id=tenant_id,
+            trigger_name=request.trigger_name,
+            trigger_type=request.trigger_type,
+            trigger_config=request.trigger_config,
+            target_agent_id=request.target_agent_id,
+            criteria_template=request.criteria_template,
+            calibration_profile_id=request.calibration_profile_id,
+            is_active=request.is_active,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": trigger}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/tenants/{tenant_id}/selection/triggers/{trigger_id}")
+@router.put("/selection/tenants/{tenant_id}/triggers/{trigger_id}")
+async def update_selection_trigger(tenant_id: str, trigger_id: str, request: UpdateAutomationTriggerRequest):
+    """Memperbarui konfigurasi pemicu seleksi otomatis."""
+    try:
+        result = SelectionDomainService.update_automation_trigger(
+            tenant_id=tenant_id,
+            trigger_id=trigger_id,
+            trigger_name=request.trigger_name,
+            trigger_config=request.trigger_config,
+            target_agent_id=request.target_agent_id,
+            criteria_template=request.criteria_template,
+            calibration_profile_id=request.calibration_profile_id,
+            is_active=request.is_active,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/tenants/{tenant_id}/selection/triggers/{trigger_id}")
+@router.delete("/selection/tenants/{tenant_id}/triggers/{trigger_id}")
+async def delete_selection_trigger(tenant_id: str, trigger_id: str):
+    """Menghapus pemicu seleksi otomatis."""
+    try:
+        result = SelectionDomainService.delete_automation_trigger(tenant_id, trigger_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/triggers/{trigger_id}/execute")
+@router.post("/selection/tenants/{tenant_id}/triggers/{trigger_id}/execute")
+async def execute_selection_trigger(tenant_id: str, trigger_id: str):
+    """Mengeksekusi pemicu seleksi otomatis secara manual atau terjadwal."""
+    try:
+        result = await SelectionDomainService.execute_automation_trigger(
+            tenant_id=tenant_id,
+            trigger_id=trigger_id,
+            execution_source="manual_dispatch",
+        )
+        return {"status": "success", "tenant_id": tenant_id, "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/selection/triggers/executions")
+@router.get("/selection/tenants/{tenant_id}/triggers/executions")
+async def list_selection_trigger_executions(tenant_id: str, trigger_id: Optional[str] = Query(None)):
+    """Mengambil riwayat log eksekusi pemicu seleksi otomatis."""
+    try:
+        executions = SelectionDomainService.list_automation_executions(tenant_id, trigger_id)
+        return {"status": "success", "tenant_id": tenant_id, "data": executions}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/triggers/file-upload-event")
+async def file_upload_selection_event(tenant_id: str, request: FileUploadEventRequest):
+    """Event webhook internal saat berkas baru diunggah untuk memicu seleksi proaktif."""
+    try:
+        results = await SelectionDomainService.handle_file_upload_event(
+            tenant_id=tenant_id,
+            document_name=request.document_name,
+            raw_text=request.raw_text,
+            file_artifact_id=request.file_artifact_id,
+        )
+        return {"status": "success", "tenant_id": tenant_id, "triggered_count": len(results), "data": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

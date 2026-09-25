@@ -798,14 +798,37 @@ class SelectionPipelineEngine:
                 execution_ref=job_id,
             )
 
-        await cls.update_job_progress(tenant_id, job_id, PipelineStage.COMPLETED, 100.0, completed=True)
+        # Guardrail Penegakan Human Review (PRD v2.2 Bagian 13.1 & 17.5)
+        # Kategori domain sensitif (recruitment, finance, procurement, supplier)
+        # atau job yang memiliki kandidat berkategori 'review' TIDAK boleh langsung
+        # berstatus 'completed' sebelum melewati persetujuan eksplisit manusia.
+        from app.domains.selection.models import PROTECTED_HUMAN_REVIEW_DOMAINS
+        domain_category = context.get("domain_category", "general")
+        ranked_results = context.get("ranked_results", [])
+        
+        requires_human_guardrail = (
+            domain_category in PROTECTED_HUMAN_REVIEW_DOMAINS or
+            any(item.get("recommendation_classification") == "review" for item in ranked_results)
+        )
+
+        if requires_human_guardrail:
+            # Tetap pada tahap RECOMMENDING / PENDING_HUMAN_REVIEW (95%), tidak selesai otomatis
+            await cls.update_job_progress(tenant_id, job_id, PipelineStage.RECOMMENDING, 95.0, completed=False)
+            job_status = "pending_human_review"
+            completed_time = None
+        else:
+            await cls.update_job_progress(tenant_id, job_id, PipelineStage.COMPLETED, 100.0, completed=True)
+            job_status = "completed"
+            completed_time = datetime.now(timezone.utc).isoformat()
 
         return {
-            "status": "completed",
+            "status": job_status,
             "job_id": job_id,
-            "total_ranked": len(context.get("ranked_results", [])),
+            "domain_category": domain_category,
+            "requires_human_review": requires_human_guardrail,
+            "total_ranked": len(ranked_results),
             "credit_consumed": actual_cost,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "completed_at": completed_time,
         }
 
 

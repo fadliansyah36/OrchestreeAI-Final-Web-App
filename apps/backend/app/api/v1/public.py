@@ -395,6 +395,27 @@ async def validate_join_turnstile(req: PublicJoinRequest, request: Request):
     }
 
 
+@router.post(
+    "/selection/webhook/{trigger_id}",
+    dependencies=[Depends(public_endpoint("selection.webhook.trigger"))]
+)
+async def public_selection_webhook(trigger_id: str, request: Request):
+    """
+    Webhook publik untuk menerima trigger otomasi seleksi eksternal.
+    Mendukung verifikasi tanda tangan X-Orchestree-Signature jika rahasia dikonfigurasi.
+    """
+    try:
+        sig = request.headers.get("X-Orchestree-Signature")
+        payload = await request.json()
+        from app.domains.selection.service import SelectionDomainService
+        result = await SelectionDomainService.handle_public_webhook(trigger_id, sig, payload)
+        return {"status": "success", "data": result}
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 console_router = APIRouter(prefix="/api/v1/console-sec-auth", tags=["Admin MFA Auth"])
 
 
