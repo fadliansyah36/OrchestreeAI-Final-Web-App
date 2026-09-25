@@ -25,9 +25,10 @@ import {
   Plus,
   Check
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '../types';
+import { TenantRegistrationResponse } from '@/apps/client/types';
 import { EnterpriseReportingQueryView } from './EnterpriseReportingQueryView';
-import { EnterpriseWorkforceHubScreen } from './EnterpriseWorkforceHubScreen';
+import { EnterpriseWorkforceHubScreen } from './workforce/EnterpriseWorkforceHubScreen';
+
 
 interface EnterpriseHubScreenProps {
   tenant: TenantRegistrationResponse | null;

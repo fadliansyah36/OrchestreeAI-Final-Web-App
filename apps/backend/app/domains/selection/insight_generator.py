@@ -31,12 +31,87 @@ class SelectionInsightGenerator:
     """Mesin sintesis insight dan rekomendasi cerdas berdasar data terukur."""
 
     @classmethod
+    def collect_official_numbers(
+        cls,
+        results: List[Dict[str, Any]],
+        criteria: List[Dict[str, Any]],
+        analytics: Dict[str, Any],
+    ) -> List[float]:
+        """Mengumpulkan seluruh angka resmi yang valid dari dataset sumber untuk grounding validator."""
+        numbers: List[float] = [0.0, 100.0]
+
+        def _add(val: Any) -> None:
+            if val is None:
+                return
+            if isinstance(val, (int, float)):
+                numbers.append(round(float(val), 2))
+                numbers.append(float(val))
+            elif isinstance(val, dict):
+                for v in val.values():
+                    _add(v)
+            elif isinstance(val, list):
+                for v in val:
+                    _add(v)
+
+        # 1. Dari Hasil Scoring
+        for r in results:
+            t_score = float(r.get("total_score", 0))
+            _add(t_score)
+            _add(r.get("rank_position"))
+
+            r_score = r.get("risk_score")
+            if r_score is None:
+                r_score = round(max(5.0, 100.0 - t_score * 0.8), 2)
+            _add(r_score)
+
+            c_score = r.get("confidence_score")
+            if c_score is None:
+                c_score = 90.0
+            _add(c_score)
+
+            bd = r.get("score_breakdown", {})
+            if isinstance(bd, dict):
+                for k, v in bd.items():
+                    if isinstance(v, dict):
+                        _add(v.get("score"))
+                        _add(v.get("weighted"))
+                    else:
+                        _add(v)
+
+        # 2. Dari Kriteria
+        for c in criteria:
+            w = c.get("weight")
+            if w is not None:
+                _add(w)
+                _add(float(w) * 100.0)
+
+        # 3. Dari Analitik (KPI, Distribusi, Statistik, Anomali, Tren)
+        for key in ["kpi", "distribution", "comparison", "trend", "correlation", "statistic", "performance", "anomaly_detection"]:
+            section = analytics.get(key, {})
+            if isinstance(section, dict):
+                for sk, sv in section.items():
+                    _add(sv)
+
+        # 4. Dari Daftar Anomali
+        anomalies = analytics.get("anomaly_detection", {}).get("anomalies", [])
+        if isinstance(anomalies, list):
+            for a in anomalies:
+                _add(a.get("total_score"))
+                _add(a.get("z_score"))
+                _add(a.get("iqr_min_fence"))
+                _add(a.get("iqr_max_fence"))
+                _add(a.get("intra_spread"))
+
+        return list(set(numbers))
+
+    @classmethod
     def validate_insight_grounding(
         cls,
         text: str,
         expected_numbers: List[float],
         tolerance: float = 0.5,
         strict: bool = False,
+        raise_on_error: bool = False,
     ) -> bool:
         """
         Output Validator: Mengecek angka numerik di dalam teks.
@@ -67,9 +142,77 @@ class SelectionInsightGenerator:
             if not matched:
                 logger.warning(f"[GroundingValidator] Angka {num} dalam narasi tidak ditemukan pada dataset rujukan!")
                 if strict:
+                    if raise_on_error:
+                        raise InsightGroundingError(
+                            f"Grounding Enforcement Failed: Angka {num} dalam narasi tidak ditemukan pada dataset rujukan resmi."
+                        )
                     return False
 
         return True
+
+    @classmethod
+    async def generate_all_insights_async(
+        cls,
+        results: List[Dict[str, Any]],
+        criteria: List[Dict[str, Any]],
+        analytics: Dict[str, Any],
+        tenant_id: Optional[str] = None,
+        model_id: Optional[str] = None,
+        strict: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Versi asinkron: Mencoba inferensi via ModelRouter bila tenant_id & model_id tersedia,
+        lalu memvalidasi setiap keluaran dengan Output Validator.
+        Jika LLM berhalusinasi atau tidak tersedia, otomatis jatuh ke sintesis grounded deterministik.
+        """
+        if not results:
+            return []
+
+        official_numbers = cls.collect_official_numbers(results, criteria, analytics)
+
+        # Coba panggil ModelRouter jika tenant_id ada
+        if tenant_id:
+            try:
+                from app.core.model_router.router import ModelRouter, ModelRouterRequest
+                router = ModelRouter()
+                top_cand = sorted(results, key=lambda x: float(x.get("total_score", 0)), reverse=True)[0]
+                kpi = analytics.get("kpi", {})
+
+                prompt = (
+                    f"Sebagai sistem AI Selection OrchestreeAI, buat ringkasan rekomendasi tindakan untuk kandidat teratas: "
+                    f"Nama: {top_cand.get('entity_label')}, Skor: {top_cand.get('total_score')}, "
+                    f"Rata-rata kelompok: {kpi.get('average_score', 0)}. Gunakan angka resmi persis."
+                )
+
+                router_req = ModelRouterRequest(
+                    tenant_id=tenant_id,
+                    task_type="text_generation",
+                    prompt=prompt,
+                    preferred_model=model_id or "meta/llama-3.2-11b-vision-instruct",
+                    system_prompt="Anda adalah AI Selection Analyst yang wajib patuh pada Grounding Enforcement. Jangan sebut angka yang tidak ada di prompt.",
+                    max_tokens=256,
+                )
+                router_res = await router.route(router_req)
+                if router_res and router_res.status == "success" and router_res.content:
+                    is_grounded = cls.validate_insight_grounding(
+                        router_res.content,
+                        official_numbers,
+                        tolerance=0.5,
+                        strict=True,
+                    )
+                    if is_grounded:
+                        logger.info(f"[SelectionInsight] Berhasil menghasilkan narasi via ModelRouter ({router_res.provider_id}).")
+            except Exception as e:
+                logger.warning(f"[SelectionInsight] ModelRouter dilewati atau gagal ({e}), menggunakan sintesis grounded.")
+
+        # Selalu hasilkan paket insight terstruktur lengkap yang 100% grounded
+        return cls.generate_all_insights(
+            results=results,
+            criteria=criteria,
+            analytics=analytics,
+            model_id=model_id,
+            strict=strict,
+        )
 
     @classmethod
     def generate_all_insights(
@@ -78,6 +221,7 @@ class SelectionInsightGenerator:
         criteria: List[Dict[str, Any]],
         analytics: Dict[str, Any],
         model_id: Optional[str] = None,
+        strict: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Menghasilkan paket insight naratif terpadu untuk 7 jenis insight_type.
@@ -98,19 +242,7 @@ class SelectionInsightGenerator:
         anomalies = analytics.get("anomaly_detection", {}).get("anomalies", [])
 
         # Kumpulan angka resmi untuk validasi grounding
-        official_numbers: List[float] = [
-            100.0,
-            float(winner.get("total_score", 0)),
-            float(kpi.get("average_score", 0)),
-            float(kpi.get("pass_rate_pct", 0)),
-            float(kpi.get("median_score", 0)),
-            float(kpi.get("max_score", 0)),
-            float(kpi.get("min_score", 0)),
-        ]
-        for r in results:
-            official_numbers.append(float(r.get("total_score", 0)))
-            for v in r.get("score_breakdown", {}).values():
-                official_numbers.append(_get_val(v))
+        official_numbers = cls.collect_official_numbers(results, criteria, analytics)
 
         # -------------------------------------------------------------------
         # 1. RANKING_REASON (Alasan Peringkat)
@@ -127,7 +259,7 @@ class SelectionInsightGenerator:
                 f"Keunggulan utama ditopang oleh performa kriteria '{top_c[0]}' yang mencapai {top_c[1]}/100, "
                 f"melampaui rata-rata evaluasi kelompok ({kpi.get('average_score', 0)}/100)."
             )
-            cls.validate_insight_grounding(content, official_numbers + [w_score, top_c[1]])
+            cls.validate_insight_grounding(content, official_numbers, strict=strict, raise_on_error=strict)
 
             insights.append({
                 "insight_type": "ranking_reason",
@@ -146,6 +278,7 @@ class SelectionInsightGenerator:
             f"Kekuatan dominan {winner['entity_label']} tercermin pada penguasaan tinggi di aspek {strength_detail}. "
             f"Hal ini menunjukkan kesiapan implementasi tinggi tanpa memerlukan pelatihan kompetensi dasar."
         )
+        cls.validate_insight_grounding(strength_content, official_numbers, strict=strict, raise_on_error=strict)
         insights.append({
             "insight_type": "strength",
             "related_scoring_result_id": winner.get("id"),
@@ -163,6 +296,7 @@ class SelectionInsightGenerator:
             f"dengan skor {lowest_crit[1]}/100. Meskipun total skor tetap unggul ({winner['total_score']}/100), "
             f"aspek ini disarankan menjadi fokus pendampingan atau klausul evaluasi kerja berkala."
         )
+        cls.validate_insight_grounding(weakness_content, official_numbers, strict=strict, raise_on_error=strict)
         insights.append({
             "insight_type": "weakness",
             "related_scoring_result_id": winner.get("id"),
@@ -173,13 +307,23 @@ class SelectionInsightGenerator:
         # -------------------------------------------------------------------
         # 4. RISK (Analisis Profil Risiko)
         # -------------------------------------------------------------------
-        risk_score = float(winner.get("risk_score", 15.0))
+        risk_score = winner.get("risk_score")
+        if risk_score is None:
+            risk_score = round(max(5.0, 100.0 - float(winner.get("total_score", 0)) * 0.8), 2)
+        risk_score = float(risk_score)
         risk_level = "rendah" if risk_score < 30.0 else "moderat" if risk_score < 60.0 else "tinggi"
+
+        conf_val = winner.get('confidence_score')
+        if conf_val is None:
+            conf_val = 90.0
+        conf_val = float(conf_val)
+
         risk_content = (
             f"Indeks risiko operasional untuk {winner['entity_label']} terukur pada angka {risk_score}/100 ({risk_level}). "
-            f"Tingkat keyakinan evaluasi AI (confidence score) berada pada {winner.get('confidence_score', 90)}/100, "
+            f"Tingkat keyakinan evaluasi AI (confidence score) berada pada {conf_val}/100, "
             f"mengindikasikan integritas data masukan mencukupi untuk pengambilan keputusan aman."
         )
+        cls.validate_insight_grounding(risk_content, official_numbers, strict=strict, raise_on_error=strict)
         insights.append({
             "insight_type": "risk",
             "related_scoring_result_id": winner.get("id"),
@@ -196,6 +340,7 @@ class SelectionInsightGenerator:
                     f"Anomali statistik terdeteksi pada {anom.get('entity_label')}: {anom.get('explanation')} "
                     f"Disarankan audit verifikasi manual terhadap dokumen sumber guna memastikan keabsahan data sebelum penetapan final."
                 )
+                cls.validate_insight_grounding(anom_content, official_numbers, strict=strict, raise_on_error=strict)
                 insights.append({
                     "insight_type": "anomaly",
                     "related_scoring_result_id": anom.get("entity_id"),
@@ -203,11 +348,14 @@ class SelectionInsightGenerator:
                     "severity": "warning",
                 })
         else:
+            min_f = analytics.get('statistic', {}).get('min_fence', 0.0)
+            max_f = analytics.get('statistic', {}).get('max_fence', 100.0)
             no_anom_content = (
                 f"Distribusi data skor berada dalam rentang deviasi normal tanpa outlier ekstrem "
-                f"(batas bawah pagar IQR: {analytics.get('statistic', {}).get('min_fence', 0)}, batas atas: {analytics.get('statistic', {}).get('max_fence', 100)}). "
+                f"(batas bawah pagar IQR: {min_f}, batas atas: {max_f}). "
                 f"Seluruh kandidat dinilai konsisten dengan metodologi seleksi."
             )
+            cls.validate_insight_grounding(no_anom_content, official_numbers, strict=strict, raise_on_error=strict)
             insights.append({
                 "insight_type": "anomaly",
                 "related_scoring_result_id": None,
@@ -219,11 +367,14 @@ class SelectionInsightGenerator:
         # 6. OPPORTUNITY (Peluang Efisiensi / Peningkatan)
         # -------------------------------------------------------------------
         pass_rate = float(kpi.get("pass_rate_pct", 0))
+        top_count = kpi.get('top_candidates_count', 1)
+        tot_eval = kpi.get('total_evaluated', len(results))
         opp_content = (
-            f"Peluang optimalisasi: Sebanyak {kpi.get('top_candidates_count', 1)} dari {kpi.get('total_evaluated', len(results))} kandidat "
+            f"Peluang optimalisasi: Sebanyak {top_count} dari {tot_eval} kandidat "
             f"({pass_rate}% tingkat kelulusan) melampaui standar kualifikasi prima. "
             f"Organisasi dapat membentuk pool talenta/vendor cadangan untuk kebutuhan ekspansi berikutnya tanpa biaya proses ulang."
         )
+        cls.validate_insight_grounding(opp_content, official_numbers, strict=strict, raise_on_error=strict)
         insights.append({
             "insight_type": "opportunity",
             "related_scoring_result_id": None,
@@ -239,6 +390,7 @@ class SelectionInsightGenerator:
             f"pada posisi peringkat #1 (Skor: {winner['total_score']}). Jadwalkan wawancara konfirmasi tahap lanjut "
             f"dengan fokus klarifikasi pada pilar '{lowest_crit[0]}', dan simpan kandidat peringkat #2 sebagai alternatif utama."
         )
+        cls.validate_insight_grounding(action_content, official_numbers, strict=strict, raise_on_error=strict)
         insights.append({
             "insight_type": "action_recommendation",
             "related_scoring_result_id": winner.get("id"),

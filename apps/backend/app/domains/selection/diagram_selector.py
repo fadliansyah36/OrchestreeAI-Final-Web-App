@@ -20,6 +20,58 @@ class DiagramSelector:
     """Mesin seleksi diagram otomatis berbasis karakteristik dan bentuk data."""
 
     @classmethod
+    def classify_and_select_primary_chart(
+        cls,
+        data_shape_features: Dict[str, Any],
+    ) -> Dict[str, str]:
+        """
+        Algoritma deterministik pemilihan jenis chart berdasarkan BENTUK DATA nyata:
+        - Kategori vs kategori (perbandingan) -> Bar/Column ('bar')
+        - Time-series (kronologis berturut-turut) -> Line/Area ('line')
+        - Komposisi bagian dari keseluruhan (rasio proporsi 100%) -> Pie/Donut ('donut')
+        - Dua variabel numerik kontinu bivariat -> Scatter ('scatter')
+        - Tahapan berurutan dengan penyusutan konversi -> Funnel ('funnel')
+        - Matriks dua dimensi dengan intensitas -> Heatmap ('heatmap')
+        - Urutan skor tertinggi-terendah -> Ranking Chart ('ranking_chart')
+        """
+        shape = data_shape_features.get("shape") or data_shape_features.get("type")
+        if shape in ["time_series", "temporal", "trend"] or data_shape_features.get("has_time_series"):
+            return {
+                "chart_type": "line",
+                "selection_reason": "Bentuk data memiliki dimensi kronologis berurutan (time-series); diagram garis dipilih untuk menggambarkan tren dinamika dan fluktuasi skor dari waktu ke waktu.",
+            }
+        elif shape in ["composition", "proportion", "percentage", "whole_parts"] or data_shape_features.get("is_composition"):
+            return {
+                "chart_type": "donut",
+                "selection_reason": "Bentuk data berupa proporsi bagian terhadap keseluruhan (100%); diagram donat dipilih untuk menyajikan rasio kelulusan dan segmentasi keputusan secara proporsional.",
+            }
+        elif shape in ["funnel", "sequential_shrinkage", "conversion"] or data_shape_features.get("is_funnel"):
+            return {
+                "chart_type": "funnel",
+                "selection_reason": "Bentuk data berupa tahapan proses sekuensial dengan tingkat konversi yang menyusut secara berjenjang; diagram funnel dipilih untuk memvisualisasikan tingkat lolos saringan di setiap tahap alur.",
+            }
+        elif shape in ["bivariate", "scatter", "correlation_xy"] or data_shape_features.get("has_bivariate_numeric"):
+            return {
+                "chart_type": "scatter",
+                "selection_reason": "Bentuk data berupa dua variabel numerik kontinu bivariat (Skor Kelayakan vs Indeks Risiko); scatter plot dipilih untuk memetakan klaster kandidat berpotensi tinggi dengan risiko terkontrol.",
+            }
+        elif shape in ["matrix", "heatmap", "correlation_matrix"] or data_shape_features.get("has_correlation_matrix"):
+            return {
+                "chart_type": "heatmap",
+                "selection_reason": "Bentuk data berupa matriks 2 dimensi yang memetakan relasi intensitas koefisien korelasi; diagram heatmap dipilih untuk mengevaluasi interaksi dan independensi antar kriteria seleksi.",
+            }
+        elif shape in ["ranked", "hierarchy", "ranking"] or data_shape_features.get("is_ranked"):
+            return {
+                "chart_type": "ranking_chart",
+                "selection_reason": "Bentuk data berupa urutan skor hierarkis tertinggi-ke-terendah; diagram ranking dipilih untuk memberikan visibilitas perbandingan instan antar kandidat teratas.",
+            }
+        else:
+            return {
+                "chart_type": "bar",
+                "selection_reason": "Bentuk data berupa metrik kategori diskrit yang dibandingkan satu sama lain; diagram batang tegak dipilih untuk memudahkan komparasi performa rata-rata antar pilar kriteria.",
+            }
+
+    @classmethod
     def select_optimal_visualizations(
         cls,
         results: List[Dict[str, Any]],

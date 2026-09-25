@@ -19,7 +19,7 @@ import {
   ChevronRight,
   Flame
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '../types';
+import { TenantRegistrationResponse } from '@/apps/client/types';
 
 interface ProactiveChannelsScreenProps {
   tenant: TenantRegistrationResponse | null;

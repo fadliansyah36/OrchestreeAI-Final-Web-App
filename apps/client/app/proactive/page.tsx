@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ProactiveChannelsScreen } from '../../../../src/components/ProactiveChannelsScreen';
+import { ProactiveChannelsScreen } from '@/apps/client/components/ProactiveChannelsScreen';
 import { ShieldAlert } from 'lucide-react';
+
 import { EmptyState } from '@orchestree/ui';
 
 export default function ClientProactivePage() {

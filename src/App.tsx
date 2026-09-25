@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { PublicLandingScreen } from './components/landing/PublicLandingScreen';
-import { OnboardingWizard } from './components/OnboardingWizard';
-import { TenantFeatureHubShell } from './components/TenantFeatureHubShell';
-import { StartupGateReport } from './components/StartupGateReport';
-import { TenantRegistrationResponse } from './types';
+import { PublicLandingScreen } from '@/apps/client/components/landing/PublicLandingScreen';
+import { OnboardingWizard } from '@/apps/client/components/OnboardingWizard';
+import { TenantFeatureHubShell } from '@/apps/client/components/TenantFeatureHubShell';
+import { StartupGateReport } from '@/apps/client/components/StartupGateReport';
+import { TenantRegistrationResponse } from '@/apps/client/types';
 
 export default function App() {
+
   const [view, setView] = useState<'landing' | 'onboarding' | 'dashboard' | 'startup_gate'>('landing');
   const [currentTenant, setCurrentTenant] = useState<TenantRegistrationResponse | null>(null);
   const [initialPlanCode, setInitialPlanCode] = useState<string>('FREE_TRIAL');

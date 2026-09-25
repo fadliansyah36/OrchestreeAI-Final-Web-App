@@ -33,7 +33,7 @@ import {
   ArrowRight,
   Database
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '../types';
+import { TenantRegistrationResponse } from '@/apps/client/types';
 
 interface IntegrationsHubScreenProps {
   tenant: TenantRegistrationResponse | null;

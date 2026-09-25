@@ -225,6 +225,174 @@ class TestSelectionAnalyticsDiagramsInsights(unittest.TestCase):
             self.assertGreater(len(item["content"]), 15)
             self.assertIn("severity", item)
 
+    # -------------------------------------------------------------------------
+    # 4. DoD Verification Tests (PRD v2.2 Bagian 13.1 & 17.5)
+    # -------------------------------------------------------------------------
+    def test_dod_diagram_selector_adapts_to_3_distinct_dataset_shapes(self):
+        """
+        DoD 1: Jenis chart yang dipilih AI berubah sesuai bentuk data saat diuji
+        dengan minimal 3 dataset berbeda karakteristik (kategori, time-series, komposisi).
+        """
+        # Dataset 1: Karakteristik Kategori vs Kategori (Perbandingan Kriteria murni tanpa waktu)
+        d1_results = self.results[:4]
+        d1_analytics = {
+            "kpi": SelectionAnalyticsEngine.compute_summary_kpis(d1_results, self.criteria),
+            "distribution": SelectionAnalyticsEngine.compute_score_distribution(d1_results),
+            "comparison": SelectionAnalyticsEngine.compute_group_comparisons(d1_results, self.criteria, None),
+            "trend": {"has_time_series": False, "trend_points": []},
+            "correlation": {},
+        }
+        viz1 = DiagramSelector.select_optimal_visualizations(d1_results, self.criteria, d1_analytics, has_time_series=False)
+        types1 = [v["chart_type"] for v in viz1]
+        self.assertIn("bar", types1)
+        self.assertIn("ranking_chart", types1)
+        self.assertNotIn("line", types1)
+
+        # Dataset 2: Karakteristik Time-Series (Dimensi Temporal Nyata 3 Tanggal)
+        d2_docs = [
+            {"id": "d-1", "ingested_at": "2026-09-01T08:00:00Z"},
+            {"id": "d-2", "ingested_at": "2026-09-15T08:00:00Z"},
+            {"id": "d-3", "ingested_at": "2026-09-25T08:00:00Z"},
+        ]
+        d2_results = [
+            {**self.results[0], "source_document_id": "d-1", "created_at": "2026-09-01T08:00:00Z"},
+            {**self.results[1], "source_document_id": "d-2", "created_at": "2026-09-15T08:00:00Z"},
+            {**self.results[2], "source_document_id": "d-3", "created_at": "2026-09-25T08:00:00Z"},
+        ]
+        d2_trend = SelectionAnalyticsEngine.compute_trends(d2_results, d2_docs)
+        self.assertTrue(d2_trend["has_time_series"])
+        self.assertGreaterEqual(len(d2_trend["trend_points"]), 2)
+
+        d2_analytics = {
+            "kpi": SelectionAnalyticsEngine.compute_summary_kpis(d2_results, self.criteria),
+            "trend": d2_trend,
+            "distribution": {"score_ranges": []},
+        }
+        viz2 = DiagramSelector.select_optimal_visualizations(d2_results, self.criteria, d2_analytics, has_time_series=True)
+        types2 = [v["chart_type"] for v in viz2]
+        self.assertIn("line", types2)
+        line_viz = next(v for v in viz2 if v["chart_type"] == "line")
+        self.assertIn("time-series", line_viz["selection_reason"].lower())
+
+        # Dataset 3: Karakteristik Komposisi (Proporsi Kelulusan / Bagian dari Keseluruhan)
+        d3_results = [
+            {**self.results[0], "recommendation_classification": "select"},
+            {**self.results[1], "recommendation_classification": "select"},
+            {**self.results[2], "recommendation_classification": "review"},
+            {**self.results[3], "recommendation_classification": "reject"},
+        ]
+        d3_analytics = {
+            "kpi": SelectionAnalyticsEngine.compute_summary_kpis(d3_results, self.criteria),
+            "distribution": SelectionAnalyticsEngine.compute_score_distribution(d3_results),
+            "trend": {"has_time_series": False, "trend_points": []},
+        }
+        viz3 = DiagramSelector.select_optimal_visualizations(d3_results, self.criteria, d3_analytics, has_time_series=False)
+        types3 = [v["chart_type"] for v in viz3]
+        self.assertIn("donut", types3)
+        donut_viz = next(v for v in viz3 if v["chart_type"] == "donut")
+        self.assertIn("proporsi", donut_viz["selection_reason"].lower())
+
+        # Klasifikasi deterministik bentuk data
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "time_series"})["chart_type"], "line")
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "composition"})["chart_type"], "donut")
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "categorical_comparison"})["chart_type"], "bar")
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "funnel"})["chart_type"], "funnel")
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "bivariate"})["chart_type"], "scatter")
+        self.assertEqual(DiagramSelector.classify_and_select_primary_chart({"shape": "matrix"})["chart_type"], "heatmap")
+
+    def test_dod_anomaly_detection_statistical_outliers_verified(self):
+        """
+        DoD 2: Anomaly detection menandai outlier yang secara statistik memang
+        menyimpang (dapat diverifikasi manual dari data mentah).
+        """
+        test_dataset = [
+            {"id": "e-1", "entity_label": "Kandidat N1", "total_score": 82.0, "score_breakdown": {"technical": 82.0, "communication": 82.0}},
+            {"id": "e-2", "entity_label": "Kandidat N2", "total_score": 84.0, "score_breakdown": {"technical": 85.0, "communication": 83.0}},
+            {"id": "e-3", "entity_label": "Kandidat N3", "total_score": 83.0, "score_breakdown": {"technical": 84.0, "communication": 82.0}},
+            {"id": "e-4", "entity_label": "Kandidat N4", "total_score": 81.0, "score_breakdown": {"technical": 80.0, "communication": 82.0}},
+            {"id": "e-5", "entity_label": "Kandidat N5", "total_score": 85.0, "score_breakdown": {"technical": 86.0, "communication": 84.0}},
+            # Outlier 1: Nilai 15.0 (Sangat jauh di bawah rata-rata ~80, z-score < -2.0)
+            {"id": "e-outlier-low", "entity_label": "Kandidat Outlier Bawah", "total_score": 15.0, "score_breakdown": {"technical": 15.0, "communication": 15.0}},
+            # Outlier 2: Disparitas intra-kriteria ekstrem (Technical 98 vs Communication 20 -> selisih 78)
+            {"id": "e-disparity", "entity_label": "Kandidat Disparitas", "total_score": 60.0, "score_breakdown": {"technical": 98.0, "communication": 20.0}},
+        ]
+
+        perf = SelectionAnalyticsEngine.compute_performance_analysis(test_dataset)
+        self.assertLessEqual(perf["min_fence"], 55.0)
+
+        anom_result = SelectionAnalyticsEngine.compute_anomaly_detection(test_dataset, self.criteria)
+        anomalies = anom_result["anomalies"]
+        self.assertGreaterEqual(len(anomalies), 2)
+
+        # Verifikasi Outlier Bawah
+        low_outlier = next((a for a in anomalies if a["entity_id"] == "e-outlier-low"), None)
+        self.assertIsNotNone(low_outlier)
+        self.assertEqual(low_outlier["outlier_type"], "low_outlier")
+        self.assertLess(low_outlier["z_score"], -1.96)
+        self.assertLess(low_outlier["total_score"], low_outlier["iqr_min_fence"])
+
+        # Verifikasi Outlier Disparitas
+        disp_outlier = next((a for a in anomalies if a["entity_id"] == "e-disparity"), None)
+        self.assertIsNotNone(disp_outlier)
+        self.assertEqual(disp_outlier["outlier_type"], "disparity_outlier")
+        self.assertGreaterEqual(disp_outlier["intra_spread"], 35.0)
+
+    def test_dod_insight_narratives_100_percent_consistent_with_score_breakdown(self):
+        """
+        DoD 3: Insight narasi 100% konsisten dengan angka di score_breakdown
+        dan parameter evaluasi resmi.
+        """
+        kpi = SelectionAnalyticsEngine.compute_summary_kpis(self.results, self.criteria)
+        dist = SelectionAnalyticsEngine.compute_score_distribution(self.results)
+        comp = SelectionAnalyticsEngine.compute_group_comparisons(self.results, self.criteria, self.documents)
+        trend = SelectionAnalyticsEngine.compute_trends(self.results, self.documents)
+        stat = SelectionAnalyticsEngine.compute_performance_analysis(self.results)
+        anom = SelectionAnalyticsEngine.compute_anomaly_detection(self.results, self.criteria)
+
+        analytics_bundle = {
+            "kpi": kpi,
+            "distribution": dist,
+            "comparison": comp,
+            "trend": trend,
+            "statistic": stat,
+            "performance": stat,
+            "anomaly_detection": anom,
+        }
+
+        # 1. Pastikan seluruh 7 jenis narasi lolos strict grounding enforcement
+        insights = SelectionInsightGenerator.generate_all_insights(
+            results=self.results,
+            criteria=self.criteria,
+            analytics=analytics_bundle,
+            strict=True,
+        )
+        self.assertGreaterEqual(len(insights), 7)
+
+        # 2. Verifikasi independen setiap insight teks
+        official_numbers = SelectionInsightGenerator.collect_official_numbers(
+            self.results, self.criteria, analytics_bundle
+        )
+        for ins in insights:
+            valid = SelectionInsightGenerator.validate_insight_grounding(
+                text=ins["content"],
+                expected_numbers=official_numbers,
+                tolerance=0.5,
+                strict=True,
+                raise_on_error=True,
+            )
+            self.assertTrue(valid)
+
+        # 3. Verifikasi bahwa angka palsu (misal 33.77) ditolak dengan InsightGroundingError
+        fake_text = "Kandidat Alpha meraih nilai ajaib 33.77 yang tidak pernah ada di data."
+        with self.assertRaises(InsightGroundingError):
+            SelectionInsightGenerator.validate_insight_grounding(
+                text=fake_text,
+                expected_numbers=official_numbers,
+                tolerance=0.5,
+                strict=True,
+                raise_on_error=True,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

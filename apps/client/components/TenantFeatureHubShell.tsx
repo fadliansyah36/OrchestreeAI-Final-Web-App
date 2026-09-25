@@ -15,17 +15,19 @@ import {
   Activity,
   Bot
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '../types';
-import { WorkforceHubScreen } from './WorkforceHubScreen';
-import { BillingHubScreen } from './BillingHubScreen';
+import { TenantRegistrationResponse } from '@/apps/client/types';
+import { WorkforceHubScreen } from './workforce/WorkforceHubScreen';
+import { BillingHubScreen } from './billing/BillingHubScreen';
 import { ProactiveChannelsScreen } from './ProactiveChannelsScreen';
 import { IntelligenceHubScreen } from './IntelligenceHubScreen';
-import { HomeOverviewScreen } from './HomeOverviewScreen';
+import { HomeOverviewScreen } from './workforce/HomeOverviewScreen';
 import { IntegrationsHubScreen } from './IntegrationsHubScreen';
 import { CampaignBuilderScreen } from './CampaignBuilderScreen';
 import { ServiceRequestScreen } from './ServiceRequestScreen';
 import { EnterpriseHubScreen } from './EnterpriseHubScreen';
 import { AIDataPermissionScreen } from './AIDataPermissionScreen';
+import { UniversalSelectionHubScreen } from './selection/UniversalSelectionHubScreen';
+
 
 interface TenantFeatureHubShellProps {
   tenant: TenantRegistrationResponse | null;
@@ -214,6 +216,15 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
     );
   }
 
+  if (activeRoute.startsWith('/selection')) {
+    return (
+      <UniversalSelectionHubScreen
+        tenantId={tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402'}
+        onBack={() => setActiveRoute('/hub')}
+      />
+    );
+  }
+
   const isEnterprise = tenantTier?.is_enterprise ?? false;
 
   const categoryCards: CategoryCard[] = [
@@ -259,6 +270,13 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       icon: 'sparkles',
       route: '/marketing/campaigns',
       badgeCount: 3,
+    },
+    {
+      key: 'selection',
+      label: 'Universal Selection, Dynamic Analytics & Insights',
+      icon: 'sparkles',
+      route: '/selection',
+      badgeCount: 5,
     },
     {
       key: 'integrations',

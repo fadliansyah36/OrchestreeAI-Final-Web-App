@@ -27,8 +27,12 @@ import {
   Check,
   HelpCircle,
   Layers,
-  PieChart as PieIcon
+  PieChart as PieIcon,
+  BrainCircuit,
+  ArrowLeft
 } from 'lucide-react';
+import { SelectionAnalyticsScreen } from './SelectionAnalyticsScreen';
+import { SelectionInsightPanel } from './SelectionInsightPanel';
 import {
   ResponsiveContainer,
   BarChart,
@@ -138,7 +142,13 @@ interface SelectionJob {
   calibration_history?: CalibrationRecord[];
 }
 
-export function UniversalSelectionHubScreen({ tenantId = 'default-tenant' }: { tenantId?: string }) {
+export function UniversalSelectionHubScreen({
+  tenantId = 'default-tenant',
+  onBack,
+}: {
+  tenantId?: string;
+  onBack?: () => void;
+}) {
   const [jobs, setJobs] = useState<SelectionJob[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [currentJob, setCurrentJob] = useState<SelectionJob | null>(null);
@@ -506,6 +516,17 @@ export function UniversalSelectionHubScreen({ tenantId = 'default-tenant' }: { t
       )}
 
       {/* Header Utama */}
+      {onBack && (
+        <div className="mb-2">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Feature Hub</span>
+          </button>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center space-x-3">
@@ -1027,362 +1048,25 @@ export function UniversalSelectionHubScreen({ tenantId = 'default-tenant' }: { t
 
       {/* Tab 4: Analytics */}
       {activeTab === 'analytics' && (
-        <div className="space-y-6">
-          {/* Executive KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Total Evaluasi</span>
-              <span className="text-xl font-bold text-white mt-1 block font-mono">
-                {analyticsData?.kpi?.total_evaluated ?? scores.length}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Entitas Terproses</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Rata-rata Skor</span>
-              <span className="text-xl font-bold text-sky-400 mt-1 block font-mono">
-                {analyticsData?.kpi?.average_score ?? currentJob?.active_run?.average_score ?? 0}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Skala 0-100</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Median Skor</span>
-              <span className="text-xl font-bold text-emerald-400 mt-1 block font-mono">
-                {analyticsData?.kpi?.median_score ?? (scores.length > 0 ? scores[Math.floor(scores.length / 2)]?.overall_score : 0)}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Titik Tengah Sebaran</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Tingkat Kelulusan</span>
-              <span className="text-xl font-bold text-emerald-400 mt-1 block font-mono">
-                {analyticsData?.kpi?.pass_rate_pct ?? (scores.length > 0
-                  ? Math.round(
-                      (scores.filter(s => s.recommendation === 'HIGHLY_RECOMMENDED' || s.recommendation === 'RECOMMENDED').length /
-                        scores.length) * 100
-                    )
-                  : 0)}%
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Ambang Kelayakan ≥70</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Kandidat Unggul</span>
-              <span className="text-xl font-bold text-amber-400 mt-1 block font-mono">
-                {analyticsData?.kpi?.top_candidates_count ?? scores.filter(s => s.overall_score >= 80).length}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Skor Prima ≥80</span>
-            </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3.5">
-              <span className="text-[11px] font-medium text-slate-400 block">Rentang Skor</span>
-              <span className="text-xl font-bold text-purple-400 mt-1 block font-mono">
-                {analyticsData?.kpi?.min_score ?? (scores.length > 0 ? scores[scores.length - 1]?.overall_score : 0)} - {analyticsData?.kpi?.max_score ?? (scores.length > 0 ? scores[0]?.overall_score : 0)}
-              </span>
-              <span className="text-[10px] text-slate-500 mt-1 block">Min - Maks Terukur</span>
-            </div>
-          </div>
-
-          {/* AI Strategic Insights & Recommendations (Grounding Verified) */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <BrainCircuit className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-semibold text-white">Insight Naratif & Rekomendasi Preskriptif Terpadu</h3>
-              </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[11px] font-medium text-emerald-400">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Terverifikasi Grounding Matematis 100%</span>
-              </div>
-            </div>
-
-            {insightsData && insightsData.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                {insightsData.map((item, idx) => {
-                  const typeStyles: Record<string, { label: string; icon: any; border: string; bg: string; text: string }> = {
-                    ranking_reason: { label: 'Alasan Peringkat', icon: Award, border: 'border-emerald-500/30', bg: 'bg-emerald-950/20', text: 'text-emerald-400' },
-                    strength: { label: 'Kekuatan Utama', icon: CheckCircle2, border: 'border-sky-500/30', bg: 'bg-sky-950/20', text: 'text-sky-400' },
-                    weakness: { label: 'Area Defisit / Mitigasi', icon: AlertTriangle, border: 'border-amber-500/30', bg: 'bg-amber-950/20', text: 'text-amber-400' },
-                    risk: { label: 'Profil Risiko Terukur', icon: AlertOctagon, border: 'border-rose-500/30', bg: 'bg-rose-950/20', text: 'text-rose-400' },
-                    anomaly: { label: 'Temuan Anomali Statistik', icon: Activity, border: 'border-purple-500/30', bg: 'bg-purple-950/20', text: 'text-purple-400' },
-                    opportunity: { label: 'Peluang Efisiensi', icon: Lightbulb, border: 'border-teal-500/30', bg: 'bg-teal-950/20', text: 'text-teal-400' },
-                    action_recommendation: { label: 'Rekomendasi Aksi Preskriptif', icon: Compass, border: 'border-indigo-500/30', bg: 'bg-indigo-950/20', text: 'text-indigo-400' },
-                  };
-                  const style = typeStyles[item.insight_type] || { label: 'Catatan Strategis', icon: Sparkles, border: 'border-slate-700', bg: 'bg-slate-950', text: 'text-slate-300' };
-                  const IconComponent = style.icon;
-
-                  return (
-                    <div key={idx} className={`p-4 rounded-xl border ${style.border} ${style.bg} space-y-2 flex flex-col justify-between`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${style.text}`}>
-                          <IconComponent className="w-3.5 h-3.5" />
-                          {style.label}
-                        </span>
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-mono">
-                          {item.severity || 'info'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {item.content || item.narrative}
-                      </p>
-                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500">
-                        <span>Verifikasi Model Router</span>
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Bebas Halusinasi Angka
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-slate-400 text-xs bg-slate-950 rounded-xl border border-slate-800">
-                Belum ada paket insight yang disintesis. Jalankan proses kalkulasi scoring untuk menghasilkan insight naratif teruji.
-              </div>
-            )}
-          </div>
-
-          {/* Dynamic Diagrams Selected by DiagramSelector */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-sky-400" />
-                  Visualisasi Otomatis Berdasar Bentuk Data (Data Shape Heuristics)
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Diagram visualisasi dipilih secara deterministik sesuai pola dan distribusi data numerik nyata.
-                </p>
-              </div>
-            </div>
-
-            {visualizationsData && visualizationsData.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {visualizationsData.map((viz, vIdx) => {
-                  const chartCfg = viz.chart_config || {};
-                  const chartData = chartCfg.data || [];
-                  const chartType = viz.chart_type;
-
-                  return (
-                    <div key={vIdx} className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 flex flex-col justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                            {chartCfg.title || `Visualisasi #${vIdx + 1}`}
-                          </h4>
-                          <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] font-mono text-sky-400 uppercase">
-                            {chartType}
-                          </span>
-                        </div>
-
-                        {/* Metodologi Pemilihan Bagan */}
-                        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-[11px] text-slate-300 flex items-start gap-2">
-                          <HelpCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
-                          <span>
-                            <strong className="text-white">Alasan Pemilihan Bagan: </strong>
-                            {viz.selection_reason}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Render Recharts sesuai tipe chart */}
-                      <div className="h-64 w-full bg-slate-950/40 rounded-lg p-2 flex items-center justify-center">
-                        {chartData.length === 0 ? (
-                          <div className="text-xs text-slate-500">Tidak ada data untuk dirender</div>
-                        ) : chartType === 'ranking_chart' || chartType === 'bar' ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                              <XAxis dataKey="entity_label" stroke="#64748b" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" />
-                              <YAxis stroke="#64748b" tick={{ fontSize: 10 }} domain={[0, 100]} />
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
-                              <Bar dataKey="total_score" radius={[4, 4, 0, 0]}>
-                                {chartData.map((entry: any, index: number) => {
-                                  const colors = ['#10b981', '#38bdf8', '#818cf8', '#fbbf24', '#f87171'];
-                                  return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                                })}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : chartType === 'donut' || chartType === 'pie' ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={chartData}
-                                dataKey="value"
-                                nameKey="label"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={chartType === 'donut' ? 45 : 0}
-                                outerRadius={75}
-                                paddingAngle={3}
-                              >
-                                {chartData.map((entry: any, index: number) => {
-                                  const colors = ['#10b981', '#38bdf8', '#fbbf24', '#f43f5e', '#a855f7'];
-                                  return <Cell key={`cell-pie-${index}`} fill={colors[index % colors.length]} />;
-                                })}
-                              </Pie>
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
-                              <Legend wrapperStyle={{ fontSize: '10px' }} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        ) : chartType === 'line' || chartType === 'area' ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                              <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
-                              <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
-                              <Line type="monotone" dataKey="value" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                              <XAxis dataKey="entity_label" stroke="#64748b" tick={{ fontSize: 10 }} />
-                              <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
-                              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '11px', color: '#fff' }} />
-                              <Bar dataKey="total_score" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-8 text-center text-slate-400 text-xs bg-slate-900 rounded-xl border border-slate-800">
-                Visualisasi diagram belum digenerasi. Jalankan scoring seleksi untuk mengaktifkan pemetaan heuristik bentuk data.
-              </div>
-            )}
-          </div>
-
-          {/* Statistical Distribution & Anomaly Analysis */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Score Distribution Breakdown */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Sliders className="w-3.5 h-3.5 text-emerald-400" />
-                Distribusi Kualifikasi Skor
-              </h4>
-              <p className="text-xs text-slate-400">
-                Frekuensi kandidat dalam rentang kualifikasi performa deterministik.
-              </p>
-
-              <div className="space-y-2.5 pt-1">
-                {(analyticsData?.distribution?.score_ranges || [
-                  { range: '86-100', label: 'Sangat Unggul', count: scores.filter(s => s.overall_score >= 86).length, percentage: scores.length ? Math.round((scores.filter(s => s.overall_score >= 86).length / scores.length) * 100) : 0, color: '#10b981' },
-                  { range: '71-85', label: 'Memenuhi Kualifikasi', count: scores.filter(s => s.overall_score >= 71 && s.overall_score < 86).length, percentage: scores.length ? Math.round((scores.filter(s => s.overall_score >= 71 && s.overall_score < 86).length / scores.length) * 100) : 0, color: '#38bdf8' },
-                  { range: '56-70', label: 'Perlu Pertimbangan', count: scores.filter(s => s.overall_score >= 56 && s.overall_score < 71).length, percentage: scores.length ? Math.round((scores.filter(s => s.overall_score >= 56 && s.overall_score < 71).length / scores.length) * 100) : 0, color: '#fbbf24' },
-                  { range: '0-55', label: 'Di Bawah Ambang', count: scores.filter(s => s.overall_score < 56).length, percentage: scores.length ? Math.round((scores.filter(s => s.overall_score < 56).length / scores.length) * 100) : 0, color: '#f87171' },
-                ]).map((rangeItem: any, rIdx: number) => (
-                  <div key={rIdx} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300 font-medium">
-                        {rangeItem.label} ({rangeItem.range})
-                      </span>
-                      <span className="font-mono text-slate-400 text-[11px]">
-                        {rangeItem.count} ({rangeItem.percentage}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${rangeItem.percentage}%`, backgroundColor: rangeItem.color || '#38bdf8' }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Dispersion and Outlier Detection */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5 text-purple-400" />
-                Sebaran Statistik & Deteksi Anomali
-              </h4>
-              <p className="text-xs text-slate-400">
-                Uji deviasi standar, Pagar Tukey IQR, dan outlier Z-score terverifikasi.
-              </p>
-
-              <div className="grid grid-cols-3 gap-2 pt-1 font-mono text-xs">
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Kuartil 1 (Q1)</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.q1 ?? '-'}</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Kuartil 3 (Q3)</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.q3 ?? '-'}</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Rentang IQR</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.iqr ?? '-'}</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Std Deviasi (σ)</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.std_dev ?? '-'}</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Varians</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.variance ?? '-'}</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 rounded-lg border border-slate-800">
-                  <span className="text-[10px] text-slate-500 block">Pagar Bawah IQR</span>
-                  <span className="text-slate-200 font-bold">{analyticsData?.performance?.min_fence ?? '-'}</span>
-                </div>
-              </div>
-
-              {/* Anomaly Detection Status Box */}
-              <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between text-xs mt-2">
-                <div className="flex items-center gap-2">
-                  {analyticsData?.anomaly_detection?.has_anomalies ? (
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  )}
-                  <span className="text-slate-300">
-                    {analyticsData?.anomaly_detection?.has_anomalies
-                      ? `${analyticsData.anomaly_detection.anomalies.length} Anomali Terdeteksi (Z-Score > 2.0)`
-                      : 'Data Terdistribusi Normal (Tanpa Outlier Ekstrem)'}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono">Tukey Fence</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Audit Trail & Reproducibility Proof */}
-          {currentJob?.active_run && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-emerald-400" />
-                  Bukti Audit & Reproduksibilitas Ranking
-                </h3>
-                <span className="text-xs text-emerald-400 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Hash SHA-256 Valid
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Peringkat dapat direproduksi secara deterministik berlandaskan kriteria terbobot dan data understanding berkas sumber.
-              </p>
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 font-mono text-xs text-emerald-300 break-all select-all flex items-center justify-between gap-2">
-                <span>{currentJob.active_run.reproducibility_hash}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (currentJob.active_run?.reproducibility_hash) {
-                      navigator.clipboard.writeText(currentJob.active_run.reproducibility_hash);
-                      showFeedback('Hash SHA-256 berhasil disalin ke clipboard!');
-                    }
-                  }}
-                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] rounded transition shrink-0"
-                >
-                  Salin Hash
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <SelectionAnalyticsScreen
+          jobId={selectedJobId || currentJob?.id || ''}
+          tenantId={tenantId}
+          jobTitle={currentJob?.title}
+          scoringResults={scores.map((s) => ({
+            ...s,
+            total_score: s.overall_score,
+            entity_label: s.candidate_name,
+            score_breakdown: s.criterion_breakdown,
+          }))}
+          analytics={analyticsData}
+          visualizations={visualizationsData}
+          insights={insightsData}
+          onSelectEntityForReview={(entity) => {
+            setReviewModalTarget(entity);
+            setReviewDecision('ACCEPTED');
+            setReviewOverrideScore(String(entity.overall_score || entity.total_score || ''));
+          }}
+        />
       )}
 
       {/* Review Modal */}

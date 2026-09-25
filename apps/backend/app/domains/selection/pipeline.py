@@ -19,13 +19,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import sqlalchemy as sa
 from app.core.database import get_database_engine, tenant_tx
-from app.domains.billing.credit_engine import (
+from app.domains.billing.contracts import (
     estimate_credit_cost,
     reserve_credit,
     consume_credit,
     refund_credit,
     ReservationToken,
 )
+
 from app.domains.selection.models import (
     PipelineStage,
     SourceChannel,
@@ -732,10 +733,13 @@ class SelectionPipelineEngine:
         }
 
         # Hasilkan narasi terstruktur yang grounded 100% pada angka sumber
-        insights = SelectionInsightGenerator.generate_all_insights(
+        insights = await SelectionInsightGenerator.generate_all_insights_async(
             results=results,
             criteria=criteria,
             analytics=analytics_bundle,
+            tenant_id=tenant_id,
+            model_id=context.get("model_used"),
+            strict=True,
         )
 
         with tenant_tx(tenant_id) as conn:

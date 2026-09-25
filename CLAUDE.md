@@ -151,3 +151,13 @@ AI Agent Coding sering meninggalkan file sisa hasil proses verifikasi (skrip deb
 ### 10.4 Tambahan pada Self-Check Bagian 4
 - [ ] `git status`/`git diff --stat` sudah direview, tidak ada file sisa verifikasi/debug ikut ter-commit.
 - [ ] Setiap file baru di luar struktur repo resmi sudah dihapus atau dipindah ke lokasi resmi dengan alasan jelas.
+
+---
+
+## 11. Ketetapan Kerja: Larangan Shadow/Duplikat di `src/` & Integritas Mandiri Monorepo
+
+Ke depan, setiap fitur baru, perbaikan UI, atau logika frontend hanya akan dibuat langsung di dalam aplikasi mandirinya (`apps/client` untuk Client Dashboard, `apps/admin` untuk Admin Dashboard) sesuai arsitektur monorepo yang sudah ditetapkan, tanpa membuat file duplikat/shadow di `src/`.
+
+1. Seluruh endpoint/FastAPI ke backend server dipanggil langsung dari kode di dalam `apps/client` dan `apps/admin`.
+2. Dilarang membuat shadow components, proxy re-exports, atau file tiruan di root `src/`. Root repository hanya menjaga file monorepo resmi, konfigurasi, dan wrapper minimal jika diperlukan oleh runner tanpa menduplikasi komponen bisnis.
+

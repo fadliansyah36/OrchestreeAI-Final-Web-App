@@ -28,7 +28,7 @@ import { MessageExperimentScreen } from './MessageExperimentScreen';
 import { OmnichannelInboxScreen } from '../../apps/client/components/omnichannel/OmnichannelInboxScreen';
 import { CustomerMergeReviewScreen } from '../../apps/client/components/omnichannel/CustomerMergeReviewScreen';
 import { ChannelAccountsScreen } from '../../apps/client/components/omnichannel/ChannelAccountsScreen';
-import { TenantRegistrationResponse } from '../types';
+import { TenantRegistrationResponse } from '@/apps/client/types';
 
 export type OmnichannelTab =
   | 'INBOX'

@@ -15,7 +15,7 @@ import datetime
 import logging
 import json
 
-from app.domains.enterprise.execution import TaskVerificationRule
+from app.domains.enterprise.contracts import TaskVerificationRule
 
 try:
     from pydantic import BaseModel, Field

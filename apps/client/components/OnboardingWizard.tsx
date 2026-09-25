@@ -22,7 +22,7 @@ import {
   CompanyCodeResponse,
   HRApprovalItem,
   TenantMemberItem
-} from '../types';
+} from '@/apps/client/types';
 
 interface OnboardingWizardProps {
   initialPlanCode?: string;
