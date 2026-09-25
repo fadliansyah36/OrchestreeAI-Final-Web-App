@@ -30,6 +30,7 @@ class ToolExecutionContext(BaseModel):
     capabilities: list[str] = ["mcp.tool.invoke"]
     is_mfa_verified: bool = False
     workflow_execution_id: Optional[str] = None
+    execution_context: str = "internal_dashboard"  # 'omnichannel' | 'proactive' | 'internal_dashboard'
 
 
 class MCPToolMetadata(BaseModel):
@@ -39,6 +40,7 @@ class MCPToolMetadata(BaseModel):
     category: str
     is_idempotent: bool
     timeout_seconds: float
+    context_scope: str = "internal_only"  # 'internal_only' | 'customer_facing_allowed'
     input_model: Optional[Type[BaseModel]] = None
     output_model: Optional[Type[BaseModel]] = None
     handler: Optional[Callable] = None
@@ -82,6 +84,15 @@ class ToolRegistry:
         tool = self.get_tool(name)
         if not tool or not tool.handler:
             raise ValueError(f"MCP Tool '{name}' tidak terdaftar pada registry.")
+
+        # --- ENFORCE STRICT TOOL CONTEXT BOUNDARY (PRD v2.2 Bagian 3.5 & Strict Boundary) ---
+        from app.domains.boundary.service import enforce_tool_context_boundary
+        await enforce_tool_context_boundary(
+            tool_name=tool.name,
+            execution_context=getattr(context, "execution_context", "internal_dashboard"),
+            tenant_id=context.tenant_id,
+            tool_context_scope=getattr(tool, "context_scope", "internal_only"),
+        )
 
         # --- TITIK EVALUASI PDP KE-3: Awal Setiap Pemanggilan MCP Tool ---
         subject = SubjectContext(
@@ -312,6 +323,7 @@ def mcp_tool(
     category: str = "general",
     is_idempotent: bool = True,
     timeout_seconds: float = 30.0,
+    context_scope: str = "internal_only",
     input_model: Optional[Type[BaseModel]] = None,
     output_model: Optional[Type[BaseModel]] = None,
 ):
@@ -326,6 +338,7 @@ def mcp_tool(
             category=category,
             is_idempotent=is_idempotent,
             timeout_seconds=timeout_seconds,
+            context_scope=context_scope,
             input_model=input_model,
             output_model=output_model,
             handler=func,

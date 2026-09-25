@@ -31,6 +31,7 @@ class MemoryDocumentCreate(BaseModel):
     source_type: str = Field("manual", description="Sumber: manual, sop, workflow_execution, agent_reflection, conversation, document_upload")
     source_id: Optional[str] = None
     data_classification: str = Field("internal", description="Klasifikasi: public, internal, confidential, restricted")
+    audience_scope: str = Field("internal_only", description="Scope: internal_only, customer_facing_safe, both")
     confidence: float = Field(1.0, ge=0.0, le=1.0)
     decay_factor: float = Field(0.05, ge=0.0)
     created_by_agent_id: Optional[str] = None
@@ -46,6 +47,7 @@ class MemorySearchResult(BaseModel):
     summary: Optional[str] = None
     category: str
     data_classification: str
+    audience_scope: str = "internal_only"
     confidence: float
     rrf_score: float
     vector_rank: Optional[int] = None
@@ -103,11 +105,11 @@ class HybridMemoryEngine:
                 sa.text("""
                     INSERT INTO memory_documents (
                         id, tenant_id, title, content, summary, category, source_type,
-                        source_id, data_classification, confidence, decay_factor,
+                        source_id, data_classification, audience_scope, confidence, decay_factor,
                         created_by_agent_id, created_by_user_id, metadata
                     ) VALUES (
                         :id, :tenant_id, :title, :content, :summary, :category, :source_type,
-                        :source_id, :data_classification, :confidence, :decay_factor,
+                        :source_id, :data_classification, :audience_scope, :confidence, :decay_factor,
                         :created_by_agent_id, :created_by_user_id, :metadata
                     );
                 """),
@@ -121,6 +123,7 @@ class HybridMemoryEngine:
                     "source_type": doc_in.source_type,
                     "source_id": doc_in.source_id,
                     "data_classification": doc_in.data_classification,
+                    "audience_scope": doc_in.audience_scope,
                     "confidence": doc_in.confidence,
                     "decay_factor": doc_in.decay_factor,
                     "created_by_agent_id": doc_in.created_by_agent_id,
@@ -175,17 +178,28 @@ class HybridMemoryEngine:
         top_k: int = 5,
         category: Optional[str] = None,
         rrf_k: int = 60,
+        execution_context: str = "internal_dashboard",
+        scope_in: Optional[List[str]] = None,
     ) -> List[MemorySearchResult]:
         """
         Pencarian Hybrid:
         1. Vektor kNN Cosine Similarity via pgvector HNSW pada memory_embeddings.
         2. Teks Full-Text Search via tsvector / ts_rank pada memory_documents.
         3. Reciprocal Rank Fusion (RRF): score = (1 / (rrf_k + rank_vec)) + (1 / (rrf_k + rank_text)).
-        4. Otorisasi PDP (ABAC) per item dokumen sebelum dikembalikan.
-        5. Audit logging ke memory_access_log.
+        4. Memory Retrieval Boundary: Pemfilteran ketat audience_scope ('customer_facing_safe' & 'both' untuk omnichannel).
+        5. Otorisasi PDP (ABAC) per item dokumen sebelum dikembalikan.
+        6. Audit logging ke memory_access_log.
         """
         if not query.strip():
             return []
+
+        # Tentukan audience_scope yang diperbolehkan berdasarkan execution_context (PRD v2.2 Bagian E.5)
+        if scope_in is not None:
+            allowed_scopes = scope_in
+        elif execution_context == "omnichannel":
+            allowed_scopes = ["customer_facing_safe", "both"]
+        else:
+            allowed_scopes = ["internal_only", "customer_facing_safe", "both"]
 
         # 1. Hasilkan embedding untuk query
         query_vector = await self.model_router.embed_text(query, output_dimension=1536)
@@ -203,6 +217,7 @@ class HybridMemoryEngine:
                 "tenant_id": tenant_id,
                 "q_emb": vector_str,
                 "limit": 20,
+                "allowed_scopes": allowed_scopes,
             }
             cat_clause_doc = ""
             if category:
@@ -218,12 +233,14 @@ class HybridMemoryEngine:
                     d.summary,
                     d.category,
                     d.data_classification,
+                    COALESCE(d.audience_scope, 'internal_only') as audience_scope,
                     d.confidence,
                     d.metadata,
                     1 - (e.embedding <=> :q_emb::vector) as similarity
                 FROM memory_embeddings e
                 JOIN memory_documents d ON e.document_id = d.id
                 WHERE e.tenant_id = :tenant_id::uuid
+                  AND COALESCE(d.audience_scope, 'internal_only') = ANY(:allowed_scopes)
                 {cat_clause_doc}
                 ORDER BY e.embedding <=> :q_emb::vector ASC
                 LIMIT :limit;
@@ -236,6 +253,7 @@ class HybridMemoryEngine:
                 "tenant_id": tenant_id,
                 "q_text": query,
                 "limit": 20,
+                "allowed_scopes": allowed_scopes,
             }
             if category:
                 text_params["category"] = category
@@ -249,11 +267,13 @@ class HybridMemoryEngine:
                     d.summary,
                     d.category,
                     d.data_classification,
+                    COALESCE(d.audience_scope, 'internal_only') as audience_scope,
                     d.confidence,
                     d.metadata,
                     ts_rank(d.search_vector, plainto_tsquery('indonesian', :q_text)) as text_score
                 FROM memory_documents d
                 WHERE d.tenant_id = :tenant_id::uuid
+                  AND COALESCE(d.audience_scope, 'internal_only') = ANY(:allowed_scopes)
                   AND (
                       d.search_vector @@ plainto_tsquery('indonesian', :q_text)
                       OR d.title ILIKE '%' || :q_text || '%'
@@ -281,16 +301,17 @@ class HybridMemoryEngine:
                     "summary": row[4],
                     "category": row[5],
                     "data_classification": row[6],
-                    "confidence": float(row[7]),
-                    "metadata": row[8] if isinstance(row[8], dict) else {},
+                    "audience_scope": str(row[7]),
+                    "confidence": float(row[8]),
+                    "metadata": row[9] if isinstance(row[9], dict) else {},
                     "vector_rank": rank,
-                    "similarity": float(row[9]),
+                    "similarity": float(row[10]),
                     "text_rank": None,
                     "rrf_score": 1.0 / (rrf_k + rank),
                 }
             else:
                 candidates[d_id]["vector_rank"] = rank
-                candidates[d_id]["similarity"] = float(row[9])
+                candidates[d_id]["similarity"] = float(row[10])
                 candidates[d_id]["rrf_score"] += 1.0 / (rrf_k + rank)
 
         # Bobot Teks Full-Text
@@ -305,8 +326,9 @@ class HybridMemoryEngine:
                     "summary": row[4],
                     "category": row[5],
                     "data_classification": row[6],
-                    "confidence": float(row[7]),
-                    "metadata": row[8] if isinstance(row[8], dict) else {},
+                    "audience_scope": str(row[7]),
+                    "confidence": float(row[8]),
+                    "metadata": row[9] if isinstance(row[9], dict) else {},
                     "vector_rank": None,
                     "similarity": None,
                     "text_rank": rank,
@@ -462,6 +484,31 @@ class HybridMemoryEngine:
             start += max_chars - overlap
         return [c for c in chunks if c]
 
+    async def filter_internal_only(self, retrieved_doc_ids: List[str], tenant_id: Optional[str] = None) -> List[str]:
+        """
+        Mengidentifikasi dokumen mana saja di antara retrieved_doc_ids yang berstatus 'internal_only'.
+        Digunakan oleh sanitize_customer_facing_output sebagai lapisan kedua pertahanan data.
+        """
+        if not retrieved_doc_ids:
+            return []
+        try:
+            async with self.engine.begin() as conn:
+                if tenant_id:
+                    await conn.execute(
+                        sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
+                        {"tid": tenant_id},
+                    )
+                query = sa.text("""
+                    SELECT id FROM memory_documents
+                    WHERE id = ANY(:doc_ids::uuid[])
+                      AND COALESCE(audience_scope, 'internal_only') = 'internal_only';
+                """)
+                res = await conn.execute(query, {"doc_ids": retrieved_doc_ids})
+                return [str(row[0]) for row in res.fetchall()]
+        except Exception as e:
+            logger.warning(f"Gagal memeriksa filter_internal_only: {e}")
+            return []
+
 
 _memory_engine_instance: Optional[HybridMemoryEngine] = None
 
@@ -471,3 +518,27 @@ def get_memory_engine() -> HybridMemoryEngine:
     if _memory_engine_instance is None:
         _memory_engine_instance = HybridMemoryEngine()
     return _memory_engine_instance
+
+
+async def hybrid_memory_search(
+    tenant_id: str,
+    query: str,
+    execution_context: str = "internal_dashboard",
+    top_k: int = 5,
+    category: Optional[str] = None,
+    subject: Optional[SubjectContext] = None,
+) -> List[MemorySearchResult]:
+    """
+    Antarmuka resmi Hybrid Memory Search dengan penegakan Memory Retrieval Boundary (PRD v2.2 Bagian E.5).
+    Panggilan RAG dari node manapun pada percakapan Omnichannel WAJIB menggunakan execution_context='omnichannel'.
+    """
+    engine = get_memory_engine()
+    return await engine.hybrid_search(
+        tenant_id=tenant_id,
+        query=query,
+        subject=subject,
+        top_k=top_k,
+        category=category,
+        execution_context=execution_context,
+    )
+

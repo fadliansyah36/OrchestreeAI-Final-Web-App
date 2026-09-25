@@ -295,3 +295,23 @@ def build_handover_summary(
             logger.error(f"Gagal mencatat handover_records: {e}")
 
     return handover_payload
+
+
+def compose_customer_reply(
+    customer_name: str,
+    message_content: str,
+    persona_name: Optional[str] = None,
+) -> str:
+    """
+    Menyusun balasan resmi kepada customer (Customer-Facing Canonical Reply).
+    
+    ATURAN STRICT BOUNDARY MUTLAK (PRD v2.2 Bagian B.6):
+    Fungsi ini TERPISAH TOTAL dari build_handover_summary().
+    TIDAK PERNAH memuat field internal handover summary apapun
+    (seperti lead_score, budget, executive_summary, actionable_recommendations,
+    atau metrik internal staf).
+    """
+    greeting = f"Halo Kak {customer_name}" if customer_name else "Halo Kak"
+    sender = f" — {persona_name}" if persona_name else ""
+    return f"{greeting}! {message_content.strip()}{sender}"
+

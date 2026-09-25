@@ -81,6 +81,11 @@ class HandoverRequest(BaseModel):
     assigned_to_user_id: Optional[str] = None
 
 
+class AssignPersonaRequest(BaseModel):
+    ai_persona_id: str = Field(..., description="ID dari ai_agents yang akan ditugaskan")
+    is_default: bool = Field(True, description="Apakah menjadi persona default akun kanal")
+
+
 # 1. CHANNEL ACCOUNTS
 @router.get("/channel-accounts", summary="Daftar Akun Kanal Tenant")
 async def list_channel_accounts(
@@ -179,6 +184,80 @@ async def create_channel_account(
         "requires_owner_approval": requires_approval,
         "is_approved": is_approved
     }
+
+
+@router.post("/channel-accounts/{ca_id}/persona-assignment", summary="Tugaskan AI Persona ke Akun Kanal (Strict Boundary Enforced)")
+async def assign_persona_to_channel_account(
+    req: AssignPersonaRequest,
+    ca_id: str = Path(...),
+    tenant_id: str = Path(...),
+    ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """
+    Menugaskan AI Agent / Persona ke Akun Kanal Omnichannel.
+    PENEGAKAN BATAS KETAT (Strict Boundary):
+    Hanya AI Agent dengan context_scope='customer_facing' yang diizinkan ditugaskan ke kanal customer-facing.
+    AI Agent internal (context_scope='internal') ditolak keras dan dicatat di cross_boundary_violation_log.
+    """
+    from app.domains.boundary.service import assign_agent_to_channel, AgentContextMismatchException
+    try:
+        await assign_agent_to_channel(
+            agent_id=req.ai_persona_id,
+            channel_type="omnichannel",
+            tenant_id=tenant_id
+        )
+    except AgentContextMismatchException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    engine = get_database_engine()
+    assignment_id = str(uuid.uuid4())
+    with engine.begin() as conn:
+        conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": tenant_id})
+        conn.execute(
+            sa.text("""
+                INSERT INTO channel_account_persona_assignments (
+                    id, tenant_id, channel_account_id, ai_persona_id, is_default, created_at
+                ) VALUES (
+                    :id, :tid, :ca_id, :agent_id, :is_def, now()
+                )
+                ON CONFLICT (tenant_id, channel_account_id, ai_persona_id) 
+                DO UPDATE SET is_default = EXCLUDED.is_default
+            """),
+            {
+                "id": assignment_id,
+                "tid": tenant_id,
+                "ca_id": ca_id,
+                "agent_id": req.ai_persona_id,
+                "is_def": req.is_default
+            }
+        )
+
+    return {
+        "status": "ASSIGNED",
+        "assignment_id": assignment_id,
+        "channel_account_id": ca_id,
+        "ai_persona_id": req.ai_persona_id,
+        "is_default": req.is_default
+    }
+
+
+@router.get("/boundary/violations", summary="Daftar Log Percobaan Pelanggaran Batas AI")
+async def get_boundary_violations(
+    tenant_id: str = Path(...),
+    violation_type: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
+):
+    """Mengambil riwayat percobaan pelanggaran boundary (memory leak, tool call, dual agent, dll)."""
+    from app.domains.boundary.service import list_boundary_violations
+    return await list_boundary_violations(
+        tenant_id=tenant_id,
+        violation_type=violation_type,
+        limit=limit
+    )
 
 
 # 2. MTPROTO QR SESSION LIFECYCLE (CATEGORY B)

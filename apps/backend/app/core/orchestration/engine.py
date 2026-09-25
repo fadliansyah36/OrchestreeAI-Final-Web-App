@@ -48,6 +48,7 @@ class WorkflowDispatchRequest(BaseModel):
     roles: List[str] = ["STAFF_AI"]
     capabilities: List[str] = ["workflow.dispatch", "workflow.node.execute", "mcp.tool.invoke"]
     is_mfa_verified: bool = False
+    execution_context: str = "internal_dashboard"  # 'omnichannel' | 'proactive' | 'internal_dashboard'
     context_data: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -568,6 +569,7 @@ class OrchestrationEngine:
             capabilities=req.capabilities,
             is_mfa_verified=req.is_mfa_verified,
             workflow_execution_id=execution_id,
+            execution_context=getattr(req, "execution_context", "internal_dashboard"),
         )
 
         return await self.tool_registry.invoke_tool(

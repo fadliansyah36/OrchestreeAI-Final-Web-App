@@ -65,6 +65,7 @@ async def tool_memory_search(context: ToolExecutionContext, input_data: Dict[str
         subject=subject,
         top_k=top_k,
         category=category,
+        execution_context=context.execution_context or "internal_dashboard",
     )
 
     formatted = [

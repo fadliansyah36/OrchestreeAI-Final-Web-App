@@ -79,6 +79,20 @@ class WebPushSubscribeRequest(BaseModel):
     user_agent: Optional[str] = None
 
 
+class RegisterVerifiedSenderRequest(BaseModel):
+    tenant_id: str = Field(..., description="ID Tenant")
+    membership_id: str = Field(..., description="ID Membership staf")
+    proactive_official_channel_id: str = Field(..., description="ID Kanal Resmi Proaktif")
+    external_identifier: str = Field(..., description="Nomor telepon WhatsApp atau username/chat_id Telegram")
+
+
+class ProactiveInboundMessageRequest(BaseModel):
+    channel_identifier: str = Field(..., description="Phone number ID atau bot username kanal resmi")
+    sender_identifier: str = Field(..., description="Nomor pengirim atau ID pengirim masuk")
+    content_text: str = Field(..., description="Teks pesan masuk")
+    tenant_id: Optional[str] = Field(None, description="Opsional ID tenant")
+
+
 @router.post("/channels/whatsapp/request-otp")
 async def api_request_whatsapp_otp(
     payload: WhatsAppOTPRequest,
@@ -272,3 +286,125 @@ async def api_trigger_scheduler(
     except Exception as e:
         logger.error(f"Gagal memicu scheduler proaktif: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/verified-senders", summary="Registrasi Pengirim Terverifikasi Kanal Proaktif")
+async def api_register_verified_sender(
+    payload: RegisterVerifiedSenderRequest,
+    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+):
+    """
+    Mendaftarkan nomor atau identifier staf ke allow-list pengirim resmi kanal proaktif.
+    PENEGAKAN BATAS KETAT:
+    Nomor yang terdaftar akan dapat berinteraksi dengan asisten internal proaktif.
+    """
+    import sqlalchemy as sa
+    from app.core.database import get_database_engine
+    from app.domains.boundary.service import hash_identifier
+
+    engine = get_database_engine()
+    hashed = hash_identifier(payload.external_identifier)
+    sender_id = str(uuid.uuid4())
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tid, true)"),
+                {"tid": payload.tenant_id}
+            )
+            conn.execute(
+                sa.text("""
+                    INSERT INTO proactive_verified_senders (
+                        id, proactive_official_channel_id, tenant_id,
+                        tenant_membership_id, external_identifier_hash, verified_at
+                    ) VALUES (
+                        :id, :cid, :tid, :mid, :hash, now()
+                    )
+                    ON CONFLICT (proactive_official_channel_id, external_identifier_hash)
+                    DO UPDATE SET verified_at = now()
+                """),
+                {
+                    "id": sender_id,
+                    "cid": payload.proactive_official_channel_id,
+                    "tid": payload.tenant_id,
+                    "mid": payload.membership_id,
+                    "hash": hashed,
+                }
+            )
+        return {
+            "success": True,
+            "id": sender_id,
+            "proactive_official_channel_id": payload.proactive_official_channel_id,
+            "tenant_id": payload.tenant_id,
+            "membership_id": payload.membership_id,
+            "status": "VERIFIED"
+        }
+    except Exception as e:
+        logger.error(f"Gagal registrasi pengirim terverifikasi: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/verified-senders", summary="Daftar Pengirim Terverifikasi Kanal Proaktif")
+async def api_list_verified_senders(
+    tenant_id: str,
+    channel_id: Optional[str] = None,
+    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+):
+    """Mengembalikan daftar hash pengirim staf yang terverifikasi pada kanal proaktif."""
+    import sqlalchemy as sa
+    from app.core.database import get_database_engine
+
+    engine = get_database_engine()
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :tid, true)"),
+                {"tid": tenant_id}
+            )
+            query = """
+                SELECT id, proactive_official_channel_id, tenant_id,
+                       tenant_membership_id, external_identifier_hash, verified_at
+                FROM proactive_verified_senders
+                WHERE tenant_id = :tid::uuid
+            """
+            params = {"tid": tenant_id}
+            if channel_id:
+                query += " AND proactive_official_channel_id = :cid::uuid"
+                params["cid"] = channel_id
+            query += " ORDER BY verified_at DESC"
+
+            rows = conn.execute(sa.text(query), params).mappings().all()
+            return {"success": True, "data": [dict(r) for r in rows]}
+    except Exception as e:
+        logger.error(f"Gagal mengambil daftar pengirim terverifikasi: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/inbound", summary="Rute Pesan Masuk Kanal Proaktif Resmi (Strict Boundary)")
+async def api_proactive_inbound(
+    payload: ProactiveInboundMessageRequest,
+):
+    """
+    Rute pesan masuk khusus untuk kanal proactive_official_channels.
+    PENEGAKAN BATAS KETAT:
+    Bila sender_allowlist_enforced aktif dan pengirim belum terverifikasi:
+    Pesan DIABAIKAN, dicatat ke cross_boundary_violation_log, dan TIDAK memicu Orchestration Engine.
+    """
+    from app.domains.boundary.service import route_proactive_inbound
+    res = await route_proactive_inbound(
+        channel_identifier=payload.channel_identifier,
+        sender_identifier=payload.sender_identifier,
+        content_text=payload.content_text,
+        tenant_id=payload.tenant_id,
+    )
+    if res is None:
+        return {
+            "status": "DROPPED",
+            "reason": "UNVERIFIED_SENDER_BLOCKED",
+            "detail": "Pengirim tidak terdaftar dalam allow-list kanal resmi. Pesan diabaikan."
+        }
+    return {
+        "status": "PROCESSED",
+        "data": res
+    }
+

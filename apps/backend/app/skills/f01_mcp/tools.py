@@ -36,6 +36,7 @@ class KnowledgeLookupOutput(BaseModel):
     category="knowledge",
     is_idempotent=True,
     timeout_seconds=20.0,
+    context_scope="customer_facing_allowed",
     input_model=KnowledgeLookupInput,
     output_model=KnowledgeLookupOutput,
 )
@@ -274,6 +275,7 @@ class ContactVerifyOutput(BaseModel):
     category="crm",
     is_idempotent=True,
     timeout_seconds=10.0,
+    context_scope="customer_facing_allowed",
     input_model=ContactVerifyInput,
     output_model=ContactVerifyOutput,
 )
@@ -308,6 +310,61 @@ async def tool_crm_contact_verify(context: ToolExecutionContext, input_data: Dic
             "formatted_target": formatted,
             "remarks": "Format nomor WhatsApp internasional valid (+62)" if valid else "Nomor tidak valid untuk format Indonesia (+62)",
         }
+
+
+# --- 4. Tool: product.recommend (Customer Facing Allowed) ---
+class ProductRecommendInput(BaseModel):
+    query: str = Field(..., description="Kebutuhan atau preferensi produk pelanggan")
+    limit: int = Field(5, ge=1, le=20)
+
+
+@mcp_tool(
+    name="product.recommend",
+    description="Rekomendasi katalog produk aman untuk customer-facing omnichannel",
+    risk_tier="low",
+    category="commerce",
+    is_idempotent=True,
+    timeout_seconds=15.0,
+    context_scope="customer_facing_allowed",
+    input_model=ProductRecommendInput,
+)
+async def tool_product_recommend(context: ToolExecutionContext, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    query = input_data.get("query", "")
+    limit = input_data.get("limit", 5)
+    return {
+        "query": query,
+        "recommendations": [
+            {"product_name": "Paket Starter Bisnis", "sku": "SKU-START-01", "category": "Retail"},
+            {"product_name": "Paket Pro Scale", "sku": "SKU-PRO-02", "category": "Enterprise"},
+        ][:limit],
+        "status": "success",
+    }
+
+
+# --- 5. Tool: cart.create (Customer Facing Allowed) ---
+class CartCreateInput(BaseModel):
+    customer_id: Optional[str] = Field(None, description="ID pelanggan")
+    items: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+
+
+@mcp_tool(
+    name="cart.create",
+    description="Membuat keranjang belanja pelanggan dari kanal omnichannel",
+    risk_tier="low",
+    category="commerce",
+    is_idempotent=False,
+    timeout_seconds=15.0,
+    context_scope="customer_facing_allowed",
+    input_model=CartCreateInput,
+)
+async def tool_cart_create(context: ToolExecutionContext, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    cart_id = str(uuid.uuid4())
+    return {
+        "cart_id": cart_id,
+        "customer_id": input_data.get("customer_id"),
+        "items": input_data.get("items", []),
+        "status": "created",
+    }
 
 
 def register_builtin_tools():

@@ -28,6 +28,7 @@ class DocumentCreateRequest(BaseModel):
     source_type: str = Field("manual", description="manual, sop, workflow_execution, agent_reflection, conversation, document_upload")
     source_id: Optional[str] = None
     data_classification: str = Field("internal", description="public, internal, confidential, restricted")
+    audience_scope: str = Field("internal_only", description="internal_only, customer_facing_safe, both")
     confidence: float = Field(1.0, ge=0.0, le=1.0)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -37,6 +38,7 @@ class SearchMemoryPostRequest(BaseModel):
     category: Optional[str] = Field(None, description="Filter kategori memori")
     limit: Optional[int] = Field(5, ge=1, le=50, description="Batas hasil pencarian")
     top_k: Optional[int] = Field(None, ge=1, le=50, description="Alias batas hasil")
+    execution_context: str = Field("internal_dashboard", description="omnichannel, proactive, atau internal_dashboard")
 
 
 @router.get("/tenants/{tenant_id}/memory/search", response_model=List[MemorySearchResult])
@@ -45,6 +47,7 @@ async def search_tenant_memory(
     q: str = Query(..., min_length=1, description="Kata kunci atau pertanyaan semantik"),
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     top_k: int = Query(5, ge=1, le=20, description="Batas hasil yang dikembalikan"),
+    execution_context: str = Query("internal_dashboard", description="Konteks eksekusi pemanggil (omnichannel/proactive/internal_dashboard)"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
     x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE", alias="X-User-Roles"),
     x_user_capabilities: Optional[str] = Header("memory.search,data.read", alias="X-User-Capabilities"),
@@ -89,6 +92,7 @@ async def search_tenant_memory(
         subject=subject,
         top_k=top_k,
         category=category,
+        execution_context=execution_context,
     )
     return results
 
@@ -140,6 +144,7 @@ async def search_tenant_memory_post(
         subject=subject,
         top_k=limit,
         category=payload.category,
+        execution_context=payload.execution_context or "internal_dashboard",
     )
     return {"results": [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in results]}
 
@@ -195,7 +200,7 @@ async def list_tenant_memory_documents(
         )
         sql = """
             SELECT id, tenant_id, title, summary, category, source_type,
-                   data_classification, confidence, decay_factor, access_count,
+                   data_classification, audience_scope, confidence, decay_factor, access_count,
                    last_accessed_at, created_at
             FROM memory_documents
             WHERE tenant_id = :tenant_id
@@ -216,11 +221,12 @@ async def list_tenant_memory_documents(
                 "category": r[4],
                 "source_type": r[5],
                 "data_classification": r[6],
-                "confidence": float(r[7]),
-                "decay_factor": float(r[8]),
-                "access_count": int(r[9]),
-                "last_accessed_at": r[10].isoformat() if r[10] else None,
-                "created_at": r[11].isoformat() if r[11] else None,
+                "audience_scope": r[7] if r[7] else "internal_only",
+                "confidence": float(r[8]),
+                "decay_factor": float(r[9]),
+                "access_count": int(r[10]),
+                "last_accessed_at": r[11].isoformat() if r[11] else None,
+                "created_at": r[12].isoformat() if r[12] else None,
             }
             for r in rows
         ]
@@ -273,6 +279,7 @@ async def create_tenant_memory_document(
         source_type=payload.source_type,
         source_id=payload.source_id,
         data_classification=payload.data_classification,
+        audience_scope=payload.audience_scope,
         confidence=payload.confidence,
         created_by_user_id=x_user_id,
         metadata=payload.metadata,

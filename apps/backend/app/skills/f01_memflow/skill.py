@@ -61,6 +61,7 @@ class F01MemflowSkill:
         subject: Optional[SubjectContext] = None,
         top_k: int = 5,
         category: Optional[str] = None,
+        execution_context: str = "internal_dashboard",
     ) -> List[MemorySearchResult]:
         """
         Pencarian semantik hybrid:
@@ -73,6 +74,7 @@ class F01MemflowSkill:
             subject=subject,
             top_k=top_k,
             category=category,
+            execution_context=execution_context,
         )
 
     async def remember(
