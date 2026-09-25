@@ -89,6 +89,9 @@ class CreateAgentRequest(BaseModel):
     department_id: Optional[str] = Field(default=None, description="UUID departemen penempatan")
     status: str = Field(default="active", description="'active', 'paused', atau 'error'")
     job_title_id: Optional[str] = Field(default=None, description="UUID jabatan AI terstandarisasi (Shadow Mapping)")
+    blueprint_id: Optional[str] = Field(default=None, description="UUID acuan blueprint katalog resmi (F.01)")
+    default_skills: Optional[List[str]] = Field(default=None, description="Daftar perkakas aktif agen")
+    persona_config: Optional[Dict[str, Any]] = Field(default=None, description="Konfigurasi kognitif dan guardrail agen")
 
 
 class UpdateAgentRequest(BaseModel):
@@ -96,6 +99,7 @@ class UpdateAgentRequest(BaseModel):
     department_id: Optional[str] = None
     status: Optional[str] = None
     job_title_id: Optional[str] = None
+    blueprint_id: Optional[str] = None
 
 
 class AgentResponse(BaseModel):
@@ -107,6 +111,8 @@ class AgentResponse(BaseModel):
     job_title_id: Optional[str] = None
     job_title_name: Optional[str] = None
     job_title_code: Optional[str] = None
+    blueprint_id: Optional[str] = None
+    blueprint_name: Optional[str] = None
     category_tag: Optional[str] = None
     structural_role_name: Optional[str] = None
     level_code: Optional[str] = None
@@ -792,6 +798,8 @@ async def list_agents(
                 sa.text("""
                     SELECT a.id, a.tenant_id, a.department_id, a.persona_type,
                            a.job_title_id, a.display_name, a.status, a.created_at,
+                           a.blueprint_id,
+                           bc.display_name as blueprint_name,
                            d.name as department_name,
                            jt.title_name as job_title_name,
                            jt.title_code as job_title_code,
@@ -803,6 +811,7 @@ async def list_agents(
                     LEFT JOIN ai_job_titles jt ON jt.id = a.job_title_id
                     LEFT JOIN ai_structural_roles sr ON sr.id = jt.structural_role_id
                     LEFT JOIN job_levels jl ON jl.id = jt.job_level_id
+                    LEFT JOIN agent_blueprint_catalog bc ON bc.id = a.blueprint_id
                     WHERE a.tenant_id = :tenant_id
                     ORDER BY a.created_at ASC;
                 """),
@@ -820,6 +829,8 @@ async def list_agents(
                     job_title_id=str(r["job_title_id"]) if r["job_title_id"] else None,
                     job_title_name=r["job_title_name"],
                     job_title_code=r["job_title_code"],
+                    blueprint_id=str(r["blueprint_id"]) if r.get("blueprint_id") else None,
+                    blueprint_name=r.get("blueprint_name"),
                     category_tag=r["category_tag"],
                     structural_role_name=r["structural_role_name"],
                     level_code=r["level_code"],
@@ -842,7 +853,8 @@ async def create_agent(
     context: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
     """
-    Mendaftarkan staf agen AI otonom baru ke dalam registri tenant dengan Shadow Mapping job_title_id.
+    Mendaftarkan staf agen AI otonom baru ke dalam registri tenant dengan Shadow Mapping job_title_id
+    serta integrasi acuan blueprint (F.01).
     - Otorisasi: workforce.agent.manage
     """
     subject = SubjectContext(
@@ -877,6 +889,24 @@ async def create_agent(
             dept_uuid = str(uuid.UUID(req.department_id)) if req.department_id else None
 
             resolved_job_title_id = req.job_title_id
+            blueprint_name = None
+            resolved_blueprint_id = None
+
+            if req.blueprint_id:
+                bp_row = conn.execute(
+                    sa.text("""
+                        SELECT id, display_name, job_title_id, recommended_tool_keys, recommended_model_capability
+                        FROM agent_blueprint_catalog
+                        WHERE id::text = :bp_id;
+                    """),
+                    {"bp_id": req.blueprint_id}
+                ).mappings().first()
+                if bp_row:
+                    resolved_blueprint_id = str(bp_row["id"])
+                    blueprint_name = bp_row["display_name"]
+                    if not resolved_job_title_id and bp_row["job_title_id"]:
+                        resolved_job_title_id = str(bp_row["job_title_id"])
+
             if not resolved_job_title_id and req.persona_type:
                 rule_match = conn.execute(
                     sa.text("""
@@ -894,9 +924,11 @@ async def create_agent(
             conn.execute(
                 sa.text("""
                     INSERT INTO ai_agents (
-                        id, tenant_id, department_id, persona_type, display_name, status, job_title_id, created_at
+                        id, tenant_id, department_id, persona_type, display_name, status,
+                        job_title_id, blueprint_id, created_at
                     ) VALUES (
-                        :id, :tenant_id, :department_id, :persona_type, :display_name, :status, :job_title_id, now()
+                        :id, :tenant_id, :department_id, :persona_type, :display_name, :status,
+                        :job_title_id, :blueprint_id, now()
                     );
                 """),
                 {
@@ -907,6 +939,35 @@ async def create_agent(
                     "display_name": req.display_name.strip(),
                     "status": req.status if req.status in ("active", "paused", "error") else "active",
                     "job_title_id": resolved_job_title_id,
+                    "blueprint_id": resolved_blueprint_id,
+                }
+            )
+
+            # Catat ke audit_logs dengan blueprint_id sebagai referensi
+            conn.execute(
+                sa.text("""
+                    INSERT INTO audit_logs (
+                        tenant_id, actor_type, actor_id, action,
+                        resource_type, resource_id, payload_after
+                    ) VALUES (
+                        :tenant_id, 'human_user', :actor_id, 'workforce.agent.created',
+                        'ai_agents', :res_id,
+                        jsonb_build_object(
+                            'display_name', :dname,
+                            'persona_type', :persona,
+                            'job_title_id', :job_title_id,
+                            'blueprint_id', :blueprint_id
+                        )
+                    );
+                """),
+                {
+                    "tenant_id": tenant_id,
+                    "actor_id": context.user_id or "00000000-0000-0000-0000-000000000001",
+                    "res_id": new_id,
+                    "dname": req.display_name.strip(),
+                    "persona": req.persona_type.strip(),
+                    "job_title_id": resolved_job_title_id,
+                    "blueprint_id": resolved_blueprint_id,
                 }
             )
 
@@ -939,6 +1000,8 @@ async def create_agent(
                 job_title_id=resolved_job_title_id,
                 job_title_name=title_row["title_name"] if title_row else None,
                 job_title_code=title_row["title_code"] if title_row else None,
+                blueprint_id=resolved_blueprint_id,
+                blueprint_name=blueprint_name,
                 category_tag=title_row["category_tag"] if title_row else None,
                 structural_role_name=title_row["structural_role_name"] if title_row else None,
                 level_code=title_row["level_code"] if title_row else None,
