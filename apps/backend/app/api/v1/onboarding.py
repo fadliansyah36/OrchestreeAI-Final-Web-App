@@ -9,7 +9,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 from app.authz.pdp import (
@@ -19,7 +20,7 @@ from app.authz.pdp import (
     public_endpoint,
 )
 from app.core.database import get_database_engine, tenant_tx
-from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
+from app.core.security import AuthenticatedTenantContext, get_current_tenant_context, revoke_token
 from app.services.company_code import generate_company_code, hash_company_code
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,45 @@ async def verify_company_code_endpoint(code: str):
         logger.error(f"Error checking company code: {e}")
         return {"valid": False, "error": "Gagal memverifikasi kode perusahaan."}
 
+
+@auth_router.post(
+    "/logout",
+    summary="Logout dan Pencabutan Sesi (Revocation Registry)",
+    dependencies=[Depends(public_endpoint("auth.logout"))]
+)
+async def logout_endpoint(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Mengakhiri sesi dan mencabut token secara permanen (PRD v2.2 Bagian 15 & 16):
+    - Token dicatat ke blacklist revocation registry
+    - Cookie otentikasi dihapus dengan atribut keamanan ketat
+    """
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    cookie_token = (
+        request.cookies.get("sb-access-token")
+        or request.cookies.get("orchestree_auth_token")
+        or request.cookies.get("orchestree_admin_token")
+    )
+    target_token = token or cookie_token
+    if target_token:
+        revoke_token(target_token, reason="user_logout")
+
+    response = JSONResponse(
+        content={
+            "status": "success",
+            "message": "Sesi berhasil diakhiri secara aman dan token telah dicabut.",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    response.delete_cookie("sb-access-token", path="/")
+    response.delete_cookie("orchestree_auth_token", path="/")
+    response.delete_cookie("orchestree_admin_token", path="/")
+    response.delete_cookie("orchestree_mfa_verified", path="/")
+    return response
 
 
 class RegisterTenantRequest(BaseModel):

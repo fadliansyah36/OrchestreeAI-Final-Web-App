@@ -27,7 +27,7 @@ import logging
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Header, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 import httpx
 import sqlalchemy as sa
 
@@ -66,10 +66,18 @@ tenant_summary_router = APIRouter(prefix="/api/v1/tenants", tags=["Tenant Credit
 
 
 # =============================================================================
-# PYDANTIC SCHEMAS
+# PYDANTIC SCHEMAS (STRICT MODE & EXTRA FORBID)
 # =============================================================================
 
-class TopUpRequest(BaseModel):
+class StrictBillingRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ChangeSubscriptionTierRequest(StrictBillingRequestModel):
+    plan_code: str = Field(..., min_length=2, max_length=50, pattern=r"^[A-Za-z0-9_-]+$", description="Kode paket tujuan")
+
+
+class TopUpRequest(StrictBillingRequestModel):
     tenant_id: Optional[str] = Field(None, description="ID Organisasi/Tenant")
     amount: Decimal = Field(..., gt=0, description="Nominal top up dalam mata uang IDR")
     payment_gateway: str = Field("midtrans", description="Pilihan gateway: midtrans atau xendit")
@@ -88,9 +96,9 @@ class TopUpResponse(BaseModel):
     client_key: Optional[str] = None
 
 
-class SimulatePaymentRequest(BaseModel):
-    invoice_number: str = Field(..., description="Nomor faktur yang akan disettle")
-    payment_reference: Optional[str] = Field(None, description="ID transaksi referensi dari gateway")
+class SimulatePaymentRequest(StrictBillingRequestModel):
+    invoice_number: str = Field(..., min_length=3, max_length=100, description="Nomor faktur yang akan disettle")
+    payment_reference: Optional[str] = Field(None, max_length=100, description="ID transaksi referensi dari gateway")
 
 
 class CreditWalletSummaryResponse(BaseModel):
@@ -102,96 +110,96 @@ class CreditWalletSummaryResponse(BaseModel):
     low_balance_warning: bool
 
 
-class EstimateCreditRequest(BaseModel):
-    activity_code: str = Field(..., description="Kode aktivitas AI dari ai_activity_types")
-    complexity_code: str = Field("medium", description="Tingkat kompleksitas: low, medium, high, very_high")
-    llm_model_id: str = Field("default", description="Model LLM identifier atau ID")
-    tool_risk_tier: Optional[str] = Field(None, description="Risk tier MCP tool jika ada: low, medium, high")
-    execution_mode: str = Field("single_step", description="Mode eksekusi: single_step, multi_step, autonomous")
+class EstimateCreditRequest(StrictBillingRequestModel):
+    activity_code: str = Field(..., min_length=2, max_length=100, description="Kode aktivitas AI dari ai_activity_types")
+    complexity_code: str = Field("medium", max_length=50, description="Tingkat kompleksitas: low, medium, high, very_high")
+    llm_model_id: str = Field("default", max_length=100, description="Model LLM identifier atau ID")
+    tool_risk_tier: Optional[str] = Field(None, max_length=50, description="Risk tier MCP tool jika ada: low, medium, high")
+    execution_mode: str = Field("single_step", max_length=50, description="Mode eksekusi: single_step, multi_step, autonomous")
 
 
-class ReserveCreditApiRequest(BaseModel):
+class ReserveCreditApiRequest(StrictBillingRequestModel):
     tenant_id: Optional[str] = Field(None, description="ID organisasi/tenant")
     estimate: CreditEstimate = Field(..., description="Hasil kalkulasi estimate_credit_cost")
-    activity_type_id: str = Field(..., description="ID atau kode tipe aktivitas AI")
-    reference_type: str = Field("ai_task", description="Tipe referensi tugas AI")
-    reference_id: Optional[str] = Field(None, description="ID referensi konteks tugas")
-    execution_ref: Optional[str] = Field(None, description="ID workflow execution atau tool invocation")
+    activity_type_id: str = Field(..., min_length=2, max_length=100, description="ID atau kode tipe aktivitas AI")
+    reference_type: str = Field("ai_task", max_length=50, description="Tipe referensi tugas AI")
+    reference_id: Optional[str] = Field(None, max_length=100, description="ID referensi konteks tugas")
+    execution_ref: Optional[str] = Field(None, max_length=100, description="ID workflow execution atau tool invocation")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class ConsumeCreditApiRequest(BaseModel):
-    reservation_id: str = Field(..., description="ID token reservasi")
+class ConsumeCreditApiRequest(StrictBillingRequestModel):
+    reservation_id: str = Field(..., min_length=3, max_length=100, description="ID token reservasi")
     tenant_id: str = Field(..., description="ID organisasi/tenant")
     actual_cost: float = Field(..., ge=0, description="Total kredit AI aktual yang dikonsumsi")
-    execution_ref: Optional[str] = Field(None, description="ID referensi eksekusi workflow/tool")
+    execution_ref: Optional[str] = Field(None, max_length=100, description="ID referensi eksekusi workflow/tool")
 
 
-class RefundCreditApiRequest(BaseModel):
-    reservation_id: str = Field(..., description="ID token reservasi yang akan dikembalikan")
+class RefundCreditApiRequest(StrictBillingRequestModel):
+    reservation_id: str = Field(..., min_length=3, max_length=100, description="ID token reservasi yang akan dikembalikan")
     tenant_id: str = Field(..., description="ID organisasi/tenant")
-    reason: str = Field("Eksekusi dibatalkan atau gagal", description="Alasan pengembalian reservasi")
+    reason: str = Field("Eksekusi dibatalkan atau gagal", max_length=500, description="Alasan pengembalian reservasi")
 
 
-class TenantSubscriptionOverrideRequest(BaseModel):
-    tenant_id: str = Field(..., description="ID tenant yang akan di-override")
+class TenantSubscriptionOverrideRequest(StrictBillingRequestModel):
+    tenant_id: str = Field(..., min_length=3, max_length=100, description="ID tenant yang akan di-override")
     is_unlimited_override: bool = Field(..., description="True untuk akun unlimited tanpa batas kredit")
-    unlimited_reason: Optional[str] = Field(None, description="Alasan wajib diisi jika is_unlimited_override=true")
+    unlimited_reason: Optional[str] = Field(None, max_length=500, description="Alasan wajib diisi jika is_unlimited_override=true")
 
 
-class SubscriptionPlanUpdatePayload(BaseModel):
-    display_name: Optional[str] = None
-    monthly_price_idr: Optional[float] = None
-    price_monthly: Optional[float] = None
-    ai_credit_allowance: Optional[float] = None
-    human_staff_limit: Optional[int] = None
-    ai_agent_limit: Optional[int] = None
+class SubscriptionPlanUpdatePayload(StrictBillingRequestModel):
+    display_name: Optional[str] = Field(None, max_length=100)
+    monthly_price_idr: Optional[float] = Field(None, ge=0)
+    price_monthly: Optional[float] = Field(None, ge=0)
+    ai_credit_allowance: Optional[float] = Field(None, ge=0)
+    human_staff_limit: Optional[int] = Field(None, ge=0)
+    ai_agent_limit: Optional[int] = Field(None, ge=0)
     is_trial: Optional[bool] = None
-    trial_duration_days: Optional[int] = None
+    trial_duration_days: Optional[int] = Field(None, ge=0)
     is_custom_quote: Optional[bool] = None
-    display_order: Optional[int] = None
+    display_order: Optional[int] = Field(None, ge=0)
 
 
-class FacilityMatrixCellUpdate(BaseModel):
-    plan_id: str
-    facility_key: str
-    level: str  # 'none','basic','advanced','enterprise','custom','limited','unlimited'
+class FacilityMatrixCellUpdate(StrictBillingRequestModel):
+    plan_id: str = Field(..., min_length=3, max_length=100)
+    facility_key: str = Field(..., min_length=2, max_length=100)
+    level: str = Field(..., max_length=50)  # 'none','basic','advanced','enterprise','custom','limited','unlimited'
 
 
-class FacilityMatrixBatchUpdatePayload(BaseModel):
+class FacilityMatrixBatchUpdatePayload(StrictBillingRequestModel):
     updates: List[FacilityMatrixCellUpdate]
 
 
-class ActivityTypeUpdatePayload(BaseModel):
-    display_name: Optional[str] = None
+class ActivityTypeUpdatePayload(StrictBillingRequestModel):
+    display_name: Optional[str] = Field(None, max_length=100)
     base_work_unit_min: float = Field(..., gt=0)
     base_work_unit_max: float = Field(..., gt=0)
 
 
-class FactorMultiplierUpdatePayload(BaseModel):
+class FactorMultiplierUpdatePayload(StrictBillingRequestModel):
     multiplier: float = Field(..., gt=0)
 
 
-class CreditTopupPackagePayload(BaseModel):
-    name: str = Field(..., min_length=2)
+class CreditTopupPackagePayload(StrictBillingRequestModel):
+    name: str = Field(..., min_length=2, max_length=100)
     credit_amount: float = Field(..., gt=0)
     price_idr: float = Field(..., ge=0)
     validity_days: int = Field(..., gt=0)
     is_active: bool = True
 
 
-class ManualCreditAdjustmentPayload(BaseModel):
-    tenant_id: str = Field(..., description="ID tenant tujuan penyesuaian kredit")
+class ManualCreditAdjustmentPayload(StrictBillingRequestModel):
+    tenant_id: str = Field(..., min_length=3, max_length=100, description="ID tenant tujuan penyesuaian kredit")
     amount: float = Field(..., description="Nominal penyesuaian kredit (positif atau negatif)")
-    reason: str = Field(..., min_length=3, description="Alasan wajib penyesuaian kredit")
+    reason: str = Field(..., min_length=3, max_length=500, description="Alasan wajib penyesuaian kredit")
 
 
-class TestCreditEstimatePayload(BaseModel):
-    activity_code: str
-    complexity_code: str = "medium"
-    model_identifier: str = "gemini-1.5-flash"
-    tool_risk_tier: Optional[str] = None
-    execution_mode: str = "single_step"
+class TestCreditEstimatePayload(StrictBillingRequestModel):
+    activity_code: str = Field(..., min_length=2, max_length=100)
+    complexity_code: str = Field("medium", max_length=50)
+    model_identifier: str = Field("gemini-1.5-flash", max_length=100)
+    tool_risk_tier: Optional[str] = Field(None, max_length=50)
+    execution_mode: str = Field("single_step", max_length=50)
 
 
 # =============================================================================
@@ -498,9 +506,9 @@ async def get_tenant_subscription_tier(tenant_id: str):
 
 
 @tenant_summary_router.post("/{tenant_id}/subscription/change-tier", dependencies=[Depends(require_capability("billing.credits.manage"))])
-async def change_tenant_subscription_tier(tenant_id: str, payload: Dict[str, Any]):
+async def change_tenant_subscription_tier(tenant_id: str, payload: ChangeSubscriptionTierRequest):
     """Mengubah tier langganan tenant."""
-    target_plan_code = payload.get("plan_code", "GROWTH").upper()
+    target_plan_code = payload.plan_code.upper()
     engine = get_database_engine()
     with engine.connect() as conn:
         with conn.begin():

@@ -12,10 +12,11 @@ from decimal import Decimal
 from typing import Optional, Dict, Any, AsyncGenerator
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.authz.pdp import authorize, SubjectContext, ResourceContext
 from app.core.model_router.router import get_model_router, ModelRouterRequest
+from app.core.security import wrap_untrusted_external_content, sanitize_ai_output
 from app.domains.billing.credits import reserve_credit, consume_credit, refund_credit
 from app.domains.billing.credit_engine import estimate_credit_cost
 
@@ -25,16 +26,18 @@ router = APIRouter(prefix="/api/v1/chat", tags=["Ask AI & Chat Streaming"])
 
 
 class ChatMessageRequest(BaseModel):
-    message: str = Field(..., description="Pesan pertanyaan dari staf")
-    tenant_id: str = Field(..., description="ID Tenant/Organisasi")
-    membership_id: Optional[str] = Field(None, description="ID Membership staf")
-    session_id: Optional[str] = Field(None, description="ID Sesi percakapan")
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(..., min_length=1, max_length=10000, description="Pesan pertanyaan dari staf")
+    tenant_id: str = Field(..., min_length=3, max_length=100, description="ID Tenant/Organisasi")
+    membership_id: Optional[str] = Field(None, max_length=100, description="ID Membership staf")
+    session_id: Optional[str] = Field(None, max_length=100, description="ID Sesi percakapan")
     system_prompt: Optional[str] = Field(
         "Anda adalah asisten kognitif cerdas OrchestreeAI. Berikan jawaban yang tepat, ringkas, dan profesional.",
+        max_length=2000,
         description="Petunjuk sistem",
     )
-    preferred_provider: Optional[str] = Field(None, description="nvidia, openrouter, gemini")
-    preferred_model: Optional[str] = Field(None, description="Model LLM spesifik")
+    preferred_provider: Optional[str] = Field(None, max_length=50, description="nvidia, openrouter, gemini")
+    preferred_model: Optional[str] = Field(None, max_length=100, description="Model LLM spesifik")
 
 
 @router.post("/messages")
@@ -103,12 +106,17 @@ async def stream_chat_message(
             detail=f"Saldo kredit tidak mencukupi atau dompet kredit bermasalah: {str(e)}",
         )
 
-    # 3. Model Router Stream Generator
+    # 3. Model Router Stream Generator (Anti-Prompt-Injection & Output Sanitization)
     router_inst = get_model_router()
+    secure_prompt = wrap_untrusted_external_content(
+        content=payload.message,
+        source_type="chat_user_input",
+        source_id=user_id,
+    )
     req = ModelRouterRequest(
         tenant_id=payload.tenant_id,
         task_type="text_generation",
-        prompt=payload.message,
+        prompt=secure_prompt,
         system_prompt=payload.system_prompt,
         preferred_provider=payload.preferred_provider,
         preferred_model=payload.preferred_model,
@@ -130,7 +138,8 @@ async def stream_chat_message(
             async for chunk in router_inst.stream_generate(req):
                 ev_type = chunk.get("event", "token")
                 if ev_type == "token":
-                    tok = chunk.get("token", "")
+                    raw_tok = chunk.get("token", "")
+                    tok = sanitize_ai_output(raw_tok)
                     collected_text.append(tok)
                     total_tokens += 1
                     last_provider = chunk.get("provider", last_provider)

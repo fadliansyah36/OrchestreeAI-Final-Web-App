@@ -9,6 +9,7 @@ import uuid
 import json
 from pathlib import Path
 from typing import Optional
+import logging
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 import sqlalchemy as sa
@@ -23,6 +24,7 @@ from app.core.security import (
 )
 from app.authz.pdp import public_endpoint, require_capability
 
+logger = logging.getLogger("orchestree.api.storage")
 router = APIRouter(prefix="/api/v1/storage", tags=["Storage & Uploads"])
 
 STORAGE_BASE_DIR = Path("apps/backend/storage_data")

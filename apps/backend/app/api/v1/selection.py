@@ -12,7 +12,7 @@ Menyediakan REST endpoint untuk:
 
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from app.authz.pdp import require_capability
 
 from app.domains.selection.models import (
@@ -30,41 +30,45 @@ router = APIRouter(
 )
 
 
-class CreateSelectionJobRequest(BaseModel):
-    title: str = Field(..., min_length=3, description="Judul pekerjaan seleksi")
-    instruction_prompt: Optional[str] = Field(default=None, description="Perintah instruksi evaluasi seleksi")
-    description: Optional[str] = Field(default=None, description="Deskripsi kualifikasi atau lingkup seleksi")
-    domain_category: Optional[str] = Field(default=None, description="Kategori domain: recruitment, supplier, finance, sales, general")
-    category: Optional[str] = Field(default=None, description="Kategori kompatibilitas mundur")
-    calibration_profile_id: Optional[str] = Field(default=None, description="UUID profil kalibrasi (jika ada)")
+class StrictSelectionRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CreateSelectionJobRequest(StrictSelectionRequestModel):
+    title: str = Field(..., min_length=3, max_length=200, description="Judul pekerjaan seleksi")
+    instruction_prompt: Optional[str] = Field(default=None, max_length=5000, description="Perintah instruksi evaluasi seleksi")
+    description: Optional[str] = Field(default=None, max_length=2000, description="Deskripsi kualifikasi atau lingkup seleksi")
+    domain_category: Optional[str] = Field(default=None, max_length=100, description="Kategori domain: recruitment, supplier, finance, sales, general")
+    category: Optional[str] = Field(default=None, max_length=100, description="Kategori kompatibilitas mundur")
+    calibration_profile_id: Optional[str] = Field(default=None, max_length=100, description="UUID profil kalibrasi (jika ada)")
     criteria: Optional[List[Dict[str, Any]]] = Field(default=None, description="Daftar kriteria evaluasi")
     weights: Optional[Dict[str, float]] = Field(default=None, description="Bobot kriteria awal")
     source_documents: Optional[List[Dict[str, Any]]] = Field(default=None, description="Dokumen awal yang disertakan")
 
 
-class UploadDocumentRequest(BaseModel):
-    document_name: Optional[str] = Field(default=None, description="Nama berkas atau label dokumen")
-    candidate_name: Optional[str] = Field(default=None, description="Nama kandidat atau vendor")
-    source_type: Optional[str] = Field(default="RESUME", description="Jenis berkas sumber (kompatibilitas)")
+class UploadDocumentRequest(StrictSelectionRequestModel):
+    document_name: Optional[str] = Field(default=None, max_length=200, description="Nama berkas atau label dokumen")
+    candidate_name: Optional[str] = Field(default=None, max_length=200, description="Nama kandidat atau vendor")
+    source_type: Optional[str] = Field(default="RESUME", max_length=100, description="Jenis berkas sumber (kompatibilitas)")
     source_channel: Optional[SourceChannel] = Field(default=SourceChannel.FILE_UPLOAD, description="Kanal sumber: file_upload, prompt_text, api, dst")
-    raw_text: Optional[str] = Field(default=None, description="Teks konten dokumen untuk ekstraksi")
-    file_url: Optional[str] = Field(default=None, description="URL berkas")
-    file_artifact_id: Optional[str] = Field(default=None, description="UUID berkas di file_artifacts")
+    raw_text: Optional[str] = Field(default=None, max_length=50000, description="Teks konten dokumen untuk ekstraksi")
+    file_url: Optional[str] = Field(default=None, max_length=2000, description="URL berkas")
+    file_artifact_id: Optional[str] = Field(default=None, max_length=100, description="UUID berkas di file_artifacts")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Metadata saluran tambahan")
 
 
-class ExecutePipelineRequest(BaseModel):
-    model_used: Optional[str] = Field(default="meta-llama/llama-3.3-70b-instruct", description="Identifier model LLM")
-    actor_id: Optional[str] = Field(default=None, description="UUID aktor pelaksana")
-    actor_type: Optional[str] = Field(default="human_user", description="Tipe aktor: human_user atau ai_agent")
+class ExecutePipelineRequest(StrictSelectionRequestModel):
+    model_used: Optional[str] = Field(default="meta-llama/llama-3.3-70b-instruct", max_length=100, description="Identifier model LLM")
+    actor_id: Optional[str] = Field(default=None, max_length=100, description="UUID aktor pelaksana")
+    actor_type: Optional[str] = Field(default="human_user", max_length=50, description="Tipe aktor: human_user atau ai_agent")
 
 
-class SubmitReviewRequest(BaseModel):
-    decision: Optional[str] = Field(default=None, description="Keputusan tinjauan: approved, rejected, overridden (atau ACCEPTED, OVERRIDDEN, REJECTED)")
-    decision_status: Optional[str] = Field(default=None, description="Status keputusan baru")
+class SubmitReviewRequest(StrictSelectionRequestModel):
+    decision: Optional[str] = Field(default=None, max_length=50, description="Keputusan tinjauan: approved, rejected, overridden (atau ACCEPTED, OVERRIDDEN, REJECTED)")
+    decision_status: Optional[str] = Field(default=None, max_length=50, description="Status keputusan baru")
     override_score: Optional[float] = Field(default=None, ge=0.0, le=100.0, description="Skor override manusia jika disesuaikan")
-    reviewer_notes: Optional[str] = Field(default=None, description="Catatan justifikasi tinjauan manusia")
-    reviewer_id: Optional[str] = Field(default=None, description="UUID reviewer manusia")
+    reviewer_notes: Optional[str] = Field(default=None, max_length=2000, description="Catatan justifikasi tinjauan manusia")
+    reviewer_id: Optional[str] = Field(default=None, max_length=100, description="UUID reviewer manusia")
 
 
 # ---------------------------------------------------------------------------

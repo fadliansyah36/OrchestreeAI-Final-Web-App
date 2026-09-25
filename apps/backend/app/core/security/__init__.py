@@ -106,12 +106,75 @@ async def get_current_tenant_context(
     )
 
 
+_revoked_token_hashes = set()
+
+
+def revoke_token(token: str, user_id: Optional[str] = None, reason: str = "logout") -> None:
+    """Mencatat token ke blacklist / revocation registry secara permanen."""
+    import hashlib
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    _revoked_token_hashes.add(token_hash)
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            with conn.begin():
+                conn.execute(
+                    sa.text("""
+                        CREATE TABLE IF NOT EXISTS auth_revoked_tokens (
+                            token_hash text PRIMARY KEY,
+                            user_id text,
+                            reason text,
+                            revoked_at timestamptz DEFAULT now()
+                        );
+                    """)
+                )
+                conn.execute(
+                    sa.text("""
+                        INSERT INTO auth_revoked_tokens (token_hash, user_id, reason, revoked_at)
+                        VALUES (:th, :uid, :reason, now())
+                        ON CONFLICT (token_hash) DO NOTHING;
+                    """),
+                    {"th": token_hash, "uid": user_id, "reason": reason}
+                )
+    except Exception:
+        pass
+
+
+def is_token_revoked(token: str) -> bool:
+    """Memeriksa apakah token telah dicabut / logout."""
+    import hashlib
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if token_hash in _revoked_token_hashes:
+        return True
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.text("SELECT token_hash FROM auth_revoked_tokens WHERE token_hash = :th LIMIT 1;"),
+                {"th": token_hash}
+            ).fetchone()
+            if row:
+                _revoked_token_hashes.add(token_hash)
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool]:
     """
     Mengekstrak klaim user_id, tenant_id, roles, dan mfa_verified dari token.
     Mendukung format token uji harness 'jwt.<user_id>.<tenant_id>.<sig>'
     serta format JWT standar (Supabase).
+    Memverifikasi masa berlaku (exp) dan status pencabutan (revocation).
     """
+    import time
+    if is_token_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token sesi telah dicabut atau telah keluar (logged out)."
+        )
+
     parts = token.split(".")
     if len(parts) >= 3 and parts[0] == "jwt":
         # Format harness: jwt.<user_id>.<tenant_id>.<sig>
@@ -130,11 +193,19 @@ def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool]:
         payload_b64 = parts[1]
         padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
+        exp = payload.get("exp")
+        if exp and time.time() > float(exp):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token otentikasi telah kedaluwarsa (expired)."
+            )
         user_id = payload.get("sub", "usr_default_anon")
         tenant_id = payload.get("app_metadata", {}).get("tenant_id") or payload.get("user_metadata", {}).get("tenant_id", "tenant_default_anon")
         roles = payload.get("app_metadata", {}).get("roles", ["STAFF_HUMAN"])
         is_mfa = payload.get("aal") == "aal2"
         return user_id, tenant_id, roles, is_mfa
+    except HTTPException:
+        raise
     except Exception:
         return "usr_default_anon", "tenant_default_anon", ["STAFF_HUMAN"], False
 

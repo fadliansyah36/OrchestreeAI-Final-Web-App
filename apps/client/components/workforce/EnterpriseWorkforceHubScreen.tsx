@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { TenantRegistrationResponse } from '../../types';
 import {
   ShieldCheck,
   RefreshCw,
@@ -74,6 +75,7 @@ interface BriefingRecord {
 }
 
 interface EnterpriseWorkforceHubScreenProps {
+  tenant?: TenantRegistrationResponse | null;
   tenantId?: string;
   tenantDisplayName?: string;
   onBack?: () => void;
@@ -81,11 +83,14 @@ interface EnterpriseWorkforceHubScreenProps {
 }
 
 export const EnterpriseWorkforceHubScreen: React.FC<EnterpriseWorkforceHubScreenProps> = ({
-  tenantId = 'd1159d6d-0044-42ea-8007-d549a0011402',
-  tenantDisplayName = 'Organisasi Enterprise',
+  tenant,
+  tenantId: propTenantId,
+  tenantDisplayName: propTenantDisplayName,
   onBack,
   isEnterpriseTier = true,
 }) => {
+  const tenantId = tenant?.tenant_id || propTenantId || 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const tenantDisplayName = tenant?.display_name || tenant?.legal_name || propTenantDisplayName || 'Organisasi Enterprise';
   const [briefings, setBriefings] = useState<BriefingRecord[]>([]);
   const [selectedBriefing, setSelectedBriefing] = useState<BriefingRecord | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
