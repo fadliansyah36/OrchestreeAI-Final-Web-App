@@ -19,6 +19,7 @@ import hashlib
 
 import sqlalchemy as sa
 from app.core.database import get_database_engine, tenant_tx
+from app.authz.abac import ABACSubject, ABACResource, check_ai_data_permission
 from app.core.orchestration.engine import OrchestrationEngine, WorkflowDispatchRequest, WorkflowGraphSpec, WorkflowNodeSpec
 from app.domains.selection.models import (
     PipelineStage,
@@ -117,6 +118,188 @@ class SelectionDomainService:
         return WorkflowGraphSpec(entry_node="SELECTION_READ", nodes=nodes)
 
     @classmethod
+    def verify_selection_abac_permission(
+        cls,
+        tenant_id: str,
+        domain_category: str,
+        agent_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+        engine: Optional[sa.engine.Engine] = None,
+    ) -> Dict[str, Any]:
+        """
+        Menegakkan Data Access Control (ABAC, PRD v2.2 Bagian 3.3 & Bagian A.5) untuk Agen AI pada Seleksi.
+        AI Agent Persona yang menjalankan seleksi hanya boleh membaca data yang sesuai ai_data_permissions-nya.
+        Default Zero-Trust: DENIED_NO_POLICY bila tidak ada baris kebijakan izin data eksplisit.
+        Penolakan dicatat ke audit_logs dan company_context_events.
+        """
+        if not agent_id:
+            return {"authorized": True, "allowed_fields": None}
+
+        eng = engine or get_database_engine()
+        agent_info = None
+        try:
+            with eng.connect() as conn:
+                conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                try:
+                    t_uuid = str(uuid.UUID(str(tenant_id)))
+                    conn.execute(sa.text("SELECT set_config('app.tenant_id', :val, true);"), {"val": t_uuid})
+                except Exception:
+                    pass
+
+                stmt = sa.text("""
+                    SELECT a.id, a.name, a.role, a.department_id,
+                           COALESCE(jt.title, a.role) as job_title
+                    FROM ai_agents a
+                    LEFT JOIN ai_agent_job_titles jt ON jt.id = a.job_title_id
+                    WHERE a.id = :agent_id;
+                """)
+                row = conn.execute(stmt, {"agent_id": str(agent_id)}).fetchone()
+                if row:
+                    agent_info = {
+                        "id": str(row[0]),
+                        "name": row[1],
+                        "role": row[2],
+                        "department_id": str(row[3]) if row[3] else None,
+                        "job_title": row[4],
+                    }
+        except Exception as ex:
+            logger.warning(f"Error querying agent info for ABAC check: {ex}")
+
+        agent_name = agent_info["name"] if agent_info else f"Agent-{str(agent_id)[:8]}"
+        raw_role = (agent_info["role"] if agent_info else "ai_agent").lower()
+        job_title_lower = (agent_info["job_title"] if agent_info else "").lower()
+
+        # Pemetaan persona struktural
+        if "sales" in raw_role or "sales" in job_title_lower or "penjualan" in job_title_lower:
+            persona_type = "sales_agent"
+        elif "finance" in raw_role or "finance" in job_title_lower or "keuangan" in job_title_lower or "akuntan" in job_title_lower:
+            persona_type = "finance_agent"
+        elif "hr" in raw_role or "talent" in raw_role or "rekrutmen" in job_title_lower or "sdm" in job_title_lower:
+            persona_type = "hr_agent"
+        elif "procurement" in raw_role or "vendor" in raw_role or "supplier" in raw_role or "pengadaan" in job_title_lower:
+            persona_type = "procurement_agent"
+        else:
+            persona_type = raw_role or "ai_agent"
+
+        # Pemetaan tipe resource & klasifikasi data berdasarkan domain_category
+        cat = (domain_category or "general").lower()
+        if cat == "finance":
+            res_type = "financial_records"
+            data_class = "confidential"
+        elif cat == "sales":
+            res_type = "customer_pii"
+            data_class = "confidential"
+        elif cat == "recruitment":
+            res_type = "knowledge_doc"
+            data_class = "internal"
+        elif cat == "supplier":
+            res_type = "database_table"
+            data_class = "internal"
+        else:
+            res_type = "selection_dataset"
+            data_class = "internal"
+
+        subject = ABACSubject(
+            tenant_id=tenant_id,
+            agent_id=str(agent_id),
+            agent_persona_type=persona_type,
+            actor_type="ai_agent",
+            roles=["AI_AGENT"],
+            department_id=agent_info.get("department_id") if agent_info else None,
+        )
+
+        resource = ABACResource(
+            resource_type=res_type,
+            resource_identifier=cat,
+            data_classification=data_class,
+            owner_tenant_id=tenant_id,
+        )
+
+        decision = check_ai_data_permission(
+            subject=subject,
+            action="data.read",
+            resource=resource,
+            context={"job_id": job_id, "domain_category": cat},
+            engine=eng,
+            log_audit=True,
+        )
+
+        if not decision.is_authorized:
+            now_dt = datetime.now(timezone.utc)
+            try:
+                with eng.connect() as conn:
+                    with conn.begin():
+                        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                        try:
+                            t_uuid = str(uuid.UUID(str(tenant_id)))
+                            conn.execute(sa.text("SELECT set_config('app.tenant_id', :val, true);"), {"val": t_uuid})
+                        except Exception:
+                            t_uuid = str(tenant_id)
+                        event_id = str(uuid.uuid4())
+                        conn.execute(
+                            sa.text("""
+                                INSERT INTO company_context_events (
+                                    id, tenant_id, event_type, title, summary,
+                                    correlation_score, source_types, source_signals,
+                                    insights, recommended_actions, status, created_at, updated_at
+                                ) VALUES (
+                                    :id, :tenant_id, 'SELECTION_ABAC_DENIED',
+                                    :title, :summary,
+                                    1.0000, ARRAY['Native'], '[]'::jsonb,
+                                    :insights::jsonb, '[]'::jsonb, 'FLAGGED', :now_dt, :now_dt
+                                );
+                            """),
+                            {
+                                "id": event_id,
+                                "tenant_id": t_uuid,
+                                "title": f"Penolakan Akses Data ABAC: {agent_name} -> {cat.upper()}",
+                                "summary": (
+                                    f"Agen AI '{agent_name}' (persona: {persona_type}) ditolak saat mengevaluasi "
+                                    f"seleksi domain '{cat}': {decision.reason}"
+                                ),
+                                "insights": json.dumps({
+                                    "selection_job_id": job_id,
+                                    "job_id": job_id,
+                                    "agent_id": str(agent_id),
+                                    "agent_name": agent_name,
+                                    "persona_type": persona_type,
+                                    "domain_category": cat,
+                                    "resource_type": res_type,
+                                    "decision": decision.decision,
+                                    "reason": decision.reason,
+                                }),
+                                "now_dt": now_dt,
+                            },
+                        )
+            except Exception as exc:
+                logger.warning(f"Gagal mencatat event SELECTION_ABAC_DENIED ke company_context_events: {exc}")
+
+            raise PermissionError(
+                f"Akses data seleksi ditolak (ABAC): Persona '{persona_type}' (Agen {agent_name}) "
+                f"tidak memiliki izin membaca data domain '{cat}'. Kebijakan Zero-Trust mewajibkan ai_data_permission_policies eksplisit."
+            )
+
+        allowed_fields = None
+        if decision.matched_policy and isinstance(decision.matched_policy, dict):
+            conds = decision.matched_policy.get("conditions") or {}
+            if isinstance(conds, str):
+                try:
+                    conds = json.loads(conds)
+                except Exception:
+                    conds = {}
+            if isinstance(conds, dict) and "allowed_fields" in conds:
+                allowed_fields = conds["allowed_fields"]
+
+        return {
+            "authorized": True,
+            "persona_type": persona_type,
+            "agent_name": agent_name,
+            "decision": decision.decision,
+            "policy_id": decision.policy_id,
+            "allowed_fields": allowed_fields,
+        }
+
+    @classmethod
     def create_job(
         cls,
         tenant_id: str,
@@ -131,6 +314,15 @@ class SelectionDomainService:
     ) -> Dict[str, Any]:
         """Membuat pekerjaan seleksi cerdas baru bertenant."""
         job_id = str(uuid.uuid4())
+
+        # Penegakan ABAC awal jika pekerjaan dipicu langsung oleh Agen AI
+        if initiated_by_agent_id:
+            cls.verify_selection_abac_permission(
+                tenant_id=tenant_id,
+                domain_category=domain_category,
+                agent_id=initiated_by_agent_id,
+                job_id=job_id,
+            )
 
         with tenant_tx(tenant_id) as conn:
             stmt = sa.text("""
@@ -209,6 +401,41 @@ class SelectionDomainService:
                             "src_type": c.get("source_type") or "user_prompt",
                         },
                     )
+
+            # Catat pembuatan pekerjaan ke Audit Ledger (company_context_events)
+            ev_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO company_context_events (
+                        id, tenant_id, event_type, title, summary,
+                        correlation_score, source_types, source_signals,
+                        insights, recommended_actions, status, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, 'SELECTION_JOB_CREATED',
+                        :title, :summary,
+                        1.0000, ARRAY['Native'], '[]'::jsonb,
+                        :insights::jsonb, '[]'::jsonb, 'RESOLVED', now(), now()
+                    );
+                """),
+                {
+                    "id": ev_id,
+                    "tenant_id": tenant_id,
+                    "title": f"Pekerjaan Seleksi Dibuat: {title}",
+                    "summary": f"Pekerjaan seleksi domain '{domain_category}' dibuat dengan prompt instruksi: {instruction_prompt[:120]}.",
+                    "insights": json.dumps({
+                        "selection_job_id": job_id,
+                        "job_id": job_id,
+                        "lifecycle_stage": "JOB_CREATION",
+                        "title": title,
+                        "domain_category": domain_category,
+                        "instruction_prompt": instruction_prompt,
+                        "initiated_by_agent_id": str(initiated_by_agent_id) if initiated_by_agent_id else None,
+                        "initiated_by_membership_id": str(initiated_by_membership_id) if initiated_by_membership_id else None,
+                        "criteria_count": len(criteria) if criteria else 0,
+                        "documents_count": len(source_documents) if source_documents else 0,
+                    }),
+                },
+            )
 
         return cls.get_job_detail(tenant_id, job_id)
 
@@ -402,6 +629,38 @@ class SelectionDomainService:
                 },
             )
 
+            # Catat pendaftaran dokumen dataset ke Audit Ledger
+            ev_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO company_context_events (
+                        id, tenant_id, event_type, title, summary,
+                        correlation_score, source_types, source_signals,
+                        insights, recommended_actions, status, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, 'SELECTION_DOCUMENT_INGESTED',
+                        :title, :summary,
+                        1.0000, ARRAY['Native'], '[]'::jsonb,
+                        :insights::jsonb, '[]'::jsonb, 'RESOLVED', now(), now()
+                    );
+                """),
+                {
+                    "id": ev_id,
+                    "tenant_id": tenant_id,
+                    "title": f"Dokumen Sumber Didaftarkan: {document_name or 'Dokumen Sumber'}",
+                    "summary": f"Dokumen '{document_name or 'Dokumen Sumber'}' berhasil didaftarkan via kanal {source_channel}.",
+                    "insights": json.dumps({
+                        "selection_job_id": job_id,
+                        "job_id": job_id,
+                        "lifecycle_stage": "DATASET_INGESTION",
+                        "document_id": doc_id,
+                        "document_name": document_name or "Dokumen Sumber",
+                        "source_channel": source_channel,
+                        "file_artifact_id": file_artifact_id,
+                    }),
+                },
+            )
+
         return {
             "id": doc_id,
             "selection_job_id": job_id,
@@ -421,8 +680,22 @@ class SelectionDomainService:
     ) -> Dict[str, Any]:
         """
         Menjalankan 10 alur pipeline seleksi melalui Cognitive Orchestration Engine (WorkflowNode graph).
+        Menegakkan ABAC izin data jika dipicu/dieksekusi oleh AI Agent.
         """
         job_info = cls.get_job_detail(tenant_id, job_id)
+        domain_cat = job_info.get("domain_category", "general")
+
+        # 1. Evaluasi Kontrol Akses Data (ABAC) untuk Agen AI Persona
+        target_agent = actor_id if (actor_type == "ai_agent" and actor_id) else job_info.get("initiated_by_agent_id")
+        abac_allowed_fields = None
+        if target_agent:
+            abac_res = cls.verify_selection_abac_permission(
+                tenant_id=tenant_id,
+                domain_category=domain_cat,
+                agent_id=target_agent,
+                job_id=job_id,
+            )
+            abac_allowed_fields = abac_res.get("allowed_fields")
 
         # Ambil dokumen sumber
         with tenant_tx(tenant_id) as conn:
@@ -445,10 +718,11 @@ class SelectionDomainService:
         # Inisialisasi context kerja untuk 10 tahap
         context_data = {
             "selection_job_id": job_id,
-            "domain_category": job_info.get("domain_category", "general"),
+            "domain_category": domain_cat,
             "instruction_prompt": job_info.get("instruction_prompt", ""),
             "criteria": job_info.get("criteria", []),
             "source_documents": source_docs,
+            "allowed_fields": abac_allowed_fields,
         }
 
         # Susun graf alur kerja 10 tahap
@@ -488,6 +762,76 @@ class SelectionDomainService:
             start_node_id=graph_spec.entry_node,
             initial_context=context_data,
         )
+
+        # Ambil hasil penilaian untuk pencatatan jejak audit siklus hidup
+        scoring_results = cls.get_job_results(tenant_id, job_id)
+        top_cand = scoring_results[0]["entity_label"] if scoring_results else None
+        top_score = scoring_results[0]["total_score"] if scoring_results else 0.0
+
+        with tenant_tx(tenant_id) as conn:
+            # Catat eksekusi pipeline ke company_context_events
+            pipe_ev_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO company_context_events (
+                        id, tenant_id, event_type, title, summary,
+                        correlation_score, source_types, source_signals,
+                        insights, recommended_actions, status, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, 'SELECTION_PIPELINE_EXECUTED',
+                        :title, :summary,
+                        1.0000, ARRAY['Native'], '[]'::jsonb,
+                        :insights::jsonb, '[]'::jsonb, 'RESOLVED', now(), now()
+                    );
+                """),
+                {
+                    "id": pipe_ev_id,
+                    "tenant_id": tenant_id,
+                    "title": f"Pipeline Seleksi Dieksekusi: {job_info['title']}",
+                    "summary": f"Alur kerja 10 tahap pipeline seleksi dijalankan oleh {actor_type} ({target_agent or 'user'}).",
+                    "insights": json.dumps({
+                        "selection_job_id": job_id,
+                        "job_id": job_id,
+                        "lifecycle_stage": "PIPELINE_EXECUTION",
+                        "actor_id": str(target_agent) if target_agent else str(actor_id) if actor_id else None,
+                        "actor_type": actor_type,
+                        "execution_id": result.execution_id,
+                        "domain_category": domain_cat,
+                        "nodes_executed": result.nodes_executed,
+                    }),
+                },
+            )
+
+            # Catat hasil scoring ke company_context_events
+            score_ev_id = str(uuid.uuid4())
+            conn.execute(
+                sa.text("""
+                    INSERT INTO company_context_events (
+                        id, tenant_id, event_type, title, summary,
+                        correlation_score, source_types, source_signals,
+                        insights, recommended_actions, status, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, 'SELECTION_SCORING_COMPLETED',
+                        :title, :summary,
+                        1.0000, ARRAY['Native'], '[]'::jsonb,
+                        :insights::jsonb, '[]'::jsonb, 'RESOLVED', now(), now()
+                    );
+                """),
+                {
+                    "id": score_ev_id,
+                    "tenant_id": tenant_id,
+                    "title": f"Hasil Scoring Selesai: {job_info['title']}",
+                    "summary": f"Scoring & perangkingan selesai untuk {len(scoring_results)} entitas. Teratas: {top_cand} ({top_score}).",
+                    "insights": json.dumps({
+                        "selection_job_id": job_id,
+                        "job_id": job_id,
+                        "lifecycle_stage": "SCORING_RESULTS",
+                        "total_candidates": len(scoring_results),
+                        "top_candidate": top_cand,
+                        "top_score": top_score,
+                    }),
+                },
+            )
 
         return {
             "execution_id": result.execution_id,
@@ -697,7 +1041,9 @@ class SelectionDomainService:
                     "title": f"Persetujuan Final Seleksi: {job_row.title}",
                     "summary": approval_notes or f"Pekerjaan seleksi '{job_row.title}' telah disetujui secara final.",
                     "insights": json.dumps({
+                        "selection_job_id": job_id,
                         "job_id": job_id,
+                        "lifecycle_stage": "FINAL_APPROVAL",
                         "reviewer_id": reviewer_id,
                         "approval_notes": approval_notes,
                     }),
@@ -1113,6 +1459,8 @@ class SelectionDomainService:
         with open(file_path, "wb") as f:
             f.write(file_bytes)
 
+        download_url = f"/api/v1/tenants/{tenant_id}/selection/reports/download?filename={filename}"
+
         # Catat ke Audit Ledger (company_context_events)
         with tenant_tx(tenant_id) as conn:
             event_id = str(uuid.uuid4())
@@ -1135,18 +1483,19 @@ class SelectionDomainService:
                     "title": f"Ekspor Laporan Seleksi ({fmt.upper()}): {job_info.get('title')}",
                     "summary": f"Pengguna {user_id or 'admin'} mengekspor laporan tipe {report_type} dalam format {fmt.upper()}.",
                     "insights": json.dumps({
+                        "selection_job_id": job_id,
                         "job_id": job_id,
+                        "lifecycle_stage": "REPORT_EXPORT",
                         "format": fmt,
                         "report_type": report_type,
                         "filename": filename,
                         "size_bytes": len(file_bytes),
                         "user_id": user_id,
+                        "download_url": download_url,
                     }),
                     "now_dt": now_dt,
                 },
             )
-
-        download_url = f"/api/v1/tenants/{tenant_id}/selection/reports/download?filename={filename}"
 
         return {
             "status": "success",
@@ -1264,6 +1613,8 @@ class SelectionDomainService:
                     "insights": json.dumps({
                         "result_id": result_id,
                         "selection_job_id": job_id,
+                        "job_id": job_id,
+                        "lifecycle_stage": "HUMAN_APPROVAL",
                         "decision": norm_decision,
                         "previous_rank": prev_rank,
                         "new_rank": new_rank,
@@ -1969,4 +2320,141 @@ class SelectionDomainService:
                 {"id": profile_id, "tenant_id": tenant_id},
             )
         return {"status": "success", "deleted_profile_id": profile_id}
+
+    @classmethod
+    def get_job_audit_lifecycle(cls, tenant_id: str, job_id: str) -> Dict[str, Any]:
+        """
+        Mengambil jejak audit komprehensif seluruh siklus hidup pekerjaan seleksi:
+        - Prompt instruksi awal & kriteria berbobot
+        - Dataset dokumen sumber (selection_source_documents)
+        - AI Agent eksekutor beserta verifikasi ABAC
+        - Hasil komputasi scoring & perangkingan (selection_scoring_results)
+        - Keputusan persetujuan manusia & overrides (Human Review Gate)
+        - Riwayat ekspor berkas nyata (PDF, Excel, CSV)
+        - Rantai kronologis seluruh kejadian dari Audit Ledger (company_context_events)
+        """
+        job = cls.get_job_detail(tenant_id, job_id)
+        results = cls.get_job_results(tenant_id, job_id)
+
+        # Ambil agen eksekutor jika ada
+        agent_executor = None
+        agent_id = job.get("initiated_by_agent_id")
+        if agent_id:
+            try:
+                with tenant_tx(tenant_id) as conn:
+                    agent_stmt = sa.text("""
+                        SELECT a.id, a.name, a.role, a.department_id,
+                               COALESCE(jt.title, a.role) as job_title, d.name as department_name
+                        FROM ai_agents a
+                        LEFT JOIN ai_agent_job_titles jt ON jt.id = a.job_title_id
+                        LEFT JOIN departments d ON d.id = a.department_id
+                        WHERE a.id = :agent_id;
+                    """)
+                    ar = conn.execute(agent_stmt, {"agent_id": str(agent_id)}).fetchone()
+                    if ar:
+                        agent_executor = {
+                            "id": str(ar[0]),
+                            "name": ar[1],
+                            "role": ar[2],
+                            "department_id": str(ar[3]) if ar[3] else None,
+                            "job_title": ar[4],
+                            "department_name": ar[5] or "Operasional",
+                            "abac_verified": True,
+                        }
+            except Exception as e:
+                logger.warning(f"Error fetching agent executor for selection audit: {e}")
+
+        # Ambil tinjauan manusia (approvals / reviews / overrides)
+        reviews = []
+        for r in results:
+            if r.get("decision_status") in ["approved", "rejected", "overridden"] or r.get("reviewer_notes") or r.get("previous_rank_position") is not None:
+                reviews.append({
+                    "result_id": r["id"],
+                    "entity_label": r["entity_label"],
+                    "decision_status": r["decision_status"],
+                    "rank_position": r.get("rank_position"),
+                    "previous_rank_position": r.get("previous_rank_position"),
+                    "total_score": r.get("total_score"),
+                    "reviewer_notes": r.get("reviewer_notes"),
+                    "reviewer_id": r.get("reviewer_id"),
+                })
+
+        # Ambil seluruh kejadian ledger siklus hidup dari company_context_events
+        timeline = []
+        exports = []
+        with tenant_tx(tenant_id) as conn:
+            ev_stmt = sa.text("""
+                SELECT id, event_type, title, summary, status, insights, created_at
+                FROM company_context_events
+                WHERE tenant_id = :tenant_id
+                  AND (
+                    (insights->>'selection_job_id') = :job_id
+                    OR (insights->>'job_id') = :job_id
+                  )
+                ORDER BY created_at ASC;
+            """)
+            ev_rows = conn.execute(ev_stmt, {"tenant_id": tenant_id, "job_id": job_id}).fetchall()
+            for er in ev_rows:
+                ev_id = str(er[0])
+                ev_type = er[1]
+                ev_title = er[2]
+                ev_summary = er[3]
+                ev_status = er[4]
+                ev_insights = er[5] if isinstance(er[5], dict) else json.loads(er[5] or "{}")
+                ev_time = er[6].isoformat() if er[6] else None
+
+                timeline.append({
+                    "id": ev_id,
+                    "event_type": ev_type,
+                    "title": ev_title,
+                    "summary": ev_summary,
+                    "status": ev_status,
+                    "timestamp": ev_time,
+                    "insights": ev_insights,
+                })
+
+                if ev_type == "SELECTION_REPORT_EXPORTED":
+                    fname = ev_insights.get("filename")
+                    dl_url = ev_insights.get("download_url") or (f"/api/v1/tenants/{tenant_id}/selection/reports/download?filename={fname}" if fname else None)
+                    exports.append({
+                        "event_id": ev_id,
+                        "format": ev_insights.get("format"),
+                        "report_type": ev_insights.get("report_type"),
+                        "filename": fname,
+                        "size_bytes": ev_insights.get("size_bytes"),
+                        "download_url": dl_url,
+                        "exported_at": ev_time,
+                    })
+
+        return {
+            "selection_job_id": job_id,
+            "job_id": job_id,
+            "title": job.get("title"),
+            "domain_category": job.get("domain_category"),
+            "pipeline_stage": job.get("pipeline_stage"),
+            "stage_progress_pct": job.get("stage_progress_pct"),
+            "created_at": job.get("created_at"),
+            "completed_at": job.get("completed_at"),
+            "final_approved_at": job.get("final_approved_at"),
+            "prompt_instruction": {
+                "instruction_prompt": job.get("instruction_prompt"),
+                "criteria": job.get("criteria", []),
+                "weights": job.get("weights", {}),
+            },
+            "agent_executor": agent_executor,
+            "dataset_documents": job.get("documents", []),
+            "scoring_results": results,
+            "human_reviews": reviews,
+            "exports": exports,
+            "timeline": timeline,
+            "summary": {
+                "total_documents": len(job.get("documents", [])),
+                "total_entities_evaluated": len(results),
+                "total_reviews": len(reviews),
+                "total_exports": len(exports),
+                "total_events": len(timeline),
+                "is_final_approved": job.get("pipeline_stage") == "completed" or bool(job.get("final_approved_at")),
+            }
+        }
+
 

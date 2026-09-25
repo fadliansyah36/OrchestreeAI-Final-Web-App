@@ -17,7 +17,8 @@ import {
   ArrowRight,
   UserCheck,
 } from 'lucide-react';
-import { EmptyState, SkeletonLoader } from '@orchestree/ui';
+import { EmptyState, SkeletonLoader, AiSafetyNoticeBanner } from '@orchestree/ui';
+import { SelectionAuditLifecycleModal } from './SelectionAuditLifecycleModal';
 
 export interface CandidateReviewItem {
   id: string; // score_id or result_id
@@ -74,6 +75,7 @@ export function SelectionReviewScreen({
   const [thresholdScore, setThresholdScore] = useState<number>(60);
   const [batchNotes, setBatchNotes] = useState<string>('Ditolak massal karena skor di bawah batas minimum seleksi.');
   const [batchLoading, setBatchLoading] = useState<boolean>(false);
+  const [showAuditLifecycleModal, setShowAuditLifecycleModal] = useState<boolean>(false);
 
   // Guardrail verification
   const isProtectedDomain = useMemo(() => {
@@ -274,6 +276,9 @@ export function SelectionReviewScreen({
 
   return (
     <div className="space-y-6">
+      {/* Pemberitahuan Keamanan AI Resmi - Permanen & Tidak Dapat Di-dismiss Permanen */}
+      <AiSafetyNoticeBanner id="selection-review-ai-safety-banner" />
+
       {/* Toast Feedback */}
       {feedback && (
         <div
@@ -307,6 +312,14 @@ export function SelectionReviewScreen({
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAuditLifecycleModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-secondary text-foreground font-semibold text-sm hover:bg-surface-secondary/80 border border-border transition"
+            >
+              <ShieldAlert className="w-4 h-4 text-primary" />
+              <span>Jejak Audit Siklus Hidup</span>
+            </button>
+
             <button
               onClick={handleFinalizeApproval}
               disabled={submitting || (isProtectedDomain && reviewedCount === 0)}
@@ -662,6 +675,14 @@ export function SelectionReviewScreen({
           </div>
         </div>
       )}
+
+      {/* Modal Jejak Audit Siklus Hidup Seleksi Terpadu */}
+      <SelectionAuditLifecycleModal
+        tenantId={tenantId}
+        jobId={jobId}
+        isOpen={showAuditLifecycleModal}
+        onClose={() => setShowAuditLifecycleModal(false)}
+      />
     </div>
   );
 }

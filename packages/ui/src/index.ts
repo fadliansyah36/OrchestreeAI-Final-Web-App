@@ -7,4 +7,5 @@ export * from './feedback/ErrorState';
 export * from './feedback/SkeletonLoader';
 export * from './feedback/usePWAInstall';
 export * from './feedback/PWAInstallButton';
+export * from './feedback/AiSafetyNoticeBanner';
 export * from './i18n';

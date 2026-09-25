@@ -22,8 +22,9 @@ import {
   ShieldAlert,
   SlidersHorizontal,
 } from 'lucide-react';
-import { EmptyState, SkeletonLoader } from '@orchestree/ui';
+import { EmptyState, SkeletonLoader, AiSafetyNoticeBanner } from '@orchestree/ui';
 import { SelectionInsightPanel } from './SelectionInsightPanel';
+import { SelectionAuditLifecycleModal } from './SelectionAuditLifecycleModal';
 
 export interface SelectionScoringResultItem {
   id: string;
@@ -88,6 +89,7 @@ export function SelectionResultScreen({
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel' | 'csv'>('pdf');
   const [exportReportType, setExportReportType] = useState<'detailed_selection' | 'executive_summary' | 'ranking_analytics'>('detailed_selection');
   const [selectedEntityForInsight, setSelectedEntityForInsight] = useState<string | null>(null);
+  const [showAuditLifecycleModal, setShowAuditLifecycleModal] = useState<boolean>(false);
 
   // Summary counts
   const summaryCounts = useMemo(() => {
@@ -218,6 +220,9 @@ export function SelectionResultScreen({
 
   return (
     <div className="space-y-6">
+      {/* Pemberitahuan Keamanan AI Resmi - Permanen & Tidak Dapat Di-dismiss Permanen */}
+      <AiSafetyNoticeBanner id="selection-result-ai-safety-banner" />
+
       {/* Top Header & Context Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
@@ -267,6 +272,14 @@ export function SelectionResultScreen({
               <span>Bandingkan</span>
             </button>
           )}
+
+          <button
+            onClick={() => setShowAuditLifecycleModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border border-slate-300 dark:border-slate-700 shadow-xs"
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-primary" />
+            <span>Jejak Audit Siklus Hidup</span>
+          </button>
 
           <button
             onClick={() => setShowExportModal(true)}
@@ -740,6 +753,16 @@ export function SelectionResultScreen({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Jejak Audit Siklus Hidup Seleksi Terpadu */}
+      {jobInfo && (
+        <SelectionAuditLifecycleModal
+          tenantId={tenantId}
+          jobId={jobInfo.id}
+          isOpen={showAuditLifecycleModal}
+          onClose={() => setShowAuditLifecycleModal(false)}
+        />
       )}
     </div>
   );

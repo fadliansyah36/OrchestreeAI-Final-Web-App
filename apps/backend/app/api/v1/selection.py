@@ -221,6 +221,25 @@ async def get_selection_job_detail(tenant_id: str, job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/tenants/{tenant_id}/selection/jobs/{job_id}/audit-lifecycle")
+@router.get("/selection/tenants/{tenant_id}/jobs/{job_id}/audit-lifecycle")
+async def get_selection_job_audit_lifecycle(tenant_id: str, job_id: str):
+    """
+    Mengambil jejak audit komprehensif seluruh siklus hidup pekerjaan seleksi:
+    Prompt instruksi awal & kriteria, dokumen sumber dataset, agen AI eksekutor beserta verifikasi ABAC,
+    hasil scoring & perangkingan entitas, keputusan approval & review manusia, riwayat ekspor laporan berkas nyata,
+    dan rantai kronologis seluruh kejadian dari Audit Ledger (company_context_events).
+    """
+    try:
+        lifecycle_audit = SelectionDomainService.get_job_audit_lifecycle(tenant_id, job_id)
+        return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": lifecycle_audit}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 # ---------------------------------------------------------------------------
 # Multi-Source Document Ingestion
 # ---------------------------------------------------------------------------

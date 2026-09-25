@@ -188,6 +188,7 @@ class SelectionPipelineEngine:
 
         ingested = context.get("ingested_documents", [])
         parsed_entities = []
+        allowed_fields = context.get("allowed_fields")
 
         with tenant_tx(tenant_id) as conn:
             for doc in ingested:
@@ -196,6 +197,16 @@ class SelectionPipelineEngine:
                 entities = MultiSourceExtractor.extract_entities_from_raw(raw_text)
 
                 for entity in entities:
+                    # Terapkan penegakan ABAC: Batasi field atribut sesuai izin persona jika dispesifikasikan
+                    if allowed_fields and isinstance(allowed_fields, list):
+                        filtered_entity = {}
+                        for k, v in entity.items():
+                            if k in allowed_fields or k in ["entity_label", "name", "candidate_name"]:
+                                filtered_entity[k] = v
+                            else:
+                                filtered_entity[k] = "[REDACTED_ABAC_RESTRICTED]"
+                        entity = filtered_entity
+
                     schema, classification = MultiSourceExtractor.detect_schema_and_classification(entity)
                     entity_label = entity.get("entity_label") or entity.get("name") or doc.get("document_name") or f"Entitas {len(parsed_entities) + 1}"
 
