@@ -1847,3 +1847,242 @@ async def get_financial_command_center(
             for r in recon_rows
         ],
     }
+
+
+# ============================================================================
+# SISTEM REKONSILIASI PEMBAYARAN GATEWAY & AUDIT WEBHOOK (PRD v2.2 Bagian 2, 3.5, 12.5, 14.3)
+# ============================================================================
+
+from app.domains.billing.payment_reconciliation import (
+    payment_reconciliation_repo,
+    recheck_payment_status,
+    manual_resolve_case,
+    detect_payment_reconciliation_cases,
+)
+
+
+class ManualResolveReconciliationPayload(BaseModel):
+    resolution_status: str = Field(..., description="'resolved' atau 'rejected'")
+    resolution_notes: str = Field(..., min_length=5, description="Catatan verifikasi manual dan referensi bukti transfer mutasi")
+
+
+class TenantReportPaymentPayload(BaseModel):
+    reference_id: str = Field(..., description="Nomor faktur (INV-...) atau nomor pesanan (ORD-...)")
+    notes: Optional[str] = Field(None, description="Keterangan transfer atau mutasi dari tenant")
+
+
+class DetectReconciliationPayload(BaseModel):
+    threshold_minutes: int = Field(default=15, ge=1, le=1440, description="Batas usia transaksi tertunda dalam menit")
+
+
+@router.get(
+    "/admin/reconciliation/cases",
+    dependencies=[Depends(require_capability("admin.commercial.reconciliation.view"))],
+    summary="Daftar Kasus Rekonsiliasi Pembayaran Super Admin",
+)
+async def admin_get_reconciliation_cases(
+    tab: str = Query("error_confirm", description="Tab monitoring: success, pending, atau error_confirm"),
+    tenant_id: Optional[str] = Query(None, description="Filter spesifik ID tenant"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Mengambil data tiga tab monitoring:
+    1. Berhasil: Transaksi status 'paid' dari orders dan invoices.
+    2. Pending: Transaksi 'pending_payment' usia < ambang batas.
+    3. Error Konfirmasi: Kasus payment_reconciliation_cases berstatus open / verified_mismatch_escalated.
+    """
+    counts = await payment_reconciliation_repo.get_counts(tenant_id=tenant_id)
+    cases = await payment_reconciliation_repo.list_cases(
+        tab=tab,
+        tenant_id=tenant_id,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "active_tab": tab,
+        "counts": counts,
+        "cases": cases,
+    }
+
+
+@router.post(
+    "/admin/reconciliation/cases/{case_id}/recheck",
+    dependencies=[Depends(require_capability("admin.commercial.reconciliation.manage"))],
+    summary="Cek Ulang Status ke Gateway Resmi",
+)
+async def admin_recheck_gateway_case(case_id: str):
+    """
+    Memanggil Get Transaction Status API Midtrans secara nyata.
+    Jika settlement/capture: memicu handle_payment_webhook kanonik untuk mengaktifkan entitlement.
+    Jika expire/deny/cancel: eskalasi status kasus ke verified_mismatch_escalated untuk review manual.
+    """
+    try:
+        result = await recheck_payment_status(case_id)
+        return {
+            "status": "ok",
+            "case_id": result.case_id,
+            "gateway_status": result.gateway_status,
+            "resolution_status": result.resolution_status,
+            "message": result.message,
+        }
+    except Exception as exc:
+        logger.error(f"Gagal memeriksa status gateway untuk kasus {case_id}: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post(
+    "/admin/reconciliation/cases/{case_id}/resolve",
+    dependencies=[Depends(require_capability("admin.commercial.reconciliation.manage"))],
+    summary="Penyelesaian Manual Kasus Eskalasi Rekonsiliasi",
+)
+async def admin_manual_resolve_case(
+    case_id: str,
+    payload: ManualResolveReconciliationPayload,
+    request: Request,
+):
+    """
+    Form review manual Super Admin untuk kasus verified_mismatch_escalated.
+    Super Admin dapat menandai resolved (dengan bukti mutasi bank manual) atau rejected.
+    Tindakan dicatat dalam Audit Ledger ber-risk tier HIGH.
+    """
+    admin_id = getattr(request.state, "user_id", None) or "00000000-0000-0000-0000-000000000001"
+    try:
+        res = await manual_resolve_case(
+            case_id=case_id,
+            resolution_status=payload.resolution_status,
+            resolution_notes=payload.resolution_notes,
+            admin_user_id=admin_id,
+        )
+        return {
+            "status": "ok",
+            "data": res,
+            "message": f"Kasus berhasil diselesaikan dengan status '{payload.resolution_status}'.",
+        }
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as exc:
+        logger.error(f"Gagal menyelesaikan kasus rekonsiliasi {case_id}: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post(
+    "/admin/reconciliation/detect",
+    dependencies=[Depends(require_capability("admin.commercial.reconciliation.manage"))],
+    summary="Jalankan Deteksi Otomatis Transaksi Tertunda",
+)
+async def admin_run_reconciliation_detection(payload: DetectReconciliationPayload = DetectReconciliationPayload()):
+    """
+    Menjalankan siklus deteksi otomatis kasus sudah bayar tapi webhook hilang/terlambat.
+    Memindai transaksi tertunda > threshold_minutes, melakukan verifikasi langsung ke Midtrans,
+    dan mengaktifkan entitlement secara otomatis.
+    """
+    report = await detect_payment_reconciliation_cases(threshold_minutes=payload.threshold_minutes)
+    return {
+        "status": "ok",
+        "report": report,
+    }
+
+
+@router.get(
+    "/reconciliation/cases",
+    dependencies=[Depends(require_capability("billing.invoice.view"))],
+    summary="Riwayat Kasus Rekonsiliasi Tenant",
+)
+async def tenant_get_reconciliation_cases(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    Menampilkan status kasus rekonsiliasi milik tenant aktif (read-only transparan).
+    """
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        # Fallback ke header x-tenant-id jika ada
+        tenant_id = request.headers.get("x-tenant-id")
+
+    if not tenant_id:
+        return {"cases": []}
+
+    cases = await payment_reconciliation_repo.list_cases(
+        tab="error_confirm",
+        tenant_id=tenant_id,
+        limit=limit,
+    )
+    return {"cases": cases}
+
+
+@router.post(
+    "/reconciliation/report-payment",
+    dependencies=[Depends(require_capability("billing.invoice.view"))],
+    summary="Klaim Konfirmasi Pembayaran oleh Tenant",
+)
+async def tenant_report_payment(
+    payload: TenantReportPaymentPayload,
+    request: Request,
+):
+    """
+    Tenant melaporkan bahwa pembayaran telah berhasil dilakukan di Midtrans namun status internal belum berubah.
+    Sistem akan membuat kasus 'error_confirm' dan langsung memverifikasi status ke gateway secara real-time.
+    """
+    tenant_id = getattr(request.state, "tenant_id", None) or request.headers.get("x-tenant-id")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant context is required")
+
+    ref_id = payload.reference_id.strip()
+
+    # Cari apakah ref_id merujuk ke invoice atau order
+    engine = get_engine()
+    inv_id = None
+    order_id = None
+    internal_before = "pending"
+
+    async with engine.begin() as conn:
+        r_inv = await conn.execute(
+            sa.text("SELECT id, status FROM invoices WHERE invoice_number = :ref AND tenant_id = :t LIMIT 1;"),
+            {"ref": ref_id, "t": tenant_id},
+        )
+        row_inv = r_inv.mappings().first()
+        if row_inv:
+            inv_id = str(row_inv["id"])
+            internal_before = row_inv["status"]
+
+        if not inv_id:
+            r_ord = await conn.execute(
+                sa.text("SELECT id, payment_status FROM orders WHERE order_number = :ref AND tenant_id = :t LIMIT 1;"),
+                {"ref": ref_id, "t": tenant_id},
+            )
+            row_ord = r_ord.mappings().first()
+            if row_ord:
+                order_id = str(row_ord["id"])
+                internal_before = row_ord["payment_status"]
+
+    if not inv_id and not order_id:
+        raise HTTPException(status_code=404, detail=f"Nomor referensi '{ref_id}' tidak ditemukan untuk organisasi Anda.")
+
+    # Cek apakah sudah ada case terbuka
+    existing_case = await payment_reconciliation_repo.get_by_gateway_ref(ref_id)
+    if existing_case:
+        case_id = existing_case["id"]
+    else:
+        case_id = await payment_reconciliation_repo.create_case(
+            tenant_id=tenant_id,
+            gateway_reference_id=ref_id,
+            detected_status="error_confirm",
+            internal_status_before=internal_before,
+            invoice_id=inv_id,
+            order_id=order_id,
+            resolution_status="open",
+            resolution_notes=payload.notes or "Pelaporan konfirmasi pembayaran manual oleh pengguna.",
+        )
+
+    # Jalankan recheck langsung
+    recheck_res = await recheck_payment_status(case_id)
+    return {
+        "status": "ok",
+        "case_id": case_id,
+        "gateway_status": recheck_res.gateway_status,
+        "resolution_status": recheck_res.resolution_status,
+        "message": "Pemeriksaan status pembayaran ke gateway selesai.",
+    }
+

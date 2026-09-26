@@ -422,6 +422,9 @@ def authorize(
             "proactive.collaboration.manage",
             "kanban.board.view",
             "tasks.board.manage",
+            "tasks.checklist.manage",
+            "tasks.attachments.manage",
+            "tasks.proactive.create",
         }
         if action in allowed_manager_actions or action.startswith("department."):
             rbac_passed = True
@@ -441,6 +444,9 @@ def authorize(
             "proactive.collaboration.manage",
             "kanban.board.view",
             "tasks.board.manage",
+            "tasks.checklist.manage",
+            "tasks.attachments.manage",
+            "tasks.proactive.create",
         }
         if action in allowed_staff_actions:
             rbac_passed = True
@@ -450,6 +456,8 @@ def authorize(
             "tool.execute",
             "mcp.tool.invoke",
             "tasks.assigned.update",
+            "tasks.checklist.manage",
+            "tasks.proactive.create",
             "llm.invoke",
             "workflow.dispatch",
             "workflow.node.execute",

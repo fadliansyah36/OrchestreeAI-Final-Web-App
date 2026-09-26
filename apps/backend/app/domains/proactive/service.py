@@ -1095,11 +1095,74 @@ async def route_proactive_reply(
             target_suggestion = "Finance" if any(k in lower_text for k in ["kas", "cash", "keuangan", "biaya", "profit", "margin", "laba", "revenue", "omset"]) else "HR" if any(k in lower_text for k in ["gaji", "payroll", "bonus"]) else "terkait"
             reply_text = f"Maaf, informasi tersebut berada di luar lingkup departemen {dept_name}. Anda dapat menghubungi rekan dari Departemen {target_suggestion} untuk informasi tersebut."
         else:
-            # Jawaban tugas & aktivitas relevan untuk departemen staf
-            reply_text = (
-                f"Pesan Anda terkait operasional {dept_name} telah diterima. "
-                "AI Agent kolaborator Anda aktif memantau tugas terkait di papan kerja."
-            )
+            task_triggers = ["buat tugas", "buat task", "tambah tugas", "tambah task", "tambahkan to-do", "tindak lanjuti:", "task:"]
+            is_task_req = any(trig in lower_text for trig in task_triggers)
+            if is_task_req:
+                # Bersihkan kata pemicu untuk judul tugas
+                clean_title = text
+                for trig in task_triggers:
+                    if trig in clean_title.lower():
+                        clean_title = clean_title.replace(trig, "").replace(trig.capitalize(), "").strip(": -_")
+                clean_title = clean_title.strip() or f"Tindak Lanjut Permintaan {dept_name}"
+                
+                # Buat task langsung via database
+                try:
+                    with engine.begin() as t_conn:
+                        t_conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                        t_conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
+                        b_row = t_conn.execute(
+                            sa.text("SELECT id FROM boards WHERE tenant_id = :tid::uuid ORDER BY created_at ASC LIMIT 1;"),
+                            {"tid": resolved_tid}
+                        ).mappings().first()
+                        board_id = str(b_row["id"]) if b_row else None
+                        if board_id:
+                            col_row = t_conn.execute(
+                                sa.text("SELECT id FROM board_columns WHERE board_id = :bid::uuid ORDER BY position ASC LIMIT 1;"),
+                                {"bid": board_id}
+                            ).mappings().first()
+                            col_id = str(col_row["id"]) if col_row else None
+                            if col_id:
+                                task_id = str(uuid.uuid4())
+                                t_conn.execute(
+                                    sa.text("""
+                                        INSERT INTO tasks (
+                                            id, tenant_id, board_id, column_id, title, description,
+                                            position, priority, assigned_membership_id, version,
+                                            labels, progress_percentage, source_channel, source_ref_id,
+                                            created_by_type, created_by_id, created_at, updated_at
+                                        ) VALUES (
+                                            :id, :tid::uuid, :bid::uuid, :cid::uuid, :title, :desc,
+                                            0, 'medium', :mid::uuid, 1,
+                                            :labels, 0, :channel, :target,
+                                            'ai_agent', :target, now(), now()
+                                        );
+                                    """),
+                                    {
+                                        "id": task_id,
+                                        "tid": resolved_tid,
+                                        "bid": board_id,
+                                        "cid": col_id,
+                                        "title": clean_title,
+                                        "desc": f"Tugas dibuat otomatis melalui pesan {channel.capitalize()}: '{text}'",
+                                        "mid": resolved_mid,
+                                        "labels": [channel.upper(), dept_cat.upper()],
+                                        "channel": channel,
+                                        "target": sender,
+                                    }
+                                )
+                except Exception as t_err:
+                    logger.warning(f"Gagal mencatat tugas otomatis dari pesan proaktif: {t_err}")
+
+                reply_text = (
+                    f"Tugas '{clean_title}' berhasil dibuat di papan operasional {dept_name} melalui {channel.capitalize()}. "
+                    "AI Agent kolaborator Anda aktif memantau tugas tersebut."
+                )
+            else:
+                # Jawaban tugas & aktivitas relevan untuk departemen staf
+                reply_text = (
+                    f"Pesan Anda terkait operasional {dept_name} telah diterima. "
+                    "AI Agent kolaborator Anda aktif memantau tugas terkait di papan kerja."
+                )
 
     # 4. Kirimkan balasan jika channel terkonfigurasi
     try:

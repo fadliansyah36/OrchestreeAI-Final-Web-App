@@ -15,9 +15,11 @@ import { PlanFacilityMatrixScreen } from './PlanFacilityMatrixScreen';
 import { CreditFormulaConfigScreen } from './CreditFormulaConfigScreen';
 import { CreditTopupPackageScreen } from './CreditTopupPackageScreen';
 import { TenantCreditOverrideScreen } from './TenantCreditOverrideScreen';
+import { PaymentReconciliationScreen } from './PaymentReconciliationScreen';
 
 export type CommercialTab =
   | 'financial-summary'
+  | 'payment-reconciliation'
   | 'subscription-plans'
   | 'facility-matrix'
   | 'credit-formula'
@@ -37,6 +39,12 @@ export function CommercialManagementHub({ initialTab = 'financial-summary' }: Co
       label: 'Ringkasan Finansial',
       icon: DollarSign,
       description: 'Neraca likuiditas kredit, MRR, dan rekonsiliasi gateway',
+    },
+    {
+      id: 'payment-reconciliation',
+      label: 'Rekonsiliasi Gateway',
+      icon: CheckCircle2,
+      description: 'Audit webhook hilang, cek ulang ke Midtrans, dan review manual',
     },
     {
       id: 'subscription-plans',
@@ -118,6 +126,7 @@ export function CommercialManagementHub({ initialTab = 'financial-summary' }: Co
       {/* Main Tab Screen Rendering */}
       <div>
         {activeTab === 'financial-summary' && <FinancialCommandCenter />}
+        {activeTab === 'payment-reconciliation' && <PaymentReconciliationScreen />}
         {activeTab === 'subscription-plans' && <SubscriptionPlanScreen />}
         {activeTab === 'facility-matrix' && <PlanFacilityMatrixScreen />}
         {activeTab === 'credit-formula' && <CreditFormulaConfigScreen />}

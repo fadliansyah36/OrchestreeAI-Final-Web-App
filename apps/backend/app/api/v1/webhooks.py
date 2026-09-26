@@ -24,6 +24,7 @@ from app.core.database import get_engine
 from app.authz.pdp import webhook_endpoint
 from app.domains.billing.credits import topup_credit
 from app.domains.billing.lifecycle import process_invoice_settlement
+from app.domains.commerce.payment_webhook import handle_payment_webhook
 from app.domains.proactive.service import (
     handle_opt_out,
     handle_opt_in,
@@ -61,137 +62,42 @@ async def handle_midtrans_webhook(request: Request):
         logger.warning("Payload webhook Midtrans tidak lengkap.")
         raise HTTPException(status_code=400, detail="Payload tidak lengkap.")
 
-    # Verifikasi SHA512 signature key
+    # Verifikasi SHA512 signature key & proses melalui handle_payment_webhook kanonik
     server_key = settings.MIDTRANS_SERVER_KEY or settings.PAYMENT_GATEWAY_SERVER_KEY or ""
-    expected_raw = f"{order_id}{status_code}{gross_amount}{server_key}"
-    expected_signature = hashlib.sha512(expected_raw.encode("utf-8")).hexdigest()
+    headers = dict(request.headers)
 
-    signature_verified = (signature_key.lower() == expected_signature.lower())
+    result = await handle_payment_webhook(
+        gateway_provider="midtrans",
+        payload=payload,
+        headers=headers,
+        server_key=server_key,
+    )
 
-    engine = get_engine()
-    log_id = str(uuid.uuid4())
+    if not result.get("success"):
+        if result.get("status") == "SIGNATURE_INVALID":
+            # Catat log kegagalan verifikasi tanda tangan
+            engine = get_engine()
+            log_id = str(uuid.uuid4())
+            async with engine.begin() as conn:
+                await conn.execute(sa.text("""
+                    INSERT INTO payment_reconciliation_log (
+                        id, payment_gateway, event_type, raw_payload, signature_verified, status
+                    ) VALUES (
+                        :id, 'midtrans', :event_type, :raw_payload, false, 'invalid_signature'
+                    );
+                """), {
+                    "id": log_id,
+                    "event_type": f"midtrans.{transaction_status}",
+                    "raw_payload": json.dumps(payload),
+                })
+            raise HTTPException(status_code=400, detail="Verifikasi tanda tangan Midtrans gagal.")
 
-    if not signature_verified:
-        logger.error(f"Midtrans signature mismatch untuk order {order_id}!")
-        # Catat log kegagalan verifikasi tanda tangan
-        async with engine.begin() as conn:
-            await conn.execute(sa.text("""
-                INSERT INTO payment_reconciliation_log (
-                    id, payment_gateway, event_type, raw_payload, signature_verified, status
-                ) VALUES (
-                    :id, 'midtrans', :event_type, :raw_payload, false, 'invalid_signature'
-                );
-            """), {
-                "id": log_id,
-                "event_type": f"midtrans.{transaction_status}",
-                "raw_payload": json.dumps(payload),
-            })
-        raise HTTPException(status_code=400, detail="Verifikasi tanda tangan Midtrans gagal.")
-
-    # Cari faktur yang sesuai di database
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT id, tenant_id, amount, status
-            FROM invoices
-            WHERE invoice_number = :inv
-            FOR UPDATE;
-        """), {"inv": order_id})
-        inv_row = res.fetchone()
-
-        if not inv_row:
-            logger.warning(f"Faktur {order_id} tidak ditemukan di database.")
-            # Tetap catat log rekonsiliasi
-            await conn.execute(sa.text("""
-                INSERT INTO payment_reconciliation_log (
-                    id, payment_gateway, event_type, raw_payload, signature_verified, status
-                ) VALUES (
-                    :id, 'midtrans', :event_type, :raw_payload, true, 'invoice_not_found'
-                );
-            """), {
-                "id": log_id,
-                "event_type": f"midtrans.{transaction_status}",
-                "raw_payload": json.dumps(payload),
-            })
-            return {"status": "ignored", "reason": "Invoice not found"}
-
-        inv_id, tenant_id, inv_amount, inv_status = inv_row
-        tenant_id = str(tenant_id)
-        inv_amount = Decimal(str(inv_amount))
-
-        # Evaluasi status transaksi Midtrans
-        is_paid = (
-            transaction_status in ("capture", "settlement")
-            and fraud_status == "accept"
-        )
-        is_failed = transaction_status in ("deny", "cancel", "expire")
-
-        if is_paid and inv_status != "paid":
-            # Perbarui status faktur menjadi lunas
-            await conn.execute(sa.text("""
-                UPDATE invoices
-                SET status = 'paid',
-                    paid_at = now(),
-                    payment_reference = :trans_id,
-                    updated_at = now()
-                WHERE id = :id;
-            """), {
-                "id": inv_id,
-                "trans_id": transaction_id or order_id,
-            })
-
-            # Catat log rekonsiliasi sukses
-            await conn.execute(sa.text("""
-                INSERT INTO payment_reconciliation_log (
-                    id, tenant_id, invoice_id, payment_gateway, event_type,
-                    raw_payload, signature_verified, status
-                ) VALUES (
-                    :id, :tenant_id, :invoice_id, 'midtrans', :event_type,
-                    :raw_payload, true, 'settled'
-                );
-            """), {
-                "id": log_id,
-                "tenant_id": tenant_id,
-                "invoice_id": inv_id,
-                "event_type": f"midtrans.{transaction_status}",
-                "raw_payload": json.dumps(payload),
-            })
-        elif is_failed:
-            await conn.execute(sa.text("""
-                UPDATE invoices
-                SET status = 'failed',
-                    updated_at = now()
-                WHERE id = :id;
-            """), {"id": inv_id})
-
-            await conn.execute(sa.text("""
-                INSERT INTO payment_reconciliation_log (
-                    id, tenant_id, invoice_id, payment_gateway, event_type,
-                    raw_payload, signature_verified, status
-                ) VALUES (
-                    :id, :tenant_id, :invoice_id, 'midtrans', :event_type,
-                    :raw_payload, true, 'failed'
-                );
-            """), {
-                "id": log_id,
-                "tenant_id": tenant_id,
-                "invoice_id": inv_id,
-                "event_type": f"midtrans.{transaction_status}",
-                "raw_payload": json.dumps(payload),
-            })
-
-    # Jika lunas dan belum diproses sebelumnya, jalankan siklus Entitlement + Credit Allocation
-    if is_paid and inv_status != "paid":
-        settle_res = await process_invoice_settlement(
-            invoice_number=order_id,
-            payment_reference=transaction_id or order_id,
-            payment_gateway="midtrans",
-            raw_payload=payload,
-        )
-        logger.info(
-            f"Faktur Midtrans {order_id} lunas! Hasil settlement: {settle_res}"
-        )
-
-    return {"status": "ok", "order_id": order_id, "transaction_status": transaction_status}
+    return {
+        "status": "ok",
+        "order_id": order_id,
+        "transaction_status": transaction_status,
+        "payment_status": result.get("status"),
+    }
 
 
 @router.post("/payment/xendit", dependencies=[Depends(webhook_endpoint("xendit"))])

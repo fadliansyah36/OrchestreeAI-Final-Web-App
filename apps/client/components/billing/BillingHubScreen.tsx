@@ -60,6 +60,7 @@ export function BillingHubScreen({
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [reservations, setReservations] = useState<CreditReservation[]>([]);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [reconCases, setReconCases] = useState<any[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [topupPackages, setTopupPackages] = useState<TopUpPackage[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
@@ -102,7 +103,7 @@ export function BillingHubScreen({
         'X-User-Roles': userRole,
       };
 
-      const [sRes, tRes, rRes, iRes, pRes, pkgRes, actRes] = await Promise.all([
+      const [sRes, tRes, rRes, iRes, pRes, pkgRes, actRes, reconRes] = await Promise.all([
         fetch(`/api/v1/tenants/${tenantId}/credit-wallet/summary`, { headers }),
         fetch('/api/v1/billing/transactions', { headers }),
         fetch('/api/v1/billing/reservations', { headers }),
@@ -110,6 +111,7 @@ export function BillingHubScreen({
         fetch('/api/v1/billing/plans'),
         fetch('/api/v1/billing/topup-packages'),
         fetch('/api/v1/billing/activity-types'),
+        fetch('/api/v1/billing/reconciliation/cases', { headers }),
       ]);
 
       if (sRes.ok) {
@@ -135,6 +137,10 @@ export function BillingHubScreen({
       if (pkgRes.ok) {
         const pkgData = await pkgRes.json();
         setTopupPackages(pkgData);
+      }
+      if (reconRes.ok) {
+        const rData = await reconRes.json();
+        setReconCases(rData.cases || []);
       }
       if (actRes.ok) {
         const actData = await actRes.json();
@@ -201,6 +207,39 @@ export function BillingHubScreen({
       fetchBillingData();
     } catch (err: any) {
       setSettleFeedback(`Gagal pelunasan: ${err.message}`);
+    } finally {
+      setSettlingInvoiceNumber(null);
+    }
+  };
+
+  const handleReportPaymentClaim = async (invoiceNumber: string) => {
+    setSettlingInvoiceNumber(invoiceNumber);
+    setSettleFeedback(null);
+    try {
+      const res = await fetch('/api/v1/billing/reconciliation/report-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': tenantId,
+          'X-User-Roles': userRole,
+        },
+        body: JSON.stringify({
+          reference_id: invoiceNumber,
+          notes: 'Konfirmasi pembayaran diajukan melalui portal organisasi.',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Gagal memeriksa status ke gateway.');
+      }
+      if (data.resolution_status === 'verified_matched') {
+        setSettleFeedback(`Faktur ${invoiceNumber} terverifikasi lunas di Midtrans! Hak layanan dan kuota kredit telah diaktifkan.`);
+      } else {
+        setSettleFeedback(`Status gateway untuk ${invoiceNumber}: '${data.gateway_status}'. Permintaan verifikasi tercatat dan status 'Sedang Diverifikasi'.`);
+      }
+      await fetchBillingData();
+    } catch (err: any) {
+      setSettleFeedback(`Gagal memeriksa status pembayaran: ${err.message}`);
     } finally {
       setSettlingInvoiceNumber(null);
     }
@@ -586,55 +625,84 @@ export function BillingHubScreen({
                     </td>
                   </tr>
                 ) : (
-                  invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-850/50 transition-colors">
-                      <td className="py-3 px-4 font-semibold text-white font-mono">
-                        {inv.invoice_number}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-200">
-                        Rp {inv.amount.toLocaleString('id-ID')}
-                      </td>
-                      <td className="py-3 px-4 uppercase text-slate-400 font-medium">
-                        {inv.payment_gateway}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
-                            inv.status === 'paid'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}
-                        >
-                          {inv.status === 'paid' ? 'Lunas' : 'Menunggu'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-400 text-[11px]">
-                        {new Date(inv.created_at).toLocaleString('id-ID')}
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-2">
-                        {inv.payment_url && (
-                          <a
-                            href={inv.payment_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-medium"
-                          >
-                            <span>Gateway</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                        {inv.status !== 'paid' && (
-                          <button
-                            onClick={() => handleSettleSandboxInvoice(inv.invoice_number)}
-                            disabled={settlingInvoiceNumber === inv.invoice_number}
-                            className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-semibold"
-                          >
-                            {settlingInvoiceNumber === inv.invoice_number ? 'Memproses...' : 'Simulasi Lunas'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                  invoices.map((inv) => {
+                    const reconCase = reconCases.find(
+                      (c) => c.gateway_reference_id === inv.invoice_number || c.invoice_number === inv.invoice_number
+                    );
+                    const isUnderReconciliation =
+                      reconCase &&
+                      (reconCase.resolution_status === 'open' ||
+                        reconCase.resolution_status === 'verified_mismatch_escalated');
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-850/50 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-white font-mono">
+                          {inv.invoice_number}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-200">
+                          Rp {inv.amount.toLocaleString('id-ID')}
+                        </td>
+                        <td className="py-3 px-4 uppercase text-slate-400 font-medium">
+                          {inv.payment_gateway}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                                inv.status === 'paid'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              }`}
+                            >
+                              {inv.status === 'paid' ? 'Lunas' : 'Menunggu'}
+                            </span>
+                            {/* Transparan: Badge Sedang Diverifikasi bila ada kasus rekonsiliasi aktif */}
+                            {isUnderReconciliation && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/30 inline-flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5 text-sky-400 animate-pulse" />
+                                <span>Sedang Diverifikasi</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-400 text-[11px]">
+                          {new Date(inv.created_at).toLocaleString('id-ID')}
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-2">
+                          {inv.payment_url && (
+                            <a
+                              href={inv.payment_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-medium"
+                            >
+                              <span>Gateway</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                          {inv.status !== 'paid' && (
+                            <>
+                              <button
+                                onClick={() => handleReportPaymentClaim(inv.invoice_number)}
+                                disabled={settlingInvoiceNumber === inv.invoice_number}
+                                className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-lg text-[10px] font-semibold transition cursor-pointer"
+                                title="Verifikasi status transaksi langsung ke gateway Midtrans"
+                              >
+                                {settlingInvoiceNumber === inv.invoice_number ? 'Memeriksa...' : 'Cek Status Gateway'}
+                              </button>
+                              <button
+                                onClick={() => handleSettleSandboxInvoice(inv.invoice_number)}
+                                disabled={settlingInvoiceNumber === inv.invoice_number}
+                                className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-semibold transition cursor-pointer"
+                              >
+                                {settlingInvoiceNumber === inv.invoice_number ? 'Memproses...' : 'Simulasi Lunas'}
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
