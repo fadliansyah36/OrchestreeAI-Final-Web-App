@@ -28,7 +28,7 @@ for arg in "$@"; do
   if [[ "$arg" == "--db-url"* ]] || [[ "$prev" == "--db-url" ]]; then
     HAS_DB_URL=true
   fi
-  if [[ "$arg" == "push" || "$arg" == "pull" || "$arg" == "reset" || "$arg" == "diff" ]]; then
+  if [[ "$arg" == "push" || "$arg" == "pull" || "$arg" == "reset" || "$arg" == "diff" || "$arg" == "list" ]]; then
     IS_DB_OP=true
   fi
   ARGS+=("$arg")
