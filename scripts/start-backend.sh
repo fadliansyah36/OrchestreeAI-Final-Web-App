@@ -54,4 +54,4 @@ uv venv .venv
 uv pip install -r apps/backend/requirements.txt
 
 export PYTHONPATH=apps/backend
-exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir apps/backend

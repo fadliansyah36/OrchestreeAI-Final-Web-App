@@ -41,9 +41,17 @@ export default function AdminHomePage() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs font-medium text-amber-300 bg-amber-950/40 border border-amber-800/60 px-3 py-1.5 rounded-xl">
-            <Lock className="w-3.5 h-3.5" />
-            <span>MFA Diwajibkan</span>
+          <div className="flex items-center gap-3">
+            <a
+              href="/admin/analytics"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:text-white bg-blue-950/60 hover:bg-blue-900/60 border border-blue-800/60 px-3 py-1.5 rounded-xl transition"
+            >
+              <span>Analisis Platform</span>
+            </a>
+            <div className="flex items-center gap-2 text-xs font-medium text-amber-300 bg-amber-950/40 border border-amber-800/60 px-3 py-1.5 rounded-xl">
+              <Lock className="w-3.5 h-3.5" />
+              <span>MFA Diwajibkan</span>
+            </div>
           </div>
         </div>
       </header>

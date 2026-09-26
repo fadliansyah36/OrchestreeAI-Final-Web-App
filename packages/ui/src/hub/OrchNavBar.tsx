@@ -335,6 +335,14 @@ export function OrchNavBar({
       category: 'Operasional & Tenant'
     },
     {
+      id: 'admin_analytics',
+      label: 'Analisis Platform',
+      description: 'Pusat visualisasi interaktif tren pendapatan, transaksi, adopsi tenant, dan audit biaya LLM',
+      icon: TrendingUp,
+      route: '/admin/analytics',
+      category: 'Operasional & Tenant'
+    },
+    {
       id: 'admin_tenants',
       label: 'Manajemen Tenant',
       description: 'CRUD organisasi perusahaan, status langganan, dan alokasi kuota',
