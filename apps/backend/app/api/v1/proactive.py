@@ -408,3 +408,35 @@ async def api_proactive_inbound(
         "data": res
     }
 
+
+class TriggerProactiveJobRequest(BaseModel):
+    tenant_id: str = Field(..., description="ID Organisasi")
+    ai_agent_id: str = Field(..., description="ID AI Agent pelaksana")
+    ai_agent_display_name: str = Field(..., description="Nama tampilan agen AI")
+    activity_label: str = Field(..., description="Label aktivitas pemantauan proaktif")
+    job_type: str = Field(default="monitoring", description="Tipe tugas proaktif")
+    target_resource: Optional[str] = Field(None, description="Sumber daya / integrasi target")
+
+
+@router.post("/jobs/trigger-with-task-tracking", summary="Eksekusi Job Proaktif dengan Pelacakan Tugas Kanban (BAGIAN C)")
+async def api_trigger_proactive_job_with_task_tracking(
+    payload: TriggerProactiveJobRequest,
+):
+    """
+    Mengeksekusi Proactive Job berdurasi/bertahap dengan membuat kartu task nyata di board departemen,
+    memperbarui progress dan status_line live, memindahkan kolom otomatis sampai Done,
+    dan menyiarkan event realtime ke klien.
+    """
+    from app.domains.proactive.service import run_proactive_job_with_task_tracking, ProactiveJobDefinition
+    job_def = ProactiveJobDefinition(
+        tenant_id=payload.tenant_id,
+        ai_agent_id=payload.ai_agent_id,
+        ai_agent_display_name=payload.ai_agent_display_name,
+        activity_label=payload.activity_label,
+        job_type=payload.job_type,
+        target_resource=payload.target_resource,
+    )
+    res = await run_proactive_job_with_task_tracking(job_def)
+    return res
+
+

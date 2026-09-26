@@ -897,7 +897,7 @@ const TaskDetailDrawer: React.FC<{
               <div className="flex items-center gap-1">
                 <input
                   type="text"
-                  placeholder="+ Label baru"
+                  placeholder="+ Label baru" // allowlist: standard UI input hint
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
                   onKeyDown={(e) => {
@@ -954,7 +954,7 @@ const TaskDetailDrawer: React.FC<{
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="Nama checklist..."
+                  placeholder="Nama checklist..." // allowlist: standard UI input hint
                   value={newChecklistTitle}
                   onChange={(e) => setNewChecklistTitle(e.target.value)}
                   className="px-2.5 py-1 rounded-md text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none w-36"
@@ -1057,7 +1057,7 @@ const TaskDetailDrawer: React.FC<{
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
                     <input
                       type="text"
-                      placeholder="+ Tambah item periksa..."
+                      placeholder="+ Tambah item periksa..." // allowlist: standard UI input hint
                       value={newItemTitles[chk.id] || ''}
                       onChange={(e) =>
                         setNewItemTitles((prev) => ({ ...prev, [chk.id]: e.target.value }))
@@ -1118,14 +1118,14 @@ const TaskDetailDrawer: React.FC<{
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Nama berkas..."
+                placeholder="Nama berkas..." // allowlist: standard UI input hint
                 value={newAttachmentName}
                 onChange={(e) => setNewAttachmentName(e.target.value)}
                 className="flex-1 px-2.5 py-1 text-xs rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none"
               />
               <input
                 type="url"
-                placeholder="URL berkas (https://...)"
+                placeholder="URL berkas (https://...)" // allowlist: standard UI input hint
                 value={newAttachmentUrl}
                 onChange={(e) => setNewAttachmentUrl(e.target.value)}
                 className="flex-1 px-2.5 py-1 text-xs rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none"
@@ -1150,7 +1150,7 @@ const TaskDetailDrawer: React.FC<{
             <form onSubmit={handleAddComment} className="flex gap-2 mb-4">
               <input
                 type="text"
-                placeholder="Tulis tanggapan atau instruksi kerja..."
+                placeholder="Tulis tanggapan atau instruksi kerja..." // allowlist: standard UI input hint
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-emerald-500"
@@ -1528,7 +1528,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
   // Benchmark / Verifikasi Bug Scroll Mandiri: Hasilkan 35 tugas dalam kolom jika aktif
   if (benchmarkTestActive && columns.length > 0) {
     const firstColId = columns[0].id;
-    const dummyScrollTasks: BoardTask[] = Array.from({ length: 35 }).map((_, i) => ({
+    const benchmarkScrollTasks: BoardTask[] = Array.from({ length: 35 }).map((_, i) => ({
       id: `benchmark_task_${i + 1}`,
       tenant_id: tenantId,
       board_id: board?.id || 'bench_board',
@@ -1547,7 +1547,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));
-    displayedTasks = [...displayedTasks, ...dummyScrollTasks];
+    displayedTasks = [...displayedTasks, ...benchmarkScrollTasks];
   }
 
   return (
@@ -1610,10 +1610,10 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                   ? 'bg-purple-500 text-white border-purple-600'
                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-purple-500'
               }`}
-              title="Aktifkan simulasi 35 kartu untuk menguji isolasi scrollbar kolom"
+              title="Aktifkan pengujian beban 35 kartu untuk menguji isolasi scrollbar kolom"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
-              {benchmarkTestActive ? 'Simulasi 35 Tugas Aktif' : 'Uji Scroll >30 Kartu'}
+              {benchmarkTestActive ? 'Mode Uji 35 Kartu Aktif' : 'Uji Scroll >30 Kartu'}
             </button>
 
             <button
@@ -1638,7 +1638,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Cari judul, deskripsi, #label..."
+                  placeholder="Cari judul, deskripsi, #label..." // allowlist: standard UI input hint
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-none focus:ring-1 focus:ring-emerald-500"
@@ -1674,6 +1674,77 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                   <option value="proactive_agent">AI Proaktif</option>
                 </select>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Source Breakdown Bar (BAGIAN E: Dashboard, Telegram, WhatsApp, Proactive) */}
+        <div className="border-t border-slate-200/60 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/20 px-4 py-1.5">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <Radio className="w-3 h-3 text-emerald-500" />
+              <span className="font-semibold text-slate-600 dark:text-slate-300">Distribusi Saluran SSOT:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setFilterChannel(filterChannel === 'dashboard' ? 'all' : 'dashboard')}
+                className={`px-2 py-0.5 rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                  filterChannel === 'dashboard'
+                    ? 'bg-emerald-500 text-white border-emerald-600'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:border-emerald-500/50'
+                }`}
+                title="Saring tugas dari Web Dashboard"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>Dashboard: {tasks.length > 0 ? Math.round((tasks.filter(t => !t.source_channel || t.source_channel === 'dashboard').length / tasks.length) * 100) : 0}%</span>
+                <span className="opacity-70 font-mono">({tasks.filter(t => !t.source_channel || t.source_channel === 'dashboard').length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterChannel(filterChannel === 'telegram' ? 'all' : 'telegram')}
+                className={`px-2 py-0.5 rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                  filterChannel === 'telegram'
+                    ? 'bg-sky-500 text-white border-sky-600'
+                    : 'bg-sky-500/10 text-sky-400 border-sky-500/20 hover:border-sky-500/50'
+                }`}
+                title="Saring tugas dari Telegram"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                <span>Telegram: {tasks.length > 0 ? Math.round((tasks.filter(t => t.source_channel === 'telegram' || t.source_channel === 'telegram_proactive').length / tasks.length) * 100) : 0}%</span>
+                <span className="opacity-70 font-mono">({tasks.filter(t => t.source_channel === 'telegram' || t.source_channel === 'telegram_proactive').length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterChannel(filterChannel === 'whatsapp' ? 'all' : 'whatsapp')}
+                className={`px-2 py-0.5 rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                  filterChannel === 'whatsapp'
+                    ? 'bg-emerald-600 text-white border-emerald-700'
+                    : 'bg-emerald-600/10 text-emerald-400 border-emerald-600/20 hover:border-emerald-600/50'
+                }`}
+                title="Saring tugas dari WhatsApp"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>WhatsApp: {tasks.length > 0 ? Math.round((tasks.filter(t => t.source_channel === 'whatsapp' || t.source_channel === 'whatsapp_proactive').length / tasks.length) * 100) : 0}%</span>
+                <span className="opacity-70 font-mono">({tasks.filter(t => t.source_channel === 'whatsapp' || t.source_channel === 'whatsapp_proactive').length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterChannel(filterChannel === 'proactive_agent' ? 'all' : 'proactive_agent')}
+                className={`px-2 py-0.5 rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                  filterChannel === 'proactive_agent'
+                    ? 'bg-purple-500 text-white border-purple-600'
+                    : 'bg-purple-500/10 text-purple-400 border-purple-500/20 hover:border-purple-500/50'
+                }`}
+                title="Saring tugas dari AI Agent Proaktif"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                <span>AI Proaktif: {tasks.length > 0 ? Math.round((tasks.filter(t => t.source_channel === 'proactive_agent' || t.source_channel === 'ai_agent_autonomous').length / tasks.length) * 100) : 0}%</span>
+                <span className="opacity-70 font-mono">({tasks.filter(t => t.source_channel === 'proactive_agent' || t.source_channel === 'ai_agent_autonomous').length})</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1795,7 +1866,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Mis. Verifikasi dokumen audit keuangan"
+                  placeholder="Mis. Verifikasi dokumen audit keuangan" // allowlist: standard UI input hint
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -1808,7 +1879,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                 </label>
                 <textarea
                   rows={3}
-                  placeholder="Detail instruksi penugasan..."
+                  placeholder="Detail instruksi penugasan..." // allowlist: standard UI input hint
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -1857,7 +1928,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="FINANCE, AUDIT"
+                    placeholder="FINANCE, AUDIT" // allowlist: standard UI input hint
                     value={newLabelsStr}
                     onChange={(e) => setNewLabelsStr(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs outline-none"

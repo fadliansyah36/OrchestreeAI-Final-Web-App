@@ -1683,6 +1683,48 @@ async def get_performance_overview(
             for r in alerts_rows
         ]
 
+        # Dimensi breakdown sumber task (BAGIAN E: Dashboard, Telegram, WhatsApp, Proactive AI Agent)
+        src_stmt = sa.text("""
+            SELECT 
+                COALESCE(source_channel, 'dashboard') as channel,
+                COUNT(id) as total_count
+            FROM tasks
+            WHERE tenant_id = :tenant_id AND deleted_at IS NULL
+            GROUP BY COALESCE(source_channel, 'dashboard');
+        """)
+        src_rows = conn.execute(src_stmt, {"tenant_id": tenant_id}).mappings().all()
+        total_src_tasks = sum(int(r["total_count"]) for r in src_rows)
+        channel_counts = {str(r["channel"]): int(r["total_count"]) for r in src_rows}
+
+        dashboard_cnt = channel_counts.get("dashboard", 0)
+        telegram_cnt = channel_counts.get("telegram", 0) + channel_counts.get("telegram_proactive", 0)
+        whatsapp_cnt = channel_counts.get("whatsapp", 0) + channel_counts.get("whatsapp_proactive", 0)
+        proactive_cnt = (
+            channel_counts.get("proactive_agent", 0)
+            + channel_counts.get("ai_agent_autonomous", 0)
+            + channel_counts.get("orchestration", 0)
+            + sum(v for k, v in channel_counts.items() if k not in ("dashboard", "telegram", "whatsapp", "telegram_proactive", "whatsapp_proactive", "proactive_agent", "ai_agent_autonomous", "orchestration"))
+        )
+
+        def calc_channel_pct(c: int) -> float:
+            return round((c / total_src_tasks * 100.0), 1) if total_src_tasks > 0 else 0.0
+
+        source_breakdown = {
+            "total_tasks": total_src_tasks,
+            "breakdown": [
+                {"channel": "dashboard", "label": "Web Dashboard", "count": dashboard_cnt, "percentage": calc_channel_pct(dashboard_cnt), "color": "#10b981"},
+                {"channel": "telegram", "label": "Telegram", "count": telegram_cnt, "percentage": calc_channel_pct(telegram_cnt), "color": "#0ea5e9"},
+                {"channel": "whatsapp", "label": "WhatsApp", "count": whatsapp_cnt, "percentage": calc_channel_pct(whatsapp_cnt), "color": "#22c55e"},
+                {"channel": "proactive_agent", "label": "AI Agent Proaktif", "count": proactive_cnt, "percentage": calc_channel_pct(proactive_cnt), "color": "#a855f7"},
+            ],
+            "channels": {
+                "dashboard": calc_channel_pct(dashboard_cnt),
+                "telegram": calc_channel_pct(telegram_cnt),
+                "whatsapp": calc_channel_pct(whatsapp_cnt),
+                "proactive": calc_channel_pct(proactive_cnt),
+            }
+        }
+
         return {
             "tenant_id": tenant_id,
             "period": calc_period,
@@ -1698,6 +1740,7 @@ async def get_performance_overview(
                 "agent_workers_count": len(agent_scores),
                 "kpi_status": classify_kpi_status(avg_final_score) if 'classify_kpi_status' in globals() else ("optimal" if avg_final_score >= 85 else "needs_attention"),
             },
+            "source_breakdown": source_breakdown,
             "radar_dimensions": radar_dimensions,
             "trend_series": trend_series,
             "leaderboard": scores[:10],

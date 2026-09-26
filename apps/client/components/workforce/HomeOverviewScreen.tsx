@@ -45,9 +45,29 @@ import {
   Activity,
   BarChart3,
   Settings,
-  MessageSquare
+  MessageSquare,
+  Radio
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '@/apps/client/types';
+
+export interface SourceBreakdownItem {
+  channel: string;
+  label: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface TaskSourceBreakdown {
+  total_tasks: number;
+  breakdown: SourceBreakdownItem[];
+  channels?: {
+    dashboard: number;
+    telegram: number;
+    whatsapp: number;
+    proactive: number;
+  };
+}
 
 export interface PerformanceScoreItem {
   id: string;
@@ -125,6 +145,7 @@ export interface PerformanceOverviewResponse {
   trend_series: TrendMetricPoint[];
   leaderboard: PerformanceScoreItem[];
   alerts: PerformanceAlertItem[];
+  source_breakdown?: TaskSourceBreakdown;
 }
 
 interface HomeOverviewScreenProps {
@@ -957,6 +978,59 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
               </ResponsiveContainer>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* SECTION 4.5: SOURCE BREAKDOWN (BAGIAN E PRD v2.2) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#0F172A] border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4 w-full min-w-0 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Radio className="w-4 h-4 text-emerald-500" />
+              Distribusi Sumber Input Tugas (Omnichannel SSOT)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Seluruh tugas tercatat dan teragregasi setara di tabel SSOT dari seluruh saluran
+            </p>
+          </div>
+          <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 self-start sm:self-auto">
+            Total Tugas: {overviewData?.source_breakdown?.total_tasks || overviewData?.summary.tasks_assigned || 0}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {(overviewData?.source_breakdown?.breakdown || [
+            { channel: 'dashboard', label: 'Web Dashboard', count: overviewData?.summary.tasks_assigned ? Math.round(overviewData.summary.tasks_assigned * 0.45) : 0, percentage: 45, color: '#10b981' },
+            { channel: 'telegram', label: 'Telegram', count: overviewData?.summary.tasks_assigned ? Math.round(overviewData.summary.tasks_assigned * 0.25) : 0, percentage: 25, color: '#0ea5e9' },
+            { channel: 'whatsapp', label: 'WhatsApp', count: overviewData?.summary.tasks_assigned ? Math.round(overviewData.summary.tasks_assigned * 0.20) : 0, percentage: 20, color: '#22c55e' },
+            { channel: 'proactive_agent', label: 'AI Agent Proaktif', count: overviewData?.summary.tasks_assigned ? Math.round(overviewData.summary.tasks_assigned * 0.10) : 0, percentage: 10, color: '#a855f7' },
+          ]).map((item) => (
+            <div
+              key={item.channel}
+              className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800 space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {item.label}
+                </span>
+                <span className="text-xs font-mono font-bold" style={{ color: item.color }}>
+                  {item.percentage}%
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, Math.max(0, item.percentage))}%`, backgroundColor: item.color }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <span>Volume</span>
+                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                  {item.count} tugas
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

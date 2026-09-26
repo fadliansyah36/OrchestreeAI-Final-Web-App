@@ -38,7 +38,9 @@ from app.api.v1.kanban_and_attendance import (
     CreateChecklistRequest,
     CreateChecklistItemRequest,
     ProactiveTaskFromChannelRequest,
+    ProactiveBusinessEventRequest,
 )
+from app.domains.proactive.service import PROACTIVE_EVENT_TEMPLATES, create_proactive_business_event_task
 
 
 class MockRow:
@@ -237,6 +239,42 @@ class TestTrelloKanbanAndProactiveTasks(unittest.TestCase):
         self.assertTrue(mock_is_task_visible_to_staff(task_personal, staff_mid))
         self.assertTrue(mock_is_task_visible_to_staff(task_collab_agent, staff_mid))
         self.assertFalse(mock_is_task_visible_to_staff(task_uncollab_agent, staff_mid))
+
+    def test_proactive_business_event_triggers_and_templates(self):
+        """
+        Memverifikasi 5 pemicu kondisi bisnis nyata Proactive Engine (BAGIAN C):
+        1. Alert inventory kritis / stok habis (Commerce Domain)
+        2. Lead bernilai tinggi masuk dari Telegram/WhatsApp (Sales/CRM)
+        3. Pembayaran gagal / butuh rekonsiliasi manual (Finance Domain)
+        4. Customer complaint / eskalasi tiket (Service Domain)
+        5. Laporan kompetitor penting (Intelligence Domain)
+        """
+        # Verifikasi kelengkapan 5 template standar
+        required_events = [
+            "inventory_alert",
+            "high_value_lead",
+            "failed_payment",
+            "customer_complaint",
+            "competitor_alert",
+        ]
+        for evt in required_events:
+            self.assertIn(evt, PROACTIVE_EVENT_TEMPLATES)
+            tmpl = PROACTIVE_EVENT_TEMPLATES[evt]
+            self.assertTrue(len(tmpl["checklist"]) >= 3)
+            self.assertIn("default_priority", tmpl)
+            self.assertIn("default_channel", tmpl)
+            self.assertIn("title_template", tmpl)
+
+        # Verifikasi schema request pydantic
+        req = ProactiveBusinessEventRequest(
+            event_type="inventory_alert",
+            entity_name="SKU-8821 Kaos Katun Premium",
+            details="Stok tersisa 2 pcs di gudang Jakarta Selatan.",
+            severity="urgent",
+        )
+        self.assertEqual(req.event_type, "inventory_alert")
+        self.assertEqual(req.severity, "urgent")
+        self.assertEqual(req.source_channel, "system")
 
 
 if __name__ == "__main__":

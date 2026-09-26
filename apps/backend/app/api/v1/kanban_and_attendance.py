@@ -73,24 +73,33 @@ class UpdateTaskRequest(BaseModel):
 class CreateChecklistRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
     position: Optional[int] = 0
+    display_order: Optional[int] = 0
 
 
 class UpdateChecklistRequest(BaseModel):
     title: Optional[str] = None
     position: Optional[int] = None
+    display_order: Optional[int] = None
 
 
 class CreateChecklistItemRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=255)
+    title: Optional[str] = None
+    content: Optional[str] = None
     position: Optional[int] = 0
+    display_order: Optional[int] = 0
 
 
 class UpdateChecklistItemRequest(BaseModel):
     title: Optional[str] = None
+    content: Optional[str] = None
     is_completed: Optional[bool] = None
+    is_done: Optional[bool] = None
     completed_by_type: Optional[str] = None
     completed_by_id: Optional[str] = None
+    completed_by_membership_id: Optional[str] = None
+    completed_by_agent_id: Optional[str] = None
     position: Optional[int] = None
+    display_order: Optional[int] = None
 
 
 class CreateAttachmentRequest(BaseModel):
@@ -98,16 +107,19 @@ class CreateAttachmentRequest(BaseModel):
     file_url: str
     file_size: Optional[int] = 0
     mime_type: Optional[str] = None
+    uploaded_by_type: Optional[str] = "human"
+    uploaded_by_id: Optional[str] = None
 
 
 class CreateCommentRequest(BaseModel):
     content: str = Field(..., min_length=1)
     author_id: Optional[str] = None
-    author_type: str = Field(default="user")
+    author_type: str = Field(default="human")
+    author_agent_id: Optional[str] = None
 
 
 class ProactiveTaskFromChannelRequest(BaseModel):
-    source_channel: str = Field(..., description="'dashboard' | 'telegram' | 'whatsapp' | 'proactive_agent'")
+    source_channel: str = Field(..., description="'dashboard' | 'telegram' | 'whatsapp' | 'proactive_agent' | 'telegram_proactive' | 'whatsapp_proactive' | 'ai_agent_autonomous'")
     sender_id: str
     title: str = Field(..., min_length=2, max_length=200)
     description: Optional[str] = None
@@ -117,6 +129,18 @@ class ProactiveTaskFromChannelRequest(BaseModel):
     labels: List[str] = Field(default_factory=list)
     priority: str = Field(default="medium")
     due_date: Optional[str] = None
+    checklist_items: List[str] = Field(default_factory=list)
+
+
+class ProactiveBusinessEventRequest(BaseModel):
+    event_type: str = Field(..., description="inventory_alert | high_value_lead | failed_payment | customer_complaint | competitor_alert")
+    entity_name: str
+    details: Optional[str] = None
+    source_channel: Optional[str] = Field(default="system")
+    severity: Optional[str] = Field(default="high")
+    agent_id: Optional[str] = None
+    board_id: Optional[str] = None
+    custom_checklist: List[str] = Field(default_factory=list)
 
 
 def _recompute_task_progress(conn: sa.Connection, task_id: str) -> int:
@@ -125,7 +149,7 @@ def _recompute_task_progress(conn: sa.Connection, task_id: str) -> int:
         sa.text("""
             SELECT 
                 COUNT(ci.id) as total_items,
-                COUNT(CASE WHEN ci.is_completed THEN 1 END) as completed_items
+                COUNT(CASE WHEN ci.is_completed OR ci.is_done THEN 1 END) as completed_items
             FROM task_checklists c
             LEFT JOIN task_checklist_items ci ON ci.checklist_id = c.id
             WHERE c.task_id = :task_id;
@@ -861,24 +885,25 @@ async def create_task_checklist(task_id: str, payload: CreateChecklistRequest):
 
             tenant_id = str(task_row["tenant_id"])
             chk_id = str(uuid.uuid4())
+            pos_val = payload.display_order if payload.display_order is not None and payload.display_order != 0 else (payload.position or 0)
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_checklists (id, tenant_id, task_id, title, position, created_at, updated_at)
-                    VALUES (:id, :tenant_id, :task_id, :title, :pos, now(), now());
+                    INSERT INTO task_checklists (id, tenant_id, task_id, title, display_order, position, created_at, updated_at)
+                    VALUES (:id, :tenant_id, :task_id, :title, :pos, :pos, now(), now());
                 """),
                 {
                     "id": chk_id,
                     "tenant_id": tenant_id,
                     "task_id": task_id,
                     "title": payload.title.strip(),
-                    "pos": payload.position or 0,
+                    "pos": pos_val,
                 }
             )
 
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, created_at)
-                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'checklist_created', 'user', 'system', :payload, now());
+                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, source_channel, created_at)
+                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'checklist_created', 'user', 'system', :payload, 'dashboard', now());
                 """),
                 {
                     "tenant_id": tenant_id,
@@ -904,9 +929,11 @@ async def update_task_checklist(task_id: str, checklist_id: str, payload: Update
             if payload.title is not None:
                 updates.append("title = :title")
                 params["title"] = payload.title.strip()
-            if payload.position is not None:
+            final_pos = payload.display_order if payload.display_order is not None else payload.position
+            if final_pos is not None:
                 updates.append("position = :position")
-                params["position"] = payload.position
+                updates.append("display_order = :position")
+                params["position"] = final_pos
 
             res = conn.execute(
                 sa.text(f"UPDATE task_checklists SET {', '.join(updates)} WHERE id = :id AND task_id = :task_id RETURNING *;"),
@@ -949,17 +976,22 @@ async def create_checklist_item(task_id: str, checklist_id: str, payload: Create
 
             tenant_id = str(chk_row["tenant_id"])
             item_id = str(uuid.uuid4())
+            item_text = (payload.title or payload.content or "").strip()
+            item_pos = payload.display_order if payload.display_order is not None and payload.display_order != 0 else (payload.position or 0)
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_checklist_items (id, tenant_id, checklist_id, title, is_completed, position, created_at, updated_at)
-                    VALUES (:id, :tenant_id, :cid, :title, false, :pos, now(), now());
+                    INSERT INTO task_checklist_items (
+                        id, tenant_id, checklist_id, content, title, is_done, is_completed, display_order, position, created_at, updated_at
+                    ) VALUES (
+                        :id, :tenant_id, :cid, :title, :title, false, false, :pos, :pos, now(), now()
+                    );
                 """),
                 {
                     "id": item_id,
                     "tenant_id": tenant_id,
                     "cid": checklist_id,
-                    "title": payload.title.strip(),
-                    "pos": payload.position or 0,
+                    "title": item_text,
+                    "pos": item_pos,
                 }
             )
 
@@ -987,25 +1019,37 @@ async def update_checklist_item(task_id: str, checklist_id: str, item_id: str, p
             updates = ["updated_at = now()"]
             params: Dict[str, Any] = {"id": item_id, "cid": checklist_id}
 
-            if payload.title is not None:
+            final_text = payload.title or payload.content
+            if final_text is not None:
                 updates.append("title = :title")
-                params["title"] = payload.title.strip()
-            if payload.position is not None:
+                updates.append("content = :title")
+                params["title"] = final_text.strip()
+            final_pos = payload.display_order if payload.display_order is not None else payload.position
+            if final_pos is not None:
                 updates.append("position = :pos")
-                params["pos"] = payload.position
-            if payload.is_completed is not None:
+                updates.append("display_order = :pos")
+                params["pos"] = final_pos
+            is_done_val = payload.is_completed if payload.is_completed is not None else payload.is_done
+            if is_done_val is not None:
                 updates.append("is_completed = :comp")
-                params["comp"] = payload.is_completed
-                if payload.is_completed:
+                updates.append("is_done = :comp")
+                params["comp"] = is_done_val
+                if is_done_val:
                     updates.append("completed_at = now()")
                     updates.append("completed_by_type = :cb_type")
                     updates.append("completed_by_id = :cb_id")
-                    params["cb_type"] = payload.completed_by_type or "user"
-                    params["cb_id"] = payload.completed_by_id or "system"
+                    updates.append("completed_by_membership_id = :cb_mid")
+                    updates.append("completed_by_agent_id = :cb_aid")
+                    params["cb_type"] = payload.completed_by_type or ("ai_agent" if payload.completed_by_agent_id else "user")
+                    params["cb_id"] = payload.completed_by_id or payload.completed_by_agent_id or payload.completed_by_membership_id or "system"
+                    params["cb_mid"] = payload.completed_by_membership_id
+                    params["cb_aid"] = payload.completed_by_agent_id
                 else:
                     updates.append("completed_at = NULL")
                     updates.append("completed_by_type = NULL")
                     updates.append("completed_by_id = NULL")
+                    updates.append("completed_by_membership_id = NULL")
+                    updates.append("completed_by_agent_id = NULL")
 
             conn.execute(
                 sa.text(f"UPDATE task_checklist_items SET {', '.join(updates)} WHERE id = :id AND checklist_id = :cid;"),
@@ -1015,19 +1059,19 @@ async def update_checklist_item(task_id: str, checklist_id: str, item_id: str, p
             new_pct = _recompute_task_progress(conn, task_id)
 
             # Log task event
-            if payload.is_completed is not None:
-                evt_type = "checklist_item_completed" if payload.is_completed else "checklist_item_uncompleted"
+            if is_done_val is not None:
+                evt_type = "checklist_item_completed" if is_done_val else "checklist_item_uncompleted"
                 conn.execute(
                     sa.text("""
-                        INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, created_at)
-                        VALUES (gen_random_uuid(), :tenant_id, :task_id, :evt_type, :act_type, :act_id, :payload, now());
+                        INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, source_channel, created_at)
+                        VALUES (gen_random_uuid(), :tenant_id, :task_id, :evt_type, :act_type, :act_id, :payload, 'dashboard', now());
                     """),
                     {
                         "tenant_id": tenant_id,
                         "task_id": task_id,
                         "evt_type": evt_type,
-                        "act_type": payload.completed_by_type or "user",
-                        "act_id": payload.completed_by_id or "system",
+                        "act_type": payload.completed_by_type or ("ai_agent" if payload.completed_by_agent_id else "user"),
+                        "act_id": payload.completed_by_id or payload.completed_by_agent_id or payload.completed_by_membership_id or "system",
                         "payload": json.dumps({"item_id": item_id, "title": item_row["title"], "progress_percentage": new_pct})
                     }
                 )
@@ -1055,7 +1099,7 @@ async def delete_checklist_item(task_id: str, checklist_id: str, item_id: str):
 
 @router.get("/api/v1/tasks/{task_id}/attachments")
 async def list_task_attachments(task_id: str):
-    """Mengambil daftar lampiran berkas tugas."""
+    """Mengambil seluruh lampiran berkas tugas."""
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
@@ -1081,8 +1125,13 @@ async def create_task_attachment(task_id: str, payload: CreateAttachmentRequest)
             att_id = str(uuid.uuid4())
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_attachments (id, tenant_id, task_id, file_name, file_url, file_size, mime_type, created_at)
-                    VALUES (:id, :tenant_id, :task_id, :fname, :furl, :fsize, :mime, now());
+                    INSERT INTO task_attachments (
+                        id, tenant_id, task_id, file_name, file_url, file_size, mime_type,
+                        uploaded_by_type, uploaded_by_id, created_at
+                    ) VALUES (
+                        :id, :tenant_id, :task_id, :fname, :furl, :fsize, :mime,
+                        :ub_type, :ub_id, now()
+                    );
                 """),
                 {
                     "id": att_id,
@@ -1092,17 +1141,21 @@ async def create_task_attachment(task_id: str, payload: CreateAttachmentRequest)
                     "furl": payload.file_url,
                     "fsize": payload.file_size or 0,
                     "mime": payload.mime_type,
+                    "ub_type": payload.uploaded_by_type or "human",
+                    "ub_id": payload.uploaded_by_id or "system",
                 }
             )
 
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, created_at)
-                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'attachment_added', 'user', 'system', :payload, now());
+                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, source_channel, created_at)
+                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'attachment_added', :act_type, :act_id, :payload, 'dashboard', now());
                 """),
                 {
                     "tenant_id": tenant_id,
                     "task_id": task_id,
+                    "act_type": payload.uploaded_by_type or "human",
+                    "act_id": payload.uploaded_by_id or "system",
                     "payload": json.dumps({"attachment_id": att_id, "file_name": payload.file_name})
                 }
             )
@@ -1138,7 +1191,7 @@ async def get_task_timeline(task_id: str):
         events_rows = conn.execute(
             sa.text("""
                 SELECT e.id, e.task_id, e.event_type, e.from_column_id, e.to_column_id,
-                       e.actor_type, e.actor_id, e.payload, e.created_at,
+                       e.actor_type, e.actor_id, e.payload, e.source_channel, e.created_at,
                        fc.name as from_col_name, tc.name as to_col_name
                 FROM task_events e
                 LEFT JOIN board_columns fc ON e.from_column_id = fc.id
@@ -1152,13 +1205,13 @@ async def get_task_timeline(task_id: str):
         # Ambil komentar
         comments_rows = conn.execute(
             sa.text("""
-                SELECT c.id, c.task_id, c.author_id, c.content, c.created_at,
+                SELECT c.id, c.task_id, c.author_id, c.author_type, c.author_agent_id, c.content, c.created_at,
                        m.full_name as author_name,
                        a.display_name as agent_name,
                        a.persona_type as agent_persona
                 FROM task_comments c
                 LEFT JOIN tenant_memberships m ON c.author_id = m.id
-                LEFT JOIN ai_agents a ON c.author_id::text = a.id::text
+                LEFT JOIN ai_agents a ON (c.author_agent_id = a.id OR c.author_id::text = a.id::text)
                 WHERE c.task_id = :task_id
                 ORDER BY c.created_at DESC;
             """),
@@ -1168,7 +1221,7 @@ async def get_task_timeline(task_id: str):
         timeline = []
 
         for e in events_rows:
-            is_agent = e["actor_type"] in ("ai_agent", "agent") or "agent" in str(e["actor_id"]).lower()
+            is_agent = e["actor_type"] in ("ai_agent", "agent") or "agent" in str(e["actor_id"]).lower() or e["source_channel"] == "ai_agent_autonomous"
             timeline.append({
                 "id": str(e["id"]),
                 "entry_type": "event",
@@ -1176,6 +1229,7 @@ async def get_task_timeline(task_id: str):
                 "actor_type": "agent" if is_agent else ("system" if e["actor_type"] == "system" else "human"),
                 "actor_id": str(e["actor_id"]),
                 "actor_name": "AI Agent" if is_agent else ("Sistem" if e["actor_type"] == "system" else "Staf"),
+                "source_channel": e.get("source_channel") or "dashboard",
                 "payload": e["payload"] if isinstance(e["payload"], dict) else json.loads(e["payload"] or "{}"),
                 "from_column_name": e["from_col_name"],
                 "to_column_name": e["to_col_name"],
@@ -1183,14 +1237,15 @@ async def get_task_timeline(task_id: str):
             })
 
         for c in comments_rows:
-            is_agent = bool(c["agent_name"])
+            c_auth_type = c.get("author_type") or "human"
+            is_agent = c_auth_type in ("ai_agent", "agent") or bool(c["agent_name"])
             timeline.append({
                 "id": str(c["id"]),
                 "entry_type": "comment",
                 "event_type": "comment_added",
                 "actor_type": "agent" if is_agent else "human",
-                "actor_id": str(c["author_id"]) if c["author_id"] else "anonymous",
-                "actor_name": c["agent_name"] or c["author_name"] or "Anggota Organisasi",
+                "actor_id": str(c.get("author_agent_id") or c["author_id"]) if (c.get("author_agent_id") or c["author_id"]) else "anonymous",
+                "actor_name": c["agent_name"] or c["author_name"] or ("AI Agent" if is_agent else "Anggota Organisasi"),
                 "persona_type": c["agent_persona"],
                 "content": c["content"],
                 "created_at": c["created_at"].isoformat() if hasattr(c["created_at"], "isoformat") else str(c["created_at"])
@@ -1213,30 +1268,33 @@ async def create_task_comment(task_id: str, payload: CreateCommentRequest):
 
             tenant_id = str(task_row["tenant_id"])
             cid = str(uuid.uuid4())
+            auth_type = payload.author_type or ("ai_agent" if payload.author_agent_id else "human")
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_comments (id, tenant_id, task_id, author_id, content, created_at)
-                    VALUES (:id, :tenant_id, :task_id, :author_id, :content, now());
+                    INSERT INTO task_comments (id, tenant_id, task_id, author_id, author_type, author_agent_id, content, created_at)
+                    VALUES (:id, :tenant_id, :task_id, :author_id, :author_type, :author_agent_id, :content, now());
                 """),
                 {
                     "id": cid,
                     "tenant_id": tenant_id,
                     "task_id": task_id,
                     "author_id": payload.author_id if payload.author_id else None,
+                    "author_type": auth_type,
+                    "author_agent_id": payload.author_agent_id if payload.author_agent_id else None,
                     "content": payload.content.strip(),
                 }
             )
 
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, created_at)
-                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'comment_added', :actor_type, :actor_id, :payload, now());
+                    INSERT INTO task_events (id, tenant_id, task_id, event_type, actor_type, actor_id, payload, source_channel, created_at)
+                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'comment_added', :actor_type, :actor_id, :payload, 'dashboard', now());
                 """),
                 {
                     "tenant_id": tenant_id,
                     "task_id": task_id,
-                    "actor_type": payload.author_type,
-                    "actor_id": payload.author_id or "anonymous",
+                    "actor_type": auth_type,
+                    "actor_id": payload.author_agent_id or payload.author_id or "anonymous",
                     "payload": json.dumps({"comment_id": cid, "preview": payload.content[:60]})
                 }
             )
@@ -1326,17 +1384,47 @@ async def create_proactive_task_from_channel(tenant_id: str, payload: ProactiveT
                 }
             )
 
+            # Buat checklist otomatis bila disertakan
+            if payload.checklist_items:
+                cl_id = str(uuid.uuid4())
+                conn.execute(
+                    sa.text("""
+                        INSERT INTO task_checklists (id, tenant_id, task_id, title, position, display_order, created_at, updated_at)
+                        VALUES (:id, :tid, :task_id, 'Langkah Penyelesaian Proaktif', 0, 0, now(), now());
+                    """),
+                    {"id": cl_id, "tid": tenant_id, "task_id": task_id}
+                )
+                for c_idx, c_item in enumerate(payload.checklist_items):
+                    conn.execute(
+                        sa.text("""
+                            INSERT INTO task_checklist_items (
+                                id, tenant_id, checklist_id, content, title, is_completed, is_done,
+                                position, display_order, created_at, updated_at
+                            ) VALUES (
+                                gen_random_uuid(), :tid, :cl_id, :content, :content, false, false,
+                                :pos, :pos, now(), now()
+                            );
+                        """),
+                        {"tid": tenant_id, "cl_id": cl_id, "content": c_item, "pos": c_idx}
+                    )
+
             conn.execute(
                 sa.text("""
-                    INSERT INTO task_events (id, tenant_id, task_id, event_type, to_column_id, actor_type, actor_id, payload, created_at)
-                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'task_created_omnichannel', :col_id, 'ai_agent', :actor_id, :payload, now());
+                    INSERT INTO task_events (id, tenant_id, task_id, event_type, to_column_id, actor_type, actor_id, payload, source_channel, created_at)
+                    VALUES (gen_random_uuid(), :tenant_id, :task_id, 'created_by_proactive_agent', :col_id, 'ai_agent', :actor_id, :payload, :source_channel, now());
                 """),
                 {
                     "tenant_id": tenant_id,
                     "task_id": task_id,
                     "col_id": target_col,
                     "actor_id": agent_id or "proactive_system",
-                    "payload": json.dumps({"source_channel": payload.source_channel, "sender_id": payload.sender_id, "title": payload.title})
+                    "payload": json.dumps({
+                        "source_channel": payload.source_channel,
+                        "sender_id": payload.sender_id,
+                        "title": payload.title,
+                        "checklist_items_count": len(payload.checklist_items),
+                    }),
+                    "source_channel": payload.source_channel,
                 }
             )
 
@@ -1361,7 +1449,7 @@ async def create_proactive_task_from_channel(tenant_id: str, payload: ProactiveT
         actor_id=agent_id or "proactive_system",
         to_column_id=target_col,
         new_position=new_pos,
-        payload={"title": created_task["title"], "source_channel": payload.source_channel}
+        payload={"title": created_task["title"], "source_channel": payload.source_channel, "created_by_proactive_agent": True}
     )
 
     return {
@@ -1370,6 +1458,91 @@ async def create_proactive_task_from_channel(tenant_id: str, payload: ProactiveT
         "source_channel": payload.source_channel,
         "message": f"Tugas berhasil dibuat dari saluran {payload.source_channel}."
     }
+
+
+@router.post("/api/v1/tenants/{tenant_id}/proactive-tasks/trigger-business-event", status_code=status.HTTP_201_CREATED)
+async def trigger_proactive_business_event_endpoint(tenant_id: str, payload: ProactiveBusinessEventRequest):
+    """
+    Memicu pembuatan tugas otomatis di Kanban saat Proactive Engine mendeteksi kondisi bisnis nyata (BAGIAN C).
+    - Alert stok kritis (Commerce)
+    - Lead bernilai tinggi (Sales / CRM dari Telegram/WhatsApp)
+    - Pembayaran gagal / butuh rekonsiliasi manual (Finance)
+    - Eskalasi keluhan pelanggan (Service)
+    - Intelijen kompetitor (Intelligence)
+    """
+    from app.domains.proactive.service import create_proactive_business_event_task
+    result = await create_proactive_business_event_task(
+        tenant_id=tenant_id,
+        event_type=payload.event_type,
+        entity_name=payload.entity_name,
+        details=payload.details,
+        source_channel=payload.source_channel,
+        severity=payload.severity,
+        agent_id=payload.agent_id,
+        board_id=payload.board_id,
+        custom_checklist=payload.custom_checklist if payload.custom_checklist else None,
+    )
+    return result
+
+
+@router.get("/api/v1/tenants/{tenant_id}/kanban/source-analytics")
+async def get_kanban_source_analytics(tenant_id: str, board_id: Optional[str] = None):
+    """
+    Mengambil ringkasan distribusi sumber tugas (BAGIAN E: Dashboard, Telegram, WhatsApp, Proactive AI Agent).
+    Memastikan seluruh tugas tercatat di tabel SSOT tasks yang sama dan terdistribusi transparan.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+        conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+
+        query = """
+            SELECT 
+                COALESCE(source_channel, 'dashboard') as channel,
+                COUNT(id) as total_count
+            FROM tasks
+            WHERE tenant_id = :tenant_id AND deleted_at IS NULL
+        """
+        params: Dict[str, Any] = {"tenant_id": tenant_id}
+        if board_id:
+            query += " AND board_id = :board_id::uuid"
+            params["board_id"] = board_id
+        query += " GROUP BY COALESCE(source_channel, 'dashboard');"
+
+        src_rows = conn.execute(sa.text(query), params).mappings().all()
+        total_tasks = sum(int(r["total_count"]) for r in src_rows)
+        channel_counts = {str(r["channel"]): int(r["total_count"]) for r in src_rows}
+
+        dashboard_cnt = channel_counts.get("dashboard", 0)
+        telegram_cnt = channel_counts.get("telegram", 0) + channel_counts.get("telegram_proactive", 0)
+        whatsapp_cnt = channel_counts.get("whatsapp", 0) + channel_counts.get("whatsapp_proactive", 0)
+        proactive_cnt = (
+            channel_counts.get("proactive_agent", 0)
+            + channel_counts.get("ai_agent_autonomous", 0)
+            + channel_counts.get("orchestration", 0)
+            + sum(v for k, v in channel_counts.items() if k not in ("dashboard", "telegram", "whatsapp", "telegram_proactive", "whatsapp_proactive", "proactive_agent", "ai_agent_autonomous", "orchestration"))
+        )
+
+        def calc_pct(c: int) -> float:
+            return round((c / total_tasks * 100.0), 1) if total_tasks > 0 else 0.0
+
+        return {
+            "tenant_id": tenant_id,
+            "board_id": board_id,
+            "total_tasks": total_tasks,
+            "breakdown": [
+                {"channel": "dashboard", "label": "Web Dashboard", "count": dashboard_cnt, "percentage": calc_pct(dashboard_cnt), "color": "#10b981"},
+                {"channel": "telegram", "label": "Telegram", "count": telegram_cnt, "percentage": calc_pct(telegram_cnt), "color": "#0ea5e9"},
+                {"channel": "whatsapp", "label": "WhatsApp", "count": whatsapp_cnt, "percentage": calc_pct(whatsapp_cnt), "color": "#22c55e"},
+                {"channel": "proactive_agent", "label": "AI Agent Proaktif", "count": proactive_cnt, "percentage": calc_pct(proactive_cnt), "color": "#a855f7"},
+            ],
+            "channels": {
+                "dashboard": calc_pct(dashboard_cnt),
+                "telegram": calc_pct(telegram_cnt),
+                "whatsapp": calc_pct(whatsapp_cnt),
+                "proactive": calc_pct(proactive_cnt),
+            }
+        }
 
 
 # --- WebAuthn Attendance Endpoints ---
