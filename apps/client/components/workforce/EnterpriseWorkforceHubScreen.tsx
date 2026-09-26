@@ -72,6 +72,8 @@ interface BriefingRecord {
   requires_human_approval: boolean;
   generated_by: string;
   created_at: string;
+  sent_via_proactive?: boolean;
+  proactive_channels?: string[];
 }
 
 interface EnterpriseWorkforceHubScreenProps {
@@ -415,12 +417,20 @@ export const EnterpriseWorkforceHubScreen: React.FC<EnterpriseWorkforceHubScreen
                             Executive Morning Briefing
                           </h2>
                         </div>
-                        <div className="text-xs text-slate-500">
-                          {new Date(selectedBriefing.created_at).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}{' '}
-                          WIB
+                        <div className="flex items-center gap-3">
+                          {selectedBriefing.sent_via_proactive && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Juga terkirim via WhatsApp/Telegram
+                            </span>
+                          )}
+                          <div className="text-xs text-slate-500">
+                            {new Date(selectedBriefing.created_at).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}{' '}
+                            WIB
+                          </div>
                         </div>
                       </div>
 

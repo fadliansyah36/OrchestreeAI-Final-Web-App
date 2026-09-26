@@ -139,33 +139,84 @@ def _ensure_default_board_in_db(conn: sa.Connection, tenant_id: str) -> Dict[str
 # --- Endpoints Papan & Tugas ---
 
 @router.get("/api/v1/tenants/{tenant_id}/boards")
-async def list_tenant_boards(tenant_id: str):
-    """Mengambil seluruh papan kanban milik tenant dari Supabase Postgres."""
+async def list_tenant_boards(
+    tenant_id: str,
+    membership_id: Optional[str] = Query(None),
+    x_membership_id: Optional[str] = Header(None, alias="x-membership-id"),
+    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+):
+    """Mengambil seluruh papan kanban milik tenant dari Supabase Postgres yang sesuai hak akses."""
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+        
+        resolved_mid = membership_id or x_membership_id
+        if not resolved_mid and x_user_id:
+            m_row = conn.execute(
+                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND user_id = :uid AND is_active = true LIMIT 1;"),
+                {"tid": tenant_id, "uid": x_user_id}
+            ).fetchone()
+            if m_row:
+                resolved_mid = str(m_row[0])
+
+        if resolved_mid:
+            conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
+
         _ensure_default_board_in_db(conn, tenant_id)
         rows = conn.execute(
-            sa.text("SELECT id, tenant_id, name, description, created_at, updated_at FROM boards WHERE tenant_id = :tenant_id ORDER BY created_at ASC;"),
+            sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE tenant_id = :tenant_id ORDER BY created_at ASC;"),
             {"tenant_id": tenant_id}
         ).mappings().fetchall()
         return [dict(r) for r in rows]
 
 
 @router.get("/api/v1/tenants/{tenant_id}/boards/{board_id}")
-async def get_board_detail(tenant_id: str, board_id: str):
-    """Mengambil rincian papan, kolom, dan kartu tugas nyata dari Supabase Postgres."""
+async def get_board_detail(
+    tenant_id: str,
+    board_id: str,
+    membership_id: Optional[str] = Query(None),
+    x_membership_id: Optional[str] = Header(None, alias="x-membership-id"),
+    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+):
+    """Mengambil rincian papan, kolom, dan kartu tugas nyata dari Supabase Postgres dengan isolasi access tier."""
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+
+        resolved_mid = membership_id or x_membership_id
+        if not resolved_mid and x_user_id:
+            m_row = conn.execute(
+                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND user_id = :uid AND is_active = true LIMIT 1;"),
+                {"tid": tenant_id, "uid": x_user_id}
+            ).fetchone()
+            if m_row:
+                resolved_mid = str(m_row[0])
+
+        user_tier = "executive"
+        if resolved_mid:
+            conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
+            from app.domains.workforce.access_tier import get_access_tier
+            user_tier = get_access_tier(resolved_mid)
+
         board_row = conn.execute(
-            sa.text("SELECT id, tenant_id, name, description, created_at, updated_at FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
+            sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
             {"id": board_id, "tenant_id": tenant_id}
         ).mappings().first()
 
         if not board_row:
+            # Periksa apakah papan memang ada di tenant tetapi terblokir oleh RLS isolasi departemen
+            raw_check = conn.execute(
+                sa.text("SELECT id FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
+                {"id": board_id, "tenant_id": tenant_id}
+            ).fetchone()
+            if raw_check:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Papan tugas tidak ditemukan atau di luar cakupan departemen Anda."
+                )
+
             board_row = _ensure_default_board_in_db(conn, tenant_id)
             board_id = str(board_row["id"])
 
@@ -177,11 +228,13 @@ async def get_board_detail(tenant_id: str, board_id: str):
         task_rows = conn.execute(
             sa.text("""
                 SELECT t.id, t.tenant_id, t.board_id, t.column_id, t.title, t.description,
-                       t.position, t.priority, t.assignee_id, t.assigned_agent_id, t.version,
+                       t.position, t.priority,
+                       COALESCE(t.assigned_membership_id, t.assignee_id) as assignee_id,
+                       t.assigned_membership_id, t.assigned_agent_id, t.version,
                        t.created_at, t.updated_at,
                        m.full_name as assignee_name, a.display_name as assigned_agent_name
                 FROM tasks t
-                LEFT JOIN tenant_memberships m ON t.assignee_id = m.id
+                LEFT JOIN tenant_memberships m ON COALESCE(t.assigned_membership_id, t.assignee_id) = m.id
                 LEFT JOIN ai_agents a ON t.assigned_agent_id = a.id
                 WHERE t.board_id = :board_id
                 ORDER BY t.position ASC;
@@ -189,10 +242,16 @@ async def get_board_detail(tenant_id: str, board_id: str):
             {"board_id": board_id}
         ).mappings().fetchall()
 
+        tier_notice = None
+        if user_tier == "staff":
+            tier_notice = "Menampilkan task Anda, tim, dan AI Agent kolaborasi Anda"
+
         return {
             "board": dict(board_row),
             "columns": [dict(c) for c in col_rows],
-            "tasks": [dict(t) for t in task_rows]
+            "tasks": [dict(t) for t in task_rows],
+            "access_tier": user_tier,
+            "tier_scope_notice": tier_notice,
         }
 
 

@@ -23,17 +23,19 @@ import {
   Search,
   BookOpen,
   Plus,
-  Check
+  Check,
+  ShieldAlert
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '@/apps/client/types';
 import { EnterpriseReportingQueryView } from './EnterpriseReportingQueryView';
 import { EnterpriseWorkforceHubScreen } from './workforce/EnterpriseWorkforceHubScreen';
+import { AccessTierConfigScreen } from './settings/AccessTierConfigScreen';
 
 
 interface EnterpriseHubScreenProps {
   tenant: TenantRegistrationResponse | null;
   onBack: () => void;
-  defaultTab?: 'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query';
+  defaultTab?: 'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query' | 'access_tier';
 }
 
 export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
@@ -42,7 +44,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   defaultTab = 'workforce_hub',
 }) => {
   const tenantId = tenant?.tenant_id || '';
-  const [activeTab, setActiveTab] = useState<'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'workforce_hub' | 'chief_of_staff' | 'integration_fabric' | 'context_fabric' | 'enforcement' | 'reporting_query' | 'access_tier'>(defaultTab);
 
   // Status langganan real-time
   const [tierInfo, setTierInfo] = useState<{

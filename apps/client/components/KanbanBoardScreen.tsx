@@ -286,6 +286,8 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
   const [board, setBoard] = useState<BoardData | null>(null);
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
+  const [tierScopeNotice, setTierScopeNotice] = useState<string | null>(null);
+  const [accessTier, setAccessTier] = useState<string>('executive');
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
@@ -333,6 +335,12 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
       const detail = await detailRes.json();
       setColumns(detail.columns || []);
       setTasks(detail.tasks || []);
+      if (detail.tier_scope_notice) {
+        setTierScopeNotice(detail.tier_scope_notice);
+      }
+      if (detail.access_tier) {
+        setAccessTier(detail.access_tier);
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan saat memuat papan.');
     } finally {
@@ -603,6 +611,19 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
         <div className="max-w-7xl w-full mx-auto mb-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2.5 animate-fadeIn">
           <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
           <span>{conflictWarning}</span>
+        </div>
+      )}
+
+      {/* Indikator Lingkup Akses Staff (Access Tier Transparency) */}
+      {tierScopeNotice && (
+        <div className="max-w-7xl w-full mx-auto mb-4 px-4 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium text-slate-200">{tierScopeNotice}</span>
+          </div>
+          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-slate-700/50">
+            Lingkup Departemen & Kolaborasi
+          </span>
         </div>
       )}
 

@@ -39,6 +39,7 @@ from app.api.v1.tokenopt import router as tokenopt_router
 from app.api.v1.agentcat import admin_router as agentcat_admin_router, tenant_router as agentcat_tenant_router
 from app.api.v1.storage import router as storage_router
 from app.api.v1.admin_overview import router as admin_overview_router, root_alias_router as admin_alias_router
+from app.api.v1.collaboration import router as collaboration_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -247,6 +248,7 @@ app.include_router(agentcat_tenant_router)
 app.include_router(storage_router)
 app.include_router(admin_overview_router, prefix="/api/v1")
 app.include_router(admin_alias_router)
+app.include_router(collaboration_router)
 
 
 @app.get("/")

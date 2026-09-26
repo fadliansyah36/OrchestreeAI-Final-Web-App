@@ -418,6 +418,10 @@ def authorize(
             "abac.policies.view",
             "abac.requests.create",
             "abac.requests.review",
+            "proactive.messages.manage",
+            "proactive.collaboration.manage",
+            "kanban.board.view",
+            "tasks.board.manage",
         }
         if action in allowed_manager_actions or action.startswith("department."):
             rbac_passed = True
@@ -433,6 +437,10 @@ def authorize(
             "workforce.staff.view",
             "workforce.agent.view",
             "abac.requests.create",
+            "proactive.messages.manage",
+            "proactive.collaboration.manage",
+            "kanban.board.view",
+            "tasks.board.manage",
         }
         if action in allowed_staff_actions:
             rbac_passed = True

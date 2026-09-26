@@ -134,6 +134,7 @@ def tenant_tx(
     user_id: Optional[Union[str, uuid.UUID]] = None,
     actor_type: str = "human_user",
     request_id: Optional[str] = None,
+    membership_id: Optional[Union[str, uuid.UUID]] = None,
 ) -> Generator[sa.Connection, None, None]:
     """
     Context manager transaksi database dengan penegakan RLS ketat (PRD v2.2 Bagian 9.3).
@@ -141,6 +142,7 @@ def tenant_tx(
     - SET LOCAL ROLE orchestree_app;
     - set_config('app.tenant_id', tenant_id, true)
     - set_config('app.user_id', user_id, true)
+    - set_config('app.membership_id', membership_id, true)
     - set_config('app.actor_type', actor_type, true)
     - set_config('app.request_id', request_id, true)
     """
@@ -156,6 +158,11 @@ def tenant_tx(
                 conn.execute(
                     text("SELECT set_config('app.user_id', :val, true);"),
                     {"val": str(user_id)},
+                )
+            if membership_id:
+                conn.execute(
+                    text("SELECT set_config('app.membership_id', :val, true);"),
+                    {"val": str(membership_id)},
                 )
             if actor_type:
                 conn.execute(

@@ -526,7 +526,7 @@ class ImageRouterService:
         """
         Menjalankan generasi visual nyata melalui Model Router GPT-Image-2
         secara resmi menggunakan API Key yang dikonfigurasi (GPT_IMAGE_2_API_KEY).
-        Dilarang keras menggunakan fallback dummy, mock, atau visual palsu.
+        Dilarang keras menggunakan fallback visual palsu atau tiruan tanpa koneksi.
         """
         import os
         import time

@@ -17,9 +17,11 @@ import {
   X,
   Lock,
   ChevronRight,
-  Flame
+  Flame,
+  Users
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '@/apps/client/types';
+import { CollaborationSetupScreen } from './proactive/CollaborationSetupScreen';
 
 interface ProactiveChannelsScreenProps {
   tenant: TenantRegistrationResponse | null;
@@ -33,8 +35,8 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   const tenantId = tenant?.tenant_id || '';
   const membershipId = tenant?.membership_id || tenant?.user_id || 'member-001';
 
-  // Tabs: 'channels' | 'notifications' | 'logs'
-  const [activeTab, setActiveTab] = useState<'channels' | 'notifications' | 'logs'>('channels');
+  // Tabs: 'channels' | 'collaboration' | 'notifications' | 'logs'
+  const [activeTab, setActiveTab] = useState<'channels' | 'collaboration' | 'notifications' | 'logs'>('channels');
 
   // WhatsApp State
   const [waPhone, setWaPhone] = useState('+628');
@@ -389,6 +391,18 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
           </button>
 
           <button
+            onClick={() => setActiveTab('collaboration')}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition cursor-pointer ${
+              activeTab === 'collaboration'
+                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Kolaborasi AI Agent</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('notifications')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition cursor-pointer ${
               activeTab === 'notifications'
@@ -417,6 +431,15 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
             <span>Scheduler & Audit Logs</span>
           </button>
         </div>
+
+        {/* TAB KOLABORASI AI AGENT */}
+        {activeTab === 'collaboration' && (
+          <CollaborationSetupScreen
+            tenantId={tenantId}
+            membershipId={membershipId}
+            onComplete={() => setActiveTab('channels')}
+          />
+        )}
 
         {/* TAB 1: KANAL INTEGRASI WHATSAPP & TELEGRAM */}
         {activeTab === 'channels' && (
