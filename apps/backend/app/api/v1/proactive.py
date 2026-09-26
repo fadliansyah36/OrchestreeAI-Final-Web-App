@@ -25,6 +25,7 @@ from app.domains.proactive.service import (
     request_whatsapp_otp,
     verify_whatsapp_otp,
     generate_telegram_deeplink,
+    get_verification_status,
     update_subscription_preferences,
     get_subscriptions,
     get_message_logs,
@@ -106,6 +107,8 @@ async def api_request_whatsapp_otp(
             phone_number=payload.phone_number,
         )
         return {"success": True, "data": res}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Gagal request WhatsApp OTP: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -124,6 +127,8 @@ async def api_verify_whatsapp_otp(
             verification_code=payload.verification_code,
         )
         return {"success": True, "data": res}
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -136,15 +141,43 @@ async def api_generate_telegram_deeplink(
     payload: TelegramDeeplinkRequest,
     x_user_id: Optional[str] = Header(None, alias="x-user-id"),
 ):
-    """Membuat tautan deep-link verifikasi resmi Telegram Bot: t.me/{bot}?start=verify_{code}."""
+    """Membuat tautan deep-link verifikasi resmi Telegram Bot: t.me/{bot}?start={verify_token}."""
     try:
         res = await generate_telegram_deeplink(
             tenant_id=payload.tenant_id,
             membership_id=payload.membership_id,
         )
-        return {"success": True, "data": res}
+        return {
+            "success": True,
+            "data": res,
+            "deeplink": res.get("deeplink_url"),
+            "deeplink_url": res.get("deeplink_url"),
+            "verification_id": res.get("verification_id"),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Gagal generate Telegram deep-link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/verification/{verification_id}/status")
+async def api_get_verification_status(
+    verification_id: str,
+    tenant_id: str,
+    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+):
+    """
+    Polling status verifikasi tiket kanal (pending, verified, expired).
+    Hanya mengembalikan status dan masked destination untuk privasi.
+    """
+    try:
+        res = await get_verification_status(tenant_id=tenant_id, verification_id=verification_id)
+        return {"success": True, "data": res, "status": res.get("status")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Gagal mengambil status verifikasi: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -157,7 +190,7 @@ async def api_get_subscriptions(
     """Mengambil status langganan kanal proaktif staf (WhatsApp & Telegram)."""
     try:
         subs = await get_subscriptions(tenant_id=tenant_id, membership_id=membership_id)
-        return {"success": True, "data": subs}
+        return {"success": True, "data": subs, "subscriptions": subs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -196,7 +229,7 @@ async def api_get_logs(
     """Mengambil riwayat log audit pengiriman pesan proaktif."""
     try:
         logs = await get_message_logs(tenant_id=tenant_id, membership_id=membership_id, limit=limit)
-        return {"success": True, "data": logs}
+        return {"success": True, "data": logs, "logs": logs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -217,7 +250,7 @@ async def api_get_notifications(
             unread_only=unread_only,
             limit=limit,
         )
-        return {"success": True, "data": notifs}
+        return {"success": True, "data": notifs, "notifications": notifs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -312,6 +345,26 @@ async def api_register_verified_sender(
                 sa.text("SELECT set_config('app.tenant_id', :tid, true)"),
                 {"tid": payload.tenant_id}
             )
+
+            # Validasi bukti konfirmasi verifikasi nyata dari channel_verification
+            verif_proof = conn.execute(
+                sa.text("""
+                    SELECT id FROM channel_verification
+                    WHERE tenant_id = :tid
+                      AND membership_id = :mid
+                      AND status = 'verified'
+                      AND (destination_target = :ident OR chat_id = :ident)
+                    LIMIT 1
+                """),
+                {"tid": payload.tenant_id, "mid": payload.membership_id, "ident": payload.external_identifier}
+            ).mappings().first()
+
+            if not verif_proof:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Pengirim belum diverifikasi resmi. Silakan selesaikan alur verifikasi OTP WhatsApp resmi atau webhook Telegram Bot."
+                )
+
             conn.execute(
                 sa.text("""
                     INSERT INTO proactive_verified_senders (

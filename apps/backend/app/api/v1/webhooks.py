@@ -29,6 +29,7 @@ from app.domains.proactive.service import (
     handle_opt_out,
     handle_opt_in,
     verify_telegram_start,
+    handle_telegram_start_webhook,
     send_whatsapp_message,
     send_telegram_message,
 )
@@ -379,21 +380,13 @@ async def handle_telegram_bot_webhook(request: Request):
 
     bot_token = settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_OFFICIAL_BOT_TOKEN or ""
 
-    # 1. Penanganan Deep-Link Verifikasi: /start verify_{code}
-    if text.startswith("/start verify_"):
-        code_part = text.split("verify_")[1].strip().split()[0]
-        res = await verify_telegram_start(
+    # 1. Penanganan Deep-Link Verifikasi: /start <token> atau /start verify_<token>
+    if text.startswith("/start ") and len(text.strip().split()) > 1:
+        res = await handle_telegram_start_webhook(
             chat_id=chat_id,
-            verification_code=code_part,
-            telegram_user_meta=from_user,
+            text=text,
+            from_user=from_user,
         )
-        if not res.get("success"):
-            err_msg = (
-                f"❌ <b>Verifikasi Tautan Gagal:</b>\n"
-                f"{res.get('error', 'Kode verifikasi tidak valid atau telah kedaluwarsa.')}\n\n"
-                f"Silakan buat tautan baru melalui dashboard OrchestreeAI Anda."
-            )
-            await send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=err_msg)
         return {"status": "ok", "action": "verify_telegram", "result": res}
 
     # 2. Penanganan Opt-Out (STOP / BERHENTI / /stop)

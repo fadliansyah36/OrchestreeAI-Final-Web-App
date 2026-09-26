@@ -172,19 +172,19 @@ def upgrade() -> None:
 
     # 5. Feature Capabilities
     op.execute("""
-    INSERT INTO feature_capabilities (capability_code, domain, description, is_active, min_tier)
+    INSERT INTO feature_capabilities (capability_key, min_tier_level, description)
     VALUES
-        ('tasks.checklist.manage', 'tasks', 'Pengelolaan daftar periksa dan progres kartu kanban', true, 'STAFF'),
-        ('tasks.attachments.manage', 'tasks', 'Pengunggahan dan pengelolaan lampiran berkas tugas', true, 'STAFF'),
-        ('tasks.proactive.create', 'tasks', 'Pembuatan tugas otomatis oleh AI Agent Proaktif lintas kanal', true, 'STAFF')
-    ON CONFLICT (capability_code) DO NOTHING;
+        ('tasks.checklist.manage', 1, 'Pengelolaan daftar periksa dan progres kartu kanban'),
+        ('tasks.attachments.manage', 1, 'Pengunggahan dan pengelolaan lampiran berkas tugas'),
+        ('tasks.proactive.create', 1, 'Pembuatan tugas otomatis oleh AI Agent Proaktif lintas kanal')
+    ON CONFLICT (capability_key) DO NOTHING;
     """)
 
 
 def downgrade() -> None:
     op.execute("""
     DELETE FROM feature_capabilities
-    WHERE capability_code IN ('tasks.checklist.manage', 'tasks.attachments.manage', 'tasks.proactive.create');
+    WHERE capability_key IN ('tasks.checklist.manage', 'tasks.attachments.manage', 'tasks.proactive.create');
 
     DROP TABLE IF EXISTS task_checklist_items CASCADE;
     DROP TABLE IF EXISTS task_checklists CASCADE;

@@ -78,18 +78,18 @@ def upgrade() -> None:
         );
 
     -- Pendaftaran kapabilitas rekonsiliasi pada feature_capabilities
-    INSERT INTO feature_capabilities (capability_code, domain, description, is_active, min_tier)
+    INSERT INTO feature_capabilities (capability_key, min_tier_level, description)
     VALUES
-        ('admin.commercial.reconciliation.view', 'commercial', 'Melihat daftar dan status kasus rekonsiliasi pembayaran gateway', true, 'ENTERPRISE'),
-        ('admin.commercial.reconciliation.manage', 'commercial', 'Menjalankan re-check status gateway dan penyelesaian manual kasus rekonsiliasi', true, 'ENTERPRISE'),
-        ('billing.reconciliation.view', 'billing', 'Melihat status verifikasi rekonsiliasi pembayaran milik tenant', true, 'STARTER')
-    ON CONFLICT (capability_code) DO NOTHING;
+        ('admin.commercial.reconciliation.view', 3, 'Melihat daftar dan status kasus rekonsiliasi pembayaran gateway'),
+        ('admin.commercial.reconciliation.manage', 3, 'Menjalankan re-check status gateway dan penyelesaian manual kasus rekonsiliasi'),
+        ('billing.reconciliation.view', 1, 'Melihat status verifikasi rekonsiliasi pembayaran milik tenant')
+    ON CONFLICT (capability_key) DO NOTHING;
     """)
 
 
 def downgrade() -> None:
     op.execute("""
-    DELETE FROM feature_capabilities WHERE capability_code IN (
+    DELETE FROM feature_capabilities WHERE capability_key IN (
         'admin.commercial.reconciliation.view',
         'admin.commercial.reconciliation.manage',
         'billing.reconciliation.view'

@@ -85,17 +85,17 @@ def upgrade() -> None:
         );
 
     -- Pendaftaran kapabilitas analitik pada feature_capabilities
-    INSERT INTO feature_capabilities (capability_code, domain, description, is_active, min_tier)
+    INSERT INTO feature_capabilities (capability_key, min_tier_level, description)
     VALUES
-        ('admin.analytics.view', 'analytics', 'Akses visualisasi data dan metrik analitik platform global', true, 'ENTERPRISE'),
-        ('admin.analytics.manage', 'analytics', 'Pengaturan dan komputasi ulang agregasi data analitik platform', true, 'ENTERPRISE')
-    ON CONFLICT (capability_code) DO NOTHING;
+        ('admin.analytics.view', 3, 'Akses visualisasi data dan metrik analitik platform global'),
+        ('admin.analytics.manage', 3, 'Pengaturan dan komputasi ulang agregasi data analitik platform')
+    ON CONFLICT (capability_key) DO NOTHING;
     """)
 
 
 def downgrade() -> None:
     op.execute("""
-    DELETE FROM feature_capabilities WHERE capability_code IN ('admin.analytics.view', 'admin.analytics.manage');
+    DELETE FROM feature_capabilities WHERE capability_key IN ('admin.analytics.view', 'admin.analytics.manage');
     DROP TABLE IF EXISTS tenant_analytics_daily_rollup CASCADE;
     DROP TABLE IF EXISTS platform_analytics_daily_rollup CASCADE;
     """)

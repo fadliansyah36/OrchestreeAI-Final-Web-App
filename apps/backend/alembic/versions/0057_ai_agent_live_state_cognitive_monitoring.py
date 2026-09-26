@@ -87,16 +87,16 @@ def upgrade() -> None:
         );
 
     -- 2. Registrasi kapabilitas fitur
-    INSERT INTO feature_capabilities (capability_code, description, domain, risk_tier)
+    INSERT INTO feature_capabilities (capability_key, min_tier_level, description)
     VALUES
-        ('admin.cognitive_monitoring.view', 'Pemantauan Visual Kognitif AI Lintas Tenant Super Admin', 'admin', 'low'),
-        ('ai_agent.live_state.manage', 'Manajemen & Publikasi Detak Live State Agen AI', 'workforce', 'low')
-    ON CONFLICT (capability_code) DO NOTHING;
+        ('admin.cognitive_monitoring.view', 3, 'Pemantauan Visual Kognitif AI Lintas Tenant Super Admin'),
+        ('ai_agent.live_state.manage', 1, 'Manajemen & Publikasi Detak Live State Agen AI')
+    ON CONFLICT (capability_key) DO NOTHING;
     """)
 
 
 def downgrade() -> None:
     op.execute("""
-    DELETE FROM feature_capabilities WHERE capability_code IN ('admin.cognitive_monitoring.view', 'ai_agent.live_state.manage');
+    DELETE FROM feature_capabilities WHERE capability_key IN ('admin.cognitive_monitoring.view', 'ai_agent.live_state.manage');
     DROP TABLE IF EXISTS ai_agent_live_state CASCADE;
     """)

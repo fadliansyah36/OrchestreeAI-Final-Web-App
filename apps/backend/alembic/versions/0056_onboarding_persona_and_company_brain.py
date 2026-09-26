@@ -293,23 +293,23 @@ def upgrade() -> None:
 
     # 8. Pendaftaran feature_capabilities
     capabilities = [
-        ('onboarding.persona.participate', 'Partisipasi Pengisian Kuesioner Persona Onboarding Organisasi', 'onboarding', 'low'),
-        ('onboarding.persona.manage', 'Manajemen Repositori Pertanyaan Persona Onboarding Super Admin', 'admin', 'medium'),
+        ('onboarding.persona.participate', 1, 'Partisipasi Pengisian Kuesioner Persona Onboarding Organisasi'),
+        ('onboarding.persona.manage', 3, 'Manajemen Repositori Pertanyaan Persona Onboarding Super Admin'),
     ]
 
     for cap in capabilities:
         op.execute(sa.text("""
-        INSERT INTO feature_capabilities (capability_code, description, domain, risk_tier)
-        VALUES (:code, :desc, :domain, :risk)
-        ON CONFLICT (capability_code) DO NOTHING;
-        """).bindparams(code=cap[0], desc=cap[1], domain=cap[2], risk=cap[3]))
+        INSERT INTO feature_capabilities (capability_key, min_tier_level, description)
+        VALUES (:key, :tier, :desc)
+        ON CONFLICT (capability_key) DO NOTHING;
+        """).bindparams(key=cap[0], tier=cap[1], desc=cap[2]))
 
 
 def downgrade() -> None:
     # 1. Hapus capabilities
     op.execute("""
     DELETE FROM feature_capabilities
-    WHERE capability_code IN ('onboarding.persona.participate', 'onboarding.persona.manage');
+    WHERE capability_key IN ('onboarding.persona.participate', 'onboarding.persona.manage');
     """)
 
     # 2. Drop RLS policies & tabel

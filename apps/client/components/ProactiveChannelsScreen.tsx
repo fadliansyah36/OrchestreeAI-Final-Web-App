@@ -48,7 +48,8 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
   // Telegram State
   const [tgDeeplink, setTgDeeplink] = useState<string | null>(null);
-  const [tgVerifyCode, setTgVerifyCode] = useState<string | null>(null);
+  const [tgVerificationId, setTgVerificationId] = useState<string | null>(null);
+  const [isTgPolling, setIsTgPolling] = useState(false);
   const [tgVerified, setTgVerified] = useState(false);
   const [tgLoading, setTgLoading] = useState(false);
 
@@ -74,19 +75,51 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
     fetchLogs();
   }, [tenantId, membershipId]);
 
+  // Polling Real-Time Status Verifikasi Telegram Bot
+  useEffect(() => {
+    if (!isTgPolling || !tgVerificationId || !tenantId) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/v1/proactive/verification/${tgVerificationId}/status?tenant_id=${tenantId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          const payload = result.data || result;
+          if (payload.status === 'verified') {
+            setIsTgPolling(false);
+            setTgVerified(true);
+            setTgDeeplink(null);
+            setTgVerificationId(null);
+            fetchSubscriptions();
+          } else if (payload.status === 'expired') {
+            setIsTgPolling(false);
+            setTgDeeplink(null);
+            setTgVerificationId(null);
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal polling status verifikasi Telegram:', err);
+      }
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [isTgPolling, tgVerificationId, tenantId]);
+
   const fetchSubscriptions = async () => {
     try {
       const res = await fetch(`/api/v1/proactive/subscriptions?tenant_id=${tenantId}&membership_id=${membershipId}`);
       if (res.ok) {
         const data = await res.json();
-        const subs = data.subscriptions || [];
+        const subs = data.subscriptions || data.data || [];
         const wa = subs.find((s: any) => s.channel === 'whatsapp');
-        if (wa && wa.verification_status === 'verified') {
+        if (wa && (wa.verification_status === 'verified' || wa.status === 'active')) {
           setWaVerified(true);
           setWaPhone(wa.destination_target || waPhone);
         }
         const tg = subs.find((s: any) => s.channel === 'telegram');
-        if (tg && tg.verification_status === 'verified') {
+        if (tg && (tg.verification_status === 'verified' || tg.status === 'active')) {
           setTgVerified(true);
         }
       }
@@ -100,7 +133,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
       const res = await fetch(`/api/v1/proactive/notifications?tenant_id=${tenantId}&membership_id=${membershipId}&unread_only=${unreadOnly}`);
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        setNotifications(data.notifications || data.data || []);
       }
     } catch (e) {
       console.warn('Gagal memuat notifikasi:', e);
@@ -112,7 +145,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
       const res = await fetch(`/api/v1/proactive/logs?tenant_id=${tenantId}&limit=20`);
       if (res.ok) {
         const data = await res.json();
-        setLogs(data.logs || []);
+        setLogs(data.logs || data.data || []);
       }
     } catch (e) {
       console.warn('Gagal memuat logs audit:', e);
@@ -142,7 +175,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
         setWaOtpSent(true);
         setWaMessage({ type: 'success', text: 'Kode OTP 6 digit telah dikirimkan ke WhatsApp Anda.' });
       } else {
-        setWaMessage({ type: 'error', text: data.error || 'Gagal mengirim OTP' });
+        setWaMessage({ type: 'error', text: data.detail || data.error || 'Gagal mengirim OTP' });
       }
     } catch (err: any) {
       setWaMessage({ type: 'error', text: err.message });
@@ -176,7 +209,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
         setWaMessage({ type: 'success', text: 'Nomor WhatsApp berhasil terverifikasi! Pesan proaktif aktif.' });
         fetchSubscriptions();
       } else {
-        setWaMessage({ type: 'error', text: data.error || 'Verifikasi OTP gagal' });
+        setWaMessage({ type: 'error', text: data.detail || data.error || 'Verifikasi OTP gagal' });
       }
     } catch (err: any) {
       setWaMessage({ type: 'error', text: err.message });
@@ -199,8 +232,13 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
       });
       const data = await res.json();
       if (res.ok) {
-        setTgDeeplink(data.deeplink);
-        setTgVerifyCode(data.verification_code);
+        const payload = data.data || data;
+        const link = payload.deeplink_url || payload.deeplink;
+        setTgDeeplink(link);
+        if (payload.verification_id) {
+          setTgVerificationId(payload.verification_id);
+          setIsTgPolling(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -630,8 +668,9 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
                         </a>
                       </div>
 
-                      <div className="text-[11px] text-slate-400 font-mono text-center">
-                        Kode Verifikasi: {tgVerifyCode} (Berlaku 15 menit)
+                      <div className="flex items-center justify-center space-x-2 text-[11px] text-sky-400 py-1 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                        <span>Menunggu aktivasi bot di Telegram (berlaku 15 menit)...</span>
                       </div>
                     </div>
                   )}

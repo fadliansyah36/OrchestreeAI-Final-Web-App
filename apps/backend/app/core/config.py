@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     WA_PROACTIVE_PHONE_NUMBER_ID: Optional[str] = None
     WA_PROACTIVE_WABA_ID: Optional[str] = None
     WA_PROACTIVE_ACCESS_TOKEN: Optional[str] = None
+    OTP_PEPPER: str = "orchestree_proactive_otp_pepper_secure_salt_2026"
 
     # Integrations & Prospecting
     VIBE_PROSPECTING_API_KEY: Optional[str] = None
