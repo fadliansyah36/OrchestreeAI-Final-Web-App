@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { QrCode, RefreshCw, Smartphone, ShieldCheck, CheckCircle2, AlertCircle, X, ExternalLink } from 'lucide-react';
+import { QrCode, RefreshCw, Smartphone, ShieldCheck, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface QRConnectModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
   const [status, setStatus] = useState<'IDLE' | 'LOADING' | 'PENDING' | 'AUTHORIZING' | 'CONNECTED' | 'EXPIRED' | 'ERROR'>('IDLE');
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // 1. Ambil / Generate QR Token Baru dari Backend
+  // 1. Ambil / Generate QR Token Baru dari Backend (panggilan auth.exportLoginToken nyata ke server Telegram)
   const fetchQrSession = useCallback(async () => {
     if (!channelAccountId || !tenantId) return;
     setStatus('LOADING');
@@ -40,7 +41,7 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
         throw new Error(err.detail || 'Gagal memicu pembuatan sesi QR');
       }
       const data = await res.json();
-      setQrToken(data.qr_token);
+      setQrToken(data.qr_token || data.qr_url);
       setSecondsRemaining(data.expires_in_seconds || 35);
       setStatus('PENDING');
     } catch (err: any) {
@@ -59,12 +60,12 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
     }
   }, [isOpen, fetchQrSession]);
 
-  // 2. Countdown Timer
+  // 2. Countdown Timer masa berlaku token
   useEffect(() => {
     if (status !== 'PENDING') return;
     if (secondsRemaining <= 0) {
       setStatus('EXPIRED');
-      // Auto refresh saat kadaluarsa
+      // Otomatis refresh saat masa berlaku habis
       fetchQrSession();
       return;
     }
@@ -76,7 +77,7 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
     return () => clearInterval(timer);
   }, [status, secondsRemaining, fetchQrSession]);
 
-  // 3. Polling Status Pindaian setiap 2.5 detik
+  // 3. Polling Status Pindaian setiap 2.5 detik (menunggu konfirmasi otorisasi nyata dari Telegram)
   useEffect(() => {
     if (status !== 'PENDING' && status !== 'AUTHORIZING') return;
 
@@ -92,80 +93,24 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
             onSuccess();
             onClose();
           }, 1500);
+        } else if (data.status === 'refreshed' && (data.new_qr_url || data.qr_token)) {
+          // Token resmi diperbarui langsung dari server Telegram
+          setQrToken(data.new_qr_url || data.qr_token);
+          setSecondsRemaining(data.expires_in_seconds || 30);
+          setStatus('PENDING');
         } else if (data.status === 'qr_expired') {
           setStatus('EXPIRED');
+          fetchQrSession();
         }
       } catch {
-        // Fallback hening untuk kegagalan poll sesaat
+        // Abaikan kegagalan poll sesaat pada jaringan transien
       }
     }, 2500);
 
     return () => clearInterval(pollTimer);
-  }, [status, tenantId, channelAccountId, onSuccess, onClose]);
+  }, [status, tenantId, channelAccountId, onSuccess, onClose, fetchQrSession]);
 
   if (!isOpen) return null;
-
-  // Membuat visual matriks QR yang representatif dari token unik
-  const renderQrSvg = (token: string) => {
-    // Generate pseudo-grid deterministik berdasarkan hash token
-    const size = 25;
-    const cells: boolean[][] = Array(size).fill(false).map(() => Array(size).fill(false));
-
-    // Pola posisi 3 sudut (Finder Patterns khas QR Code)
-    const drawFinderPattern = (startX: number, startY: number) => {
-      for (let y = 0; y < 7; y++) {
-        for (let x = 0; x < 7; x++) {
-          if (
-            y === 0 || y === 6 || x === 0 || x === 6 ||
-            (y >= 2 && y <= 4 && x >= 2 && x <= 4)
-          ) {
-            cells[startY + y][startX + x] = true;
-          }
-        }
-      }
-    };
-
-    drawFinderPattern(1, 1);
-    drawFinderPattern(size - 8, 1);
-    drawFinderPattern(1, size - 8);
-
-    // Isi sel sisanya secara deterministik menggunakan karakter token
-    let seed = 0;
-    for (let i = 0; i < token.length; i++) {
-      seed = (seed * 31 + token.charCodeAt(i)) & 0xffffffff;
-    }
-
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        // Lewatkan 3 sudut finder patterns
-        if (
-          (x < 9 && y < 9) ||
-          (x > size - 10 && y < 9) ||
-          (x < 9 && y > size - 10)
-        ) {
-          continue;
-        }
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        cells[y][x] = (seed % 3) === 0;
-      }
-    }
-
-    return (
-      <svg
-        viewBox={`0 0 ${size} ${size}`}
-        className="w-56 h-56 bg-white p-3 rounded-xl border border-slate-200 shadow-inner"
-        shapeRendering="crispEdges"
-      >
-        {cells.map((row, y) =>
-          row.map((active, x) =>
-            active ? (
-              <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#0f172a" />
-            ) : null
-          )
-        )}
-      </svg>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
@@ -183,7 +128,7 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -230,14 +175,22 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
             )}
           </div>
 
-          {/* Area QR Code Interaktif */}
+          {/* Area QR Code Nyata dari Telegram tg://login?token=... */}
           <div className="relative mb-6 flex justify-center">
             {qrToken ? (
-              renderQrSvg(qrToken)
+              <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-md">
+                <QRCodeSVG
+                  value={qrToken}
+                  size={216}
+                  level="M"
+                  includeMargin={true}
+                  className="rounded-xl"
+                />
+              </div>
             ) : (
               <div className="w-56 h-56 bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-3 border border-dashed border-slate-300">
                 <RefreshCw className="w-8 h-8 text-slate-400 animate-spin" />
-                <span className="text-xs text-slate-500">Memuat kode QR...</span>
+                <span className="text-xs text-slate-500">Memuat kode QR resmi Telegram...</span>
               </div>
             )}
 
@@ -245,7 +198,7 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
             {status === 'EXPIRED' && (
               <div className="absolute inset-0 bg-white/85 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2">
                 <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
-                <span className="text-xs font-medium text-slate-800">Menyegarkan token QR...</span>
+                <span className="text-xs font-medium text-slate-800">Menyegarkan token QR resmi...</span>
               </div>
             )}
           </div>
@@ -282,14 +235,14 @@ export const QRConnectModal: React.FC<QRConnectModalProps> = ({
           <button
             onClick={fetchQrSession}
             disabled={status === 'LOADING'}
-            className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-blue-600 transition-colors font-medium"
+            className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-blue-600 transition-colors font-medium cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${status === 'LOADING' ? 'animate-spin' : ''}`} />
             Perbarui Kode QR
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shadow-sm"
+            className="px-4 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shadow-xs cursor-pointer"
           >
             Tutup
           </button>

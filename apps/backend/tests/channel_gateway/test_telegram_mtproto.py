@@ -41,6 +41,8 @@ except ImportError:
 from orchestree.core.security.envelope_kms import (
     encrypt_session_string,
     decrypt_session_string,
+    encrypt_session_envelope,
+    decrypt_session_envelope,
     KMSDecryptionError,
 )
 from orchestree.channel_gateway.telegram_mtproto import (
@@ -176,3 +178,142 @@ async def test_record_usage_and_deduct_credit_row_locking():
             channel_type="telegram_mtproto",
             units=1,
         )
+
+
+@pytest.mark.asyncio
+async def test_mtproto_qr_session_token_and_status_polling():
+    """
+    Memverifikasi bahwa alur QR login MTProto:
+    1. Menggunakan qr_login.url resmi Telegram (berawalan tg://login?token=).
+    2. Menghasilkan status 'pending' saat user belum memindai.
+    3. Mengubah status channel_accounts menjadi 'ACTIVE' HANYA saat qr_login.wait() mengembalikan User nyata.
+    """
+    from orchestree.channel_gateway.telegram_mtproto import (
+        start_mtproto_qr_session,
+        poll_mtproto_qr_result,
+        _transient_sessions,
+        revoke_mtproto_session,
+    )
+
+    mock_db = MagicMock()
+    mock_conn = MagicMock()
+    mock_db.begin.return_value.__enter__.return_value = mock_conn
+
+    # Setup return value channel_accounts
+    mock_row = {"id": "ca-tg-test-01", "channel_type": "telegram_mtproto", "connection_mode": "mtproto_qr", "status": "PENDING_SETUP"}
+    mock_conn.execute.return_value.mappings.return_value.first.return_value = mock_row
+
+    with patch("orchestree.channel_gateway.telegram_mtproto.TelegramClient") as MockClient:
+        mock_client_instance = AsyncMock()
+        MockClient.return_value = mock_client_instance
+
+        mock_qr = AsyncMock()
+        mock_qr.url = "tg://login?token=AQJp_rdqL3eJbJsW1E-_RnDRxVRwdlsAdslc6DTHC_Lc6A"
+        mock_qr.expires = datetime.now(timezone.utc)
+        mock_client_instance.qr_login.return_value = mock_qr
+        mock_client_instance.session.save.return_value = "1BVtsOMQBu8xXXXX-real-telethon-session-string"
+
+        # 1. Start QR Session
+        res = await start_mtproto_qr_session(
+            tenant_id="tenant-tg-01",
+            channel_account_id="ca-tg-test-01",
+            engine=mock_db
+        )
+
+        assert res["status"] == "qr_pending"
+        assert res["qr_token"].startswith("tg://login?token=")
+        assert "ca-tg-test-01" in _transient_sessions
+
+        # 2. Polling saat timeout (user belum scan)
+        mock_qr.wait.side_effect = TimeoutError()
+        poll_pending = await poll_mtproto_qr_result(
+            tenant_id="tenant-tg-01",
+            channel_account_id="ca-tg-test-01",
+            engine=mock_db
+        )
+        assert poll_pending["status"] in ("pending", "refreshed")
+
+        # 3. Polling saat user memindai dan konfirmasi login dari HP Telegram
+        mock_user = MagicMock()
+        mock_user.id = 987654321
+        mock_user.first_name = "Farhan"
+        mock_user.username = "farhan_ai"
+        mock_user.phone = "+628123456789"
+        mock_qr.wait.side_effect = None
+        mock_qr.wait.return_value = mock_user
+
+        poll_authorized = await poll_mtproto_qr_result(
+            tenant_id="tenant-tg-01",
+            channel_account_id="ca-tg-test-01",
+            engine=mock_db
+        )
+
+        assert poll_authorized["status"] == "authorized"
+        assert poll_authorized["telegram_user_id"] == 987654321
+        assert "ca-tg-test-01" not in _transient_sessions  # Sudah dibersihkan dari transien
+
+        # 4. Revokasi sesi memanggil auth.logOut
+        revoke_res = await revoke_mtproto_session(
+            tenant_id="tenant-tg-01",
+            channel_account_id="ca-tg-test-01",
+            engine=mock_db
+        )
+        assert revoke_res["status"] == "REVOKED"
+
+
+@pytest.mark.asyncio
+async def test_persistent_listener_loads_from_encrypted_session():
+    """
+    Memverifikasi bahwa persistent listener:
+    1. Memuat session_string dari database.
+    2. Mendekripsi envelope KMS.
+    3. Menginisialisasi TelegramClient dengan StringSession tersimpan tanpa QR ulang.
+    4. Menyimpan client aktif di _active_listeners.
+    """
+    from orchestree.channel_gateway.telegram_mtproto import (
+        start_persistent_listener_from_db,
+        _active_listeners,
+        stop_all_mtproto_listeners,
+    )
+
+    mock_db = MagicMock()
+    mock_conn = MagicMock()
+    mock_db.begin.return_value.__enter__.return_value = mock_conn
+
+    # Siapkan session_string terenkripsi KMS
+    account_id = "ca-pers-01"
+    session_key_id = "kid-pers-01"
+    raw_session = "1BVtsOMQBu8xXXXX-saved-session-string-from-previous-auth"
+    encrypted_payload = encrypt_session_envelope(raw_session, account_id, session_key_id)
+
+    mock_row = {
+        "session_string": encrypted_payload,
+        "session_key_id": session_key_id,
+        "status": "authorized",
+        "api_id_ref": "2040",
+        "account_status": "ACTIVE"
+    }
+    mock_conn.execute.return_value.mappings.return_value.first.return_value = mock_row
+
+    with patch("orchestree.channel_gateway.telegram_mtproto.StringSession"), \
+         patch("orchestree.channel_gateway.telegram_mtproto.TelegramClient") as MockClient:
+        mock_client = AsyncMock()
+        mock_client.is_user_authorized.return_value = True
+        MockClient.return_value = mock_client
+
+        listener = await start_persistent_listener_from_db(
+            tenant_id="tenant-01",
+            channel_account_id=account_id,
+            engine=mock_db
+        )
+
+        assert listener is not None
+        assert account_id in _active_listeners
+        mock_client.connect.assert_called_once()
+        mock_client.is_user_authorized.assert_called_once()
+
+        # Bersihkan listener
+        await stop_all_mtproto_listeners()
+        assert len(_active_listeners) == 0
+
+

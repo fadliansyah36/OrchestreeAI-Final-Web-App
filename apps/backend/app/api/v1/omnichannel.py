@@ -34,6 +34,8 @@ from orchestree.channel_gateway.gateway import (
     record_usage_and_deduct_credit
 )
 from orchestree.channel_gateway.telegram_mtproto import (
+    start_mtproto_qr_session,
+    poll_mtproto_qr_result,
     generate_telegram_qr_session,
     poll_telegram_qr_status,
     confirm_mtproto_authorization,
@@ -267,12 +269,14 @@ async def create_mtproto_qr_session(
     tenant_id: str = Path(...),
     ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
-    """Memicu pembuatan sesi MTProto baru dan mengekspor login token resmi untuk dipindai via QR Code."""
+    """Memicu pembuatan sesi MTProto baru dan mengekspor login token resmi Telegram (auth.exportLoginToken)."""
     try:
-        res = generate_telegram_qr_session(tenant_id=tenant_id, channel_account_id=ca_id)
+        res = await start_mtproto_qr_session(tenant_id=tenant_id, channel_account_id=ca_id)
         return res
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memicu sesi QR: {e}")
 
 
 @router.get("/channel-accounts/{ca_id}/qr-status", summary="Poll Status QR Session MTProto")
@@ -281,12 +285,14 @@ async def check_mtproto_qr_status(
     tenant_id: str = Path(...),
     ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
-    """Memeriksa status pemindaian QR code sesi Telegram secara berkala."""
+    """Memeriksa status pemindaian QR code sesi Telegram secara berkala via server Telegram nyata."""
     try:
-        res = poll_telegram_qr_status(tenant_id=tenant_id, channel_account_id=ca_id)
+        res = await poll_mtproto_qr_result(tenant_id=tenant_id, channel_account_id=ca_id)
         return res
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memeriksa status QR: {e}")
 
 
 @router.post("/channel-accounts/{ca_id}/qr-confirm", summary="Konfirmasi Otorisasi Sesi MTProto")
@@ -296,17 +302,14 @@ async def confirm_mtproto_session(
     tenant_id: str = Path(...),
     ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
-    """Menerima otorisasi loginToken Telegram dan menyimpan session string dengan envelope encryption KMS."""
-    try:
-        res = confirm_mtproto_authorization(
-            tenant_id=tenant_id,
-            channel_account_id=ca_id,
-            session_string_raw=req.session_string,
-            external_identifier=req.external_identifier
-        )
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    """
+    Penolakan jalur aktivasi manual: Sesuai aturan keamanan MTProto, status aktif
+    HANYA dapat diperoleh lewat hasil polling qr_login.wait() nyata dari server Telegram.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Penetapan status aktif manual dilarang untuk mode MTProto QR. Otorisasi WAJIB melalui pemindaian QR resmi Telegram dan polling qr-status."
+    )
 
 
 @router.delete("/channel-accounts/{ca_id}/qr-session", summary="Putuskan Sesi MTProto (Revoke Resmi)")
@@ -316,7 +319,7 @@ async def revoke_channel_session(
     ctx: AuthenticatedTenantContext = Depends(get_current_tenant_context)
 ):
     """Mencabut otorisasi Telegram MTProto resmi (auth.logOut) dan menghapus data sesi dari database."""
-    res = revoke_mtproto_session(tenant_id=tenant_id, channel_account_id=ca_id)
+    res = await revoke_mtproto_session(tenant_id=tenant_id, channel_account_id=ca_id)
     return res
 
 

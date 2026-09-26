@@ -89,6 +89,22 @@ async def startup_event():
     except Exception as bg_err:
         logging.getLogger("uvicorn.error").warning(f"Gagal menginisialisasi job pembersihan live state: {bg_err}")
 
+    # Listener MTProto Persisten: Muat seluruh sesi terotorisasi dari database
+    try:
+        import asyncio
+        from orchestree.channel_gateway.telegram_mtproto import init_all_active_mtproto_listeners
+        asyncio.create_task(init_all_active_mtproto_listeners())
+    except Exception as mtproto_err:
+        logging.getLogger("uvicorn.error").warning(f"Gagal menginisialisasi listener MTProto: {mtproto_err}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        from orchestree.channel_gateway.telegram_mtproto import stop_all_mtproto_listeners
+        await stop_all_mtproto_listeners()
+    except Exception:
+        pass
+
 # CORS configuration (Strict allow-list, never fallback to wildcard '*' with credentials)
 explicit_origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip() and origin.strip() != "*"]
 if not explicit_origins:
