@@ -41,6 +41,7 @@ from app.api.v1.storage import router as storage_router
 from app.api.v1.admin_overview import router as admin_overview_router, root_alias_router as admin_alias_router
 from app.api.v1.collaboration import router as collaboration_router
 from app.api.v1.analytics import router as analytics_router, websocket_router as analytics_ws_router
+from app.api.v1.cognitive_monitoring import router as cognitive_monitoring_router, websocket_router as cognitive_monitoring_ws_router
 from app.skills.f01_memflow.tools import register_memflow_tools
 from app.skills.f01_scrape.tools import register_scrape_tools
 
@@ -71,6 +72,22 @@ async def startup_event():
     except Exception as e:
         import logging
         logging.getLogger("uvicorn.error").warning(f"Could not register tools on startup: {e}")
+
+    # Bagian A.2: Job Pembersihan Otomatis Detak Live State (>90 detik)
+    try:
+        import asyncio
+        async def periodic_stale_cleanup():
+            from app.domains.cognitive_monitoring.live_state_service import cleanup_stale_records
+            while True:
+                await asyncio.sleep(60)
+                try:
+                    await cleanup_stale_records(stale_threshold_seconds=90)
+                except Exception as clean_err:
+                    logging.getLogger("uvicorn.error").debug(f"Pembersihan otomatis live state error: {clean_err}")
+
+        asyncio.create_task(periodic_stale_cleanup())
+    except Exception as bg_err:
+        logging.getLogger("uvicorn.error").warning(f"Gagal menginisialisasi job pembersihan live state: {bg_err}")
 
 # CORS configuration (Strict allow-list, never fallback to wildcard '*' with credentials)
 explicit_origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip() and origin.strip() != "*"]
@@ -252,6 +269,8 @@ app.include_router(admin_alias_router)
 app.include_router(collaboration_router)
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(analytics_ws_router)
+app.include_router(cognitive_monitoring_router, prefix="/api/v1")
+app.include_router(cognitive_monitoring_ws_router)
 
 
 @app.get("/")

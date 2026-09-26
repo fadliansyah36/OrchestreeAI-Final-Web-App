@@ -22,6 +22,12 @@ from app.skills.f01_mcp.decorators import get_tool_registry, ToolExecutionContex
 from app.skills.f01_mcp.tools import register_builtin_tools
 from app.authz.pdp import authorize, SubjectContext, ResourceContext
 from app.domains.continuous_learning.core import get_continuous_learning_engine
+from app.domains.cognitive_monitoring.live_state_service import (
+    upsert_live_state,
+    touch_heartbeat,
+    mark_workflow_completed,
+    sanitize_step_label,
+)
 
 logger = logging.getLogger("orchestree.orchestration_engine")
 
@@ -238,6 +244,46 @@ class OrchestrationEngine:
             initial_context=req.context_data,
         )
 
+    async def _resolve_or_get_agent_id(self, tenant_id: str, actor_id: Optional[str]) -> Optional[str]:
+        """Menemukan ID agen AI yang valid untuk live state tracking."""
+        try:
+            engine = get_engine()
+            async with engine.connect() as conn:
+                if actor_id:
+                    res = await conn.execute(
+                        sa.text("SELECT id FROM ai_agents WHERE id::text = :aid LIMIT 1;"),
+                        {"aid": str(actor_id)}
+                    )
+                    r = res.fetchone()
+                    if r:
+                        return str(r[0])
+                # Cari agen aktif pertama milik tenant
+                res = await conn.execute(
+                    sa.text("SELECT id FROM ai_agents WHERE tenant_id::text = :tid AND status = 'active' LIMIT 1;"),
+                    {"tid": str(tenant_id)}
+                )
+                r = res.fetchone()
+                if r:
+                    return str(r[0])
+                # Fallback agen apapun milik tenant
+                res = await conn.execute(
+                    sa.text("SELECT id FROM ai_agents WHERE tenant_id::text = :tid LIMIT 1;"),
+                    {"tid": str(tenant_id)}
+                )
+                r = res.fetchone()
+                if r:
+                    return str(r[0])
+        except Exception as e:
+            logger.debug(f"Pencarian agent_id live state fallback: {e}")
+        return None
+
+    async def emit_heartbeat(self, execution_id: str) -> None:
+        """Pembaruan heartbeat periodik untuk proses yang sedang berjalan (Bagian B)."""
+        try:
+            await touch_heartbeat(execution_id)
+        except Exception as e:
+            logger.debug(f"Gagal emit heartbeat: {e}")
+
     async def resume(self, execution_id: str, tenant_id: str, context_updates: Optional[Dict[str, Any]] = None) -> WorkflowDispatchResult:
         """
         Melanjutkan eksekusi yang tertunda (paused) atau terinterupsi dari checkpoint terakhir di DB.
@@ -375,6 +421,36 @@ class OrchestrationEngine:
             node_output = {}
             node_failed = False
 
+            # --- Bagian B: Hook on_node_started untuk Live Cognitive Monitoring ---
+            try:
+                resolved_agent_id = await self._resolve_or_get_agent_id(req.tenant_id, req.actor_id)
+                if resolved_agent_id:
+                    tool_name = node.config.get("tool_name") if isinstance(node.config, dict) else getattr(node, "tool_name", None)
+                    if tool_name and ("img" in str(tool_name).lower() or "image" in str(tool_name).lower()):
+                        live_status = "generating_image"
+                    elif tool_name and ("mem" in str(tool_name).lower() or "memory" in str(tool_name).lower()):
+                        live_status = "retrieving_memory"
+                    elif node.type == "TOOL_CALL":
+                        live_status = "calling_tool"
+                    elif node.type == "HUMAN_APPROVAL":
+                        live_status = "waiting_approval"
+                    else:
+                        live_status = "thinking"
+
+                    step_lbl = sanitize_step_label(node.label, node_type=node.type, tool_name=tool_name)
+                    await upsert_live_state(
+                        tenant_id=req.tenant_id,
+                        ai_agent_id=resolved_agent_id,
+                        workflow_execution_id=execution_id,
+                        current_status=live_status,
+                        current_step_label=step_lbl,
+                        current_tool_name=tool_name,
+                        confidence_score=98.5,
+                        source_channel=req.execution_context or "internal",
+                    )
+            except Exception as live_err:
+                logger.debug(f"[LiveState] on_node_started hook warning: {live_err}")
+
             try:
                 if node.type == "CLASSIFY":
                     node_output = await self._execute_classify(req, context)
@@ -470,6 +546,12 @@ class OrchestrationEngine:
                     output_payload=final_output or node_output,
                 )
 
+                # Bagian B: Pembaruan heartbeat live state setelah node selesai
+                try:
+                    await touch_heartbeat(execution_id)
+                except Exception:
+                    pass
+
             except Exception as e:
                 node_failed = True
                 error_msg = f"Kegagalan eksekusi node '{node.id}': {e}"
@@ -518,6 +600,12 @@ class OrchestrationEngine:
             output_payload=final_output,
             error_message=error_msg,
         )
+
+        # Bagian B: Perbarui live state menjadi completed/error
+        try:
+            await mark_workflow_completed(execution_id, status=status, error_detail=error_msg)
+        except Exception as live_finish_err:
+            logger.debug(f"[LiveState] mark_workflow_completed warning: {live_finish_err}")
 
         return WorkflowDispatchResult(
             execution_id=execution_id,

@@ -263,8 +263,16 @@ export function AdminSuperHubScreen({
           );
         })}
         <a
+          href="/admin/cognitive-monitoring"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap text-emerald-300 hover:text-white bg-emerald-950/50 hover:bg-emerald-900/50 border border-emerald-800/60 transition-colors ml-auto"
+        >
+          <Cpu className="w-4 h-4 text-emerald-400 animate-pulse" />
+          <span>Monitoring Kognitif Live</span>
+          <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+        </a>
+        <a
           href="/admin/analytics"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap text-blue-300 hover:text-white bg-blue-950/40 hover:bg-blue-900/40 border border-blue-800/50 transition-colors ml-auto"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap text-blue-300 hover:text-white bg-blue-950/40 hover:bg-blue-900/40 border border-blue-800/50 transition-colors"
         >
           <TrendingUp className="w-4 h-4 text-blue-400" />
           <span>Analisis Platform</span>
@@ -350,7 +358,22 @@ export function AdminSuperHubScreen({
               {/* Quick Actions Panel */}
               <div id="admin-quick-actions" className="p-6 rounded-2xl bg-[#0B1220] border border-slate-800">
                 <h3 className="text-base font-semibold text-white mb-4">Navigasi Operasional Cepat</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <a
+                    href="/admin/cognitive-monitoring"
+                    className="p-4 rounded-xl bg-slate-900/60 border border-emerald-900/50 hover:border-emerald-500/70 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between text-emerald-400 mb-2">
+                      <Cpu className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                    <div className="font-semibold text-white text-sm flex items-center gap-1.5">
+                      <span>Monitoring Kognitif Live</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Pantau aktivitas real-time seluruh staf AI lintas tenant 24 jam.</div>
+                  </a>
+
                   <button
                     type="button"
                     onClick={() => handleTabChange('prospects-trial')}

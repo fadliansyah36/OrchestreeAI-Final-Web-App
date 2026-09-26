@@ -43,6 +43,13 @@ export default function AdminHomePage() {
           </div>
           <div className="flex items-center gap-3">
             <a
+              href="/admin/cognitive-monitoring"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-white bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-800/70 px-3 py-1.5 rounded-xl transition"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Monitoring Kognitif Live</span>
+            </a>
+            <a
               href="/admin/analytics"
               className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-blue-300 hover:text-white bg-blue-950/60 hover:bg-blue-900/60 border border-blue-800/60 px-3 py-1.5 rounded-xl transition"
             >
