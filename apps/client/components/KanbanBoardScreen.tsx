@@ -76,6 +76,7 @@ export interface BoardData {
 
 interface KanbanBoardScreenProps {
   tenantId: string;
+  boardId?: string;
   currentUserId?: string;
   onBack?: () => void;
 }
@@ -280,15 +281,18 @@ const DroppableColumn: React.FC<{
 
 export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
   tenantId,
+  boardId: propBoardId,
   currentUserId,
   onBack,
 }) => {
+  const [activeBoardId, setActiveBoardId] = useState<string | undefined>(propBoardId);
   const [board, setBoard] = useState<BoardData | null>(null);
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [tierScopeNotice, setTierScopeNotice] = useState<string | null>(null);
   const [accessTier, setAccessTier] = useState<string>('executive');
   const [loading, setLoading] = useState<boolean>(true);
+  const [isNotFound, setIsNotFound] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState<boolean>(false);
@@ -318,21 +322,30 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
   // Ambil Data Board
   const loadBoardData = useCallback(async () => {
     setLoading(true);
+    setIsNotFound(false);
     setErrorMsg(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/boards`);
-      if (!res.ok) throw new Error('Gagal memuat papan kerja tenant.');
-      const boardsList = await res.json();
-      if (!boardsList || boardsList.length === 0) {
-        throw new Error('Papan kerja tidak tersedia.');
+      let targetBoardId = activeBoardId;
+
+      if (!targetBoardId) {
+        const res = await fetch(`/api/v1/tenants/${tenantId}/boards`);
+        if (!res.ok) throw new Error('Gagal memuat papan kerja tenant.');
+        const boardsList = await res.json();
+        if (!boardsList || boardsList.length === 0) {
+          throw new Error('Papan kerja tidak tersedia.');
+        }
+        targetBoardId = boardsList[0].id;
       }
 
-      const activeBoard = boardsList[0];
-      setBoard(activeBoard);
-
-      const detailRes = await fetch(`/api/v1/tenants/${tenantId}/boards/${activeBoard.id}`);
+      const detailRes = await fetch(`/api/v1/tenants/${tenantId}/boards/${targetBoardId}`);
+      if (detailRes.status === 404) {
+        setIsNotFound(true);
+        setLoading(false);
+        return;
+      }
       if (!detailRes.ok) throw new Error('Gagal memuat rincian kolom dan tugas.');
       const detail = await detailRes.json();
+      setBoard(detail.board);
       setColumns(detail.columns || []);
       setTasks(detail.tasks || []);
       if (detail.tier_scope_notice) {
@@ -346,7 +359,7 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, activeBoardId]);
 
   // Pasang SSE Realtime Sync
   useEffect(() => {
@@ -646,7 +659,19 @@ export const KanbanBoardScreen: React.FC<KanbanBoardScreenProps> = ({
 
       {/* Kanban Board Container */}
       <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col">
-        {loading ? (
+        {isNotFound ? (
+          <div className="max-w-xl mx-auto py-12 w-full">
+            <ErrorState
+              title="Board Tidak Ditemukan"
+              message="Board tidak ditemukan atau di luar cakupan akses Anda."
+              retryLabel="Kembali ke Board Departemen Saya"
+              onRetry={() => {
+                setIsNotFound(false);
+                setActiveBoardId(undefined);
+              }}
+            />
+          </div>
+        ) : loading ? (
           <div className="p-8">
             <SkeletonLoader />
           </div>

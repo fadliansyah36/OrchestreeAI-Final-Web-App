@@ -59,7 +59,7 @@ def _resolve_membership_id(
             row = conn.execute(
                 sa.text("""
                     SELECT id FROM tenant_memberships
-                    WHERE tenant_id = :tid AND user_id = :uid AND is_active = true
+                    WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active'
                     LIMIT 1;
                 """),
                 {"tid": tenant_id, "uid": header_uid},

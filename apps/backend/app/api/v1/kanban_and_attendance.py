@@ -154,7 +154,7 @@ async def list_tenant_boards(
         resolved_mid = membership_id or x_membership_id
         if not resolved_mid and x_user_id:
             m_row = conn.execute(
-                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND user_id = :uid AND is_active = true LIMIT 1;"),
+                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
                 {"tid": tenant_id, "uid": x_user_id}
             ).fetchone()
             if m_row:
@@ -188,7 +188,7 @@ async def get_board_detail(
         resolved_mid = membership_id or x_membership_id
         if not resolved_mid and x_user_id:
             m_row = conn.execute(
-                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND user_id = :uid AND is_active = true LIMIT 1;"),
+                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
                 {"tid": tenant_id, "uid": x_user_id}
             ).fetchone()
             if m_row:
@@ -206,19 +206,14 @@ async def get_board_detail(
         ).mappings().first()
 
         if not board_row:
-            # Periksa apakah papan memang ada di tenant tetapi terblokir oleh RLS isolasi departemen
-            raw_check = conn.execute(
-                sa.text("SELECT id FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
-                {"id": board_id, "tenant_id": tenant_id}
-            ).fetchone()
-            if raw_check:
+            if board_id == "default":
+                board_row = _ensure_default_board_in_db(conn, tenant_id)
+                board_id = str(board_row["id"])
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Papan tugas tidak ditemukan atau di luar cakupan departemen Anda."
+                    detail="Papan tugas tidak ditemukan atau di luar cakupan akses Anda."
                 )
-
-            board_row = _ensure_default_board_in_db(conn, tenant_id)
-            board_id = str(board_row["id"])
 
         col_rows = conn.execute(
             sa.text("SELECT id, tenant_id, board_id, name, position, wip_limit, created_at FROM board_columns WHERE board_id = :board_id ORDER BY position ASC;"),
@@ -335,10 +330,10 @@ async def create_task(tenant_id: str, board_id: str, payload: CreateTaskRequest)
                 sa.text("""
                     INSERT INTO tasks (
                         id, tenant_id, board_id, column_id, title, description,
-                        position, priority, assignee_id, assigned_agent_id, version, created_at, updated_at
+                        position, priority, assignee_id, assigned_membership_id, assigned_agent_id, version, created_at, updated_at
                     ) VALUES (
                         :id, :tenant_id, :board_id, :col_id, :title, :description,
-                        :pos, :priority, :assignee, :agent, 1, now(), now()
+                        :pos, :priority, :assignee, :assignee, :agent, 1, now(), now()
                     );
                 """),
                 {

@@ -453,11 +453,26 @@ async def route_proactive_inbound(
         return None
 
     # Lanjut ke alur pesan staf terverifikasi
+    reply_data = None
+    try:
+        from app.domains.proactive.service import route_proactive_reply
+        chan_type = "whatsapp" if ("whatsapp" in str(channel_identifier).lower() or str(sender_identifier).startswith("+") or str(channel_identifier).isdigit()) else "telegram"
+        reply_data = await route_proactive_reply(
+            channel=chan_type,
+            sender=sender_identifier,
+            text=content_text,
+            tenant_id=tenant_id,
+        )
+    except Exception as e:
+        logger.warning(f"Error saat merutekan balasan proaktif: {e}")
+
     return {
         "status": "ACCEPTED",
         "channel_id": target_channel_id,
         "sender": mask_identifier(sender_identifier),
         "content_length": len(content_text),
+        "reply": reply_data.get("reply_text") if reply_data else None,
+        "access_tier": reply_data.get("access_tier") if reply_data else None,
     }
 
 

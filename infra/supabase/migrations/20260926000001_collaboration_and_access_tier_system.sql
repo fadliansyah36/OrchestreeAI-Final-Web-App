@@ -62,7 +62,11 @@ CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_membership_id ON tasks(assigned_membership_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_assigned_agent_id ON tasks(assigned_agent_id);
 
--- 6. Tabel proactive_agent_collaborations
+-- 6. Tabel proactive_agent_collaborations & Ekstensi Kanal Proaktif Briefing
+ALTER TABLE chief_of_staff_briefings
+    ADD COLUMN IF NOT EXISTS sent_via_proactive boolean NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS proactive_channels text[] NOT NULL DEFAULT ARRAY[]::text[];
+
 CREATE TABLE IF NOT EXISTS proactive_agent_collaborations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

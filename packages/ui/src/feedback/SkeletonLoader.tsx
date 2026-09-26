@@ -4,18 +4,29 @@ export function SkeletonLoader({
   className = 'h-6 w-full',
   id = 'skeleton-loader',
   count = 1,
+  variant,
 }: {
   className?: string;
   id?: string;
   count?: number;
+  variant?: 'card' | 'text' | 'circle' | string;
 }) {
+  const resolvedClass =
+    className !== 'h-6 w-full'
+      ? className
+      : variant === 'card'
+        ? 'h-28 w-full'
+        : variant === 'circle'
+          ? 'h-10 w-10 rounded-full'
+          : className;
+
   if (count > 1) {
     return (
       <div id={id} className="space-y-3 w-full">
         {Array.from({ length: count }).map((_, idx) => (
           <div
             key={idx}
-            className={`animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800/80 ${className}`}
+            className={`animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800/80 ${resolvedClass}`}
           />
         ))}
       </div>
@@ -25,7 +36,7 @@ export function SkeletonLoader({
   return (
     <div
       id={id}
-      className={`animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800/80 ${className}`}
+      className={`animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800/80 ${resolvedClass}`}
     />
   );
 }

@@ -131,6 +131,14 @@ export function OrchNavBar({
       route: 'tokenopt',
       category: 'Kerja & Tim'
     },
+    {
+      id: 'proactive_collab',
+      label: 'Kolaborasi Staf x AI Agent',
+      description: 'Pendaftaran kemitraan kerja harian staf dengan AI Agent spesialis departemen',
+      icon: Bot,
+      route: 'proactive_collab',
+      category: 'Kerja & Tim'
+    },
 
     // 2. Kelompok Penjualan & Komunikasi (Standar Platform: Omnichannel dan Proactive DIPISAHKAN TOTAL)
     {
@@ -304,6 +312,14 @@ export function OrchNavBar({
       description: 'Profil organisasi, konfigurasi anggota, dan penyesuaian sistem',
       icon: Settings,
       route: 'onboarding',
+      category: 'Pengaturan'
+    },
+    {
+      id: 'access_tier',
+      label: 'Tingkat Akses & Tata Kelola Peran',
+      description: 'Pengaturan tingkat akses peran (Owner/Executive, Lead, Staf) dan isolasi task board',
+      icon: ShieldCheck,
+      route: 'access_tier',
       category: 'Pengaturan'
     }
   ];

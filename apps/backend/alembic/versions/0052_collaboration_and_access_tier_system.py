@@ -102,6 +102,10 @@ def upgrade() -> None:
 
     # 6. Tabel proactive_agent_collaborations
     op.execute("""
+    ALTER TABLE chief_of_staff_briefings
+        ADD COLUMN IF NOT EXISTS sent_via_proactive boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS proactive_channels text[] NOT NULL DEFAULT ARRAY[]::text[];
+
     CREATE TABLE IF NOT EXISTS proactive_agent_collaborations (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -312,6 +316,9 @@ def downgrade() -> None:
     DROP FUNCTION IF EXISTS fn_board_visible_to_membership(uuid, uuid);
 
     DROP TABLE IF EXISTS proactive_agent_collaborations CASCADE;
+
+    ALTER TABLE chief_of_staff_briefings DROP COLUMN IF EXISTS proactive_channels;
+    ALTER TABLE chief_of_staff_briefings DROP COLUMN IF EXISTS sent_via_proactive;
 
     ALTER TABLE boards DROP COLUMN IF EXISTS department_id;
     ALTER TABLE ai_job_titles DROP COLUMN IF EXISTS is_cross_department;

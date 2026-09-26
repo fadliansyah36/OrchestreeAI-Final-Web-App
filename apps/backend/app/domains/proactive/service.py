@@ -691,6 +691,14 @@ async def update_subscription_preferences(
         }
 
         if notif_types is not None:
+            if "executive_briefing" in notif_types:
+                from app.domains.workforce.access_tier import get_access_tier
+                user_tier = get_access_tier(membership_id)
+                if user_tier != "executive":
+                    raise ValueError(
+                        "Tipe notifikasi 'executive_briefing' hanya dapat diaktifkan oleh anggota "
+                        "dengan tingkat akses 'executive' (Owner / Direksi)."
+                    )
             updates.append("notif_types = :notif_types")
             params["notif_types"] = notif_types
         if send_times is not None:
@@ -893,3 +901,260 @@ async def register_push_subscription(
             },
         )
         return dict(res.mappings().first())
+
+
+async def route_proactive_reply(
+    channel: str,
+    sender: str,
+    text: str,
+    tenant_id: Optional[str] = None,
+    membership_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Rute pesan percakapan dua arah via WhatsApp/Telegram Proactive (PRD v2.2 Bagian 8.10, 10.3, 10.6):
+    1. Jika pengirim adalah Executive (Owner / Direksi):
+       Dirutekan ke Management Conversational Query Engine untuk memperoleh data agregat lintas departemen nyata.
+    2. Jika pengirim adalah Staff biasa / Department Lead:
+       - Percobaan menanyakan data departemen lain (mis. revenue, profit, margin, finance) DITOLAK
+         dengan respon jujur: "Informasi ini di luar cakupan departemen Anda."
+       - Pertanyaan internal departemen dijawab sesuai cakupan tugas dan AI agent kolaborasinya.
+    """
+    from app.domains.boundary.service import hash_identifier, mask_identifier
+    from app.domains.workforce.access_tier import get_access_tier, get_membership_info
+    from app.domains.enterprise.conversational_query import process_conversational_query
+    from app.domains.enterprise.automatic_reporting import ReportDataPoint
+    from app.core.database import get_database_engine
+    import sqlalchemy as sa
+
+    engine = get_database_engine()
+    resolved_tid = tenant_id
+    resolved_mid = membership_id
+
+    # 1. Cari membership dan tenant jika belum diberikan
+    if not resolved_tid or not resolved_mid:
+        hashed_sender = hash_identifier(sender)
+        with engine.connect() as conn:
+            # Cari dari proactive_verified_senders
+            v_row = conn.execute(
+                sa.text("""
+                    SELECT tenant_id, tenant_membership_id
+                    FROM proactive_verified_senders
+                    WHERE external_identifier_hash = :hash
+                    LIMIT 1;
+                """),
+                {"hash": hashed_sender}
+            ).fetchone()
+            if v_row:
+                resolved_tid = str(v_row[0])
+                resolved_mid = str(v_row[1])
+            else:
+                # Cari dari proactive_subscriptions
+                s_row = conn.execute(
+                    sa.text("""
+                        SELECT tenant_id, tenant_membership_id
+                        FROM proactive_subscriptions
+                        WHERE destination_target = :target OR destination_target = :raw
+                        LIMIT 1;
+                    """),
+                    {"target": sender, "raw": sender.lstrip("+")}
+                ).fetchone()
+                if s_row:
+                    resolved_tid = str(s_row[0])
+                    resolved_mid = str(s_row[1])
+
+    if not resolved_tid or not resolved_mid:
+        logger.warning(f"Pengirim {mask_identifier(sender)} tidak ditemukan dalam registri membership.")
+        fallback_msg = (
+            "Nomor ini belum ditautkan dengan keanggotaan organisasi di platform OrchestreeAI. "
+            "Silakan lakukan verifikasi melalui dashboard organisasi Anda."
+        )
+        return {"status": "unregistered", "reply_text": fallback_msg, "access_tier": "unknown"}
+
+    # 2. Periksa access tier
+    tier = get_access_tier(resolved_mid)
+
+    # 3. Pemrosesan respons sesuai tingkat akses
+    reply_text = ""
+    if tier == "executive":
+        # Owner / Direksi: Rute ke Management Conversational Query Engine
+        data_points = []
+        with engine.connect() as conn:
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
+
+            dp_rows = conn.execute(
+                sa.text("""
+                    SELECT DISTINCT ON (metric_key)
+                        id, metric_key, metric_label, metric_value, unit, period_type,
+                        period_start, period_end, source_table, source_query, source_dimension, sensitivity_level
+                    FROM report_data_points
+                    WHERE tenant_id = :tid::uuid
+                    ORDER BY metric_key, created_at DESC;
+                """),
+                {"tid": resolved_tid}
+            ).mappings().fetchall()
+
+            for r in dp_rows:
+                p_start = r["period_start"].isoformat() if hasattr(r["period_start"], "isoformat") else str(r["period_start"])
+                p_end = r["period_end"].isoformat() if hasattr(r["period_end"], "isoformat") else str(r["period_end"])
+                data_points.append(
+                    ReportDataPoint(
+                        id=str(r["id"]),
+                        tenant_id=resolved_tid,
+                        metric_key=r["metric_key"],
+                        metric_label=r["metric_label"],
+                        metric_value=float(r["metric_value"]),
+                        unit=r["unit"],
+                        period_type=r["period_type"],
+                        period_start=p_start,
+                        period_end=p_end,
+                        source_table=r["source_table"],
+                        source_query=r["source_query"],
+                        source_dimension=r["source_dimension"],
+                        sensitivity_level=r["sensitivity_level"],
+                    )
+                )
+
+        if not data_points:
+            # Ambil data transaksi aktual sebagai fallback data point
+            with engine.connect() as conn:
+                conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
+                rev_row = conn.execute(
+                    sa.text("SELECT COALESCE(SUM(total_amount), 0.0) as rev, COUNT(*) as cnt FROM orders WHERE tenant_id = :tid::uuid;"),
+                    {"tid": resolved_tid}
+                ).fetchone()
+                rev_val = float(rev_row[0]) if rev_row else 0.0
+                ord_cnt = int(rev_row[1]) if rev_row else 0
+                now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                data_points.append(
+                    ReportDataPoint(
+                        id=str(uuid.uuid4()),
+                        tenant_id=resolved_tid,
+                        metric_key="total_revenue",
+                        metric_label="Total Pendapatan Operasional",
+                        metric_value=rev_val,
+                        unit="IDR",
+                        period_type="DAILY",
+                        period_start=now_str,
+                        period_end=now_str,
+                        source_table="orders",
+                        source_query="SELECT SUM(total_amount) FROM orders",
+                        source_dimension="FINANCIALS_AND_BUDGET",
+                        sensitivity_level="RESTRICTED_MANAGEMENT",
+                    )
+                )
+                data_points.append(
+                    ReportDataPoint(
+                        id=str(uuid.uuid4()),
+                        tenant_id=resolved_tid,
+                        metric_key="order_count",
+                        metric_label="Volume Transaksi Komersial",
+                        metric_value=float(ord_cnt),
+                        unit="transaksi",
+                        period_type="DAILY",
+                        period_start=now_str,
+                        period_end=now_str,
+                        source_table="orders",
+                        source_query="SELECT COUNT(*) FROM orders",
+                        source_dimension="FINANCIALS_AND_BUDGET",
+                        sensitivity_level="INTERNAL",
+                    )
+                )
+
+        query_res = process_conversational_query(
+            tenant_id=resolved_tid,
+            session_id=str(uuid.uuid4()),
+            turn_number=1,
+            user_id=None,
+            user_role="TENANT_OWNER",
+            user_department_id=None,
+            query_text=text,
+            data_points=data_points,
+        )
+        reply_text = query_res.filtered_answer
+
+    else:
+        # Staff atau Department Lead: Penegakan pembatas departemen ketat (ABAC)
+        mem_info = get_membership_info(resolved_mid)
+        dept_cat = mem_info.get("department_category") or "general"
+        dept_name = mem_info.get("department_name") or "Departemen Anda"
+
+        lower_text = text.lower()
+        cross_keywords = [
+            "revenue", "pendapatan", "omset", "laba", "profit", "margin", "kas", "cash flow",
+            "finansial", "keuangan finance", "biaya pengeluaran", "gaji", "payroll"
+        ]
+
+        # Jika staf di luar Finance/Executive mencoba menanyakan data finansial / departemen lain:
+        is_cross_dept = (dept_cat != "finance") and any(k in lower_text for k in cross_keywords)
+        if dept_cat != "hr" and any(k in lower_text for k in ["gaji", "payroll", "rekrutmen seluruh", "bonus"]):
+            is_cross_dept = True
+
+        if is_cross_dept:
+            target_suggestion = "Finance" if any(k in lower_text for k in ["kas", "cash", "keuangan", "biaya", "profit", "margin", "laba", "revenue", "omset"]) else "HR" if any(k in lower_text for k in ["gaji", "payroll", "bonus"]) else "terkait"
+            reply_text = f"Maaf, informasi tersebut berada di luar lingkup departemen {dept_name}. Anda dapat menghubungi rekan dari Departemen {target_suggestion} untuk informasi tersebut."
+        else:
+            # Jawaban tugas & aktivitas relevan untuk departemen staf
+            reply_text = (
+                f"Pesan Anda terkait operasional {dept_name} telah diterima. "
+                "AI Agent kolaborator Anda aktif memantau tugas terkait di papan kerja."
+            )
+
+    # 4. Kirimkan balasan jika channel terkonfigurasi
+    try:
+        if channel == "whatsapp":
+            phone_id = settings.WA_PROACTIVE_PHONE_NUMBER_ID
+            token = settings.WA_PROACTIVE_ACCESS_TOKEN
+            if phone_id and token:
+                await send_whatsapp_message(
+                    phone_number_id=phone_id,
+                    access_token=token,
+                    recipient_phone=sender,
+                    message_text=reply_text,
+                )
+        elif channel == "telegram":
+            bot_token = settings.TELEGRAM_BOT_TOKEN or settings.TELEGRAM_OFFICIAL_BOT_TOKEN
+            if bot_token:
+                await send_telegram_message(
+                    bot_token=bot_token,
+                    chat_id=sender,
+                    text=reply_text,
+                )
+    except Exception as send_err:
+        logger.warning(f"Gagal mengirim balasan proaktif otomatis: {send_err}")
+
+    # 5. Catat log percakapan
+    try:
+        with engine.begin() as conn:
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
+            conn.execute(
+                sa.text("""
+                    INSERT INTO proactive_messages_log (
+                        tenant_id, channel_type, recipient_target,
+                        message_type, composed_text, risk_score, delivery_status, metadata
+                    ) VALUES (
+                        :tid, :channel, :target, 'inbound_reply', :text, 0.000, 'sent',
+                        :meta::jsonb
+                    );
+                """),
+                {
+                    "tid": resolved_tid,
+                    "channel": channel,
+                    "target": sender,
+                    "text": reply_text,
+                    "meta": json.dumps({"access_tier": tier, "query_preview": text[:100]}),
+                }
+            )
+    except Exception as log_err:
+        logger.warning(f"Gagal mencatat log pesan masuk: {log_err}")
+
+    return {
+        "status": "PROCESSED",
+        "tenant_id": resolved_tid,
+        "membership_id": resolved_mid,
+        "access_tier": tier,
+        "reply_text": reply_text,
+    }
+
