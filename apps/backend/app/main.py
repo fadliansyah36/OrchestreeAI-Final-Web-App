@@ -63,6 +63,8 @@ app = FastAPI(
     redoc_url=None if is_production else "/redoc",
 )
 
+logger = logging.getLogger("uvicorn.error")
+
 # Startup event: register builtin skills & tools
 @app.on_event("startup")
 async def startup_event():
@@ -70,32 +72,42 @@ async def startup_event():
         register_memflow_tools()
         register_scrape_tools()
     except Exception as e:
-        import logging
-        logging.getLogger("uvicorn.error").warning(f"Could not register tools on startup: {e}")
+        logger.warning(f"Could not register tools on startup: {e}")
 
     # Bagian A.2: Job Pembersihan Otomatis Detak Live State (>90 detik)
     try:
         import asyncio
         async def periodic_stale_cleanup():
-            from app.domains.cognitive_monitoring.live_state_service import cleanup_stale_records
-            while True:
-                await asyncio.sleep(60)
-                try:
-                    await cleanup_stale_records(stale_threshold_seconds=90)
-                except Exception as clean_err:
-                    logging.getLogger("uvicorn.error").debug(f"Pembersihan otomatis live state error: {clean_err}")
+            try:
+                from app.domains.cognitive_monitoring.live_state_service import cleanup_stale_records
+                while True:
+                    await asyncio.sleep(60)
+                    try:
+                        await cleanup_stale_records(stale_threshold_seconds=90)
+                    except Exception as clean_err:
+                        logger.debug(f"Pembersihan otomatis live state error: {clean_err}")
+            except asyncio.CancelledError:
+                pass
+            except Exception as loop_err:
+                logger.debug(f"Loop pembersihan otomatis live state terhenti: {loop_err}")
 
         asyncio.create_task(periodic_stale_cleanup())
     except Exception as bg_err:
-        logging.getLogger("uvicorn.error").warning(f"Gagal menginisialisasi job pembersihan live state: {bg_err}")
+        logger.warning(f"Gagal menginisialisasi job pembersihan live state: {bg_err}")
 
     # Listener MTProto Persisten: Muat seluruh sesi terotorisasi dari database
     try:
         import asyncio
         from orchestree.channel_gateway.telegram_mtproto import init_all_active_mtproto_listeners
-        asyncio.create_task(init_all_active_mtproto_listeners())
+        async def safe_init_mtproto():
+            try:
+                await init_all_active_mtproto_listeners()
+            except Exception as e:
+                logger.warning(f"Listener MTProto tidak dapat diinisialisasi saat startup: {e}")
+
+        asyncio.create_task(safe_init_mtproto())
     except Exception as mtproto_err:
-        logging.getLogger("uvicorn.error").warning(f"Gagal menginisialisasi listener MTProto: {mtproto_err}")
+        logger.warning(f"Gagal menginisialisasi listener MTProto: {mtproto_err}")
 
 @app.on_event("shutdown")
 async def shutdown_event():

@@ -131,7 +131,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   const userRole = tenant?.role || 'TENANT_OWNER';
 
   // Navigation & Tabs
-  const [activeTab, setActiveTab] = useState<'client_connections' | 'sync_logs' | 'admin_registry'>('client_connections');
+  const [activeTab, setActiveTab] = useState<'client_connections' | 'sync_logs'>('client_connections');
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory);
   const [searchFilter, setSearchFilter] = useState('');
 
@@ -153,16 +153,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   const [consentCheckbox, setConsentCheckbox] = useState(false);
 
   const [revokeModalTarget, setRevokeModalTarget] = useState<ConnectionItem | null>(null);
-
-  const [showAdminAddApp, setShowAdminAddApp] = useState(false);
-  const [newAppCode, setNewAppCode] = useState('');
-  const [newAppName, setNewAppName] = useState('');
-  const [newAppCategory, setNewAppCategory] = useState<'social' | 'marketplace' | 'workforce_collaboration' | 'productivity'>('social');
-  const [newAppDesc, setNewAppDesc] = useState('');
-  const [newAppIcon, setNewAppIcon] = useState('share2');
-  const [newAppScopes, setNewAppScopes] = useState('read, write');
-  const [newAppRequiresNotice, setNewAppRequiresNotice] = useState(false);
-  const [newAppNoticeTemplate, setNewAppNoticeTemplate] = useState('');
 
   // Fetch Catalog & Connections
   const fetchData = async () => {
@@ -340,7 +330,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: tenant?.user_id || 'user-admin-001',
+            user_id: tenant?.user_id || tenant?.membership_id || '',
             user_role: userRole,
           }),
         }
@@ -355,50 +345,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
       });
       setTransparencyModalTarget(null);
       setConsentCheckbox(false);
-      await fetchData();
-    } catch (err: any) {
-      setFeedbackMessage({ type: 'error', message: err.message });
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  // Admin: Register new app in catalog
-  const handleAdminAddAppSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setActionLoadingId('admin_add_app');
-    try {
-      const scopes = newAppScopes.split(',').map((s) => s.trim()).filter(Boolean);
-      const res = await fetch('/api/v1/admin/integrations/catalog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          app_code: newAppCode,
-          name: newAppName,
-          category: newAppCategory,
-          description: newAppDesc,
-          icon: newAppIcon,
-          auth_type: 'oauth2',
-          supported_scopes: scopes,
-          requires_transparency_notice: newAppRequiresNotice,
-          transparency_notice_template: newAppRequiresNotice ? newAppNoticeTemplate : null,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Gagal mendaftarkan aplikasi di katalog');
-      }
-
-      setFeedbackMessage({
-        type: 'success',
-        message: `Aplikasi ${newAppName} berhasil didaftarkan ke Katalog Platform.`,
-      });
-      setShowAdminAddApp(false);
-      setNewAppCode('');
-      setNewAppName('');
-      setNewAppDesc('');
-      setNewAppNoticeTemplate('');
       await fetchData();
     } catch (err: any) {
       setFeedbackMessage({ type: 'error', message: err.message });
@@ -480,17 +426,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               Segarkan Status
             </button>
-
-            {activeTab === 'admin_registry' && (
-              <button
-                id="btn-admin-add-app"
-                onClick={() => setShowAdminAddApp(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors cursor-pointer shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Daftarkan Platform Baru
-              </button>
-            )}
           </div>
         </div>
 
@@ -552,22 +487,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
             Riwayat Sinkronisasi & Audit
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300">
               {syncLogs.length}
-            </span>
-          </button>
-
-          <button
-            id="tab-btn-admin-registry"
-            onClick={() => setActiveTab('admin_registry')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'admin_registry'
-                ? 'border-emerald-400 text-emerald-400 bg-slate-900/60'
-                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
-            }`}
-          >
-            <Shield className="w-4 h-4" />
-            Katalog Platform Resmi
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300">
-              {catalog.length}
             </span>
           </button>
         </div>
@@ -952,73 +871,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: KATALOG RESMI PLATFORM (ADMIN VIEW) */}
-        {/* ========================================================================= */}
-        {activeTab === 'admin_registry' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-              <div>
-                <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  Katalog Registry Aplikasi Pihak Ketiga
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Daftar platform terdaftar yang tersedia bagi seluruh organisasi untuk diintegrasikan secara aman.
-                </p>
-              </div>
-              <button
-                id="btn-admin-add-app-catalog"
-                onClick={() => setShowAdminAddApp(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Platform
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {catalog.map((app) => (
-                <div
-                  key={app.id}
-                  id={`catalog-card-${app.app_code}`}
-                  className="bg-slate-900/40 border border-slate-800 rounded-xl p-5 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-emerald-400">
-                        {renderAppIcon(app.icon, 'w-4 h-4')}
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-bold text-white">{app.name}</h3>
-                        <span className="text-[10px] font-mono text-slate-500">{app.app_code}</span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                      {app.auth_type.toUpperCase()}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-400 line-clamp-2">{app.description}</p>
-
-                  <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between text-slate-400">
-                      <span>Observasi Transparan:</span>
-                      <span className={app.requires_transparency_notice ? 'text-amber-400 font-semibold' : 'text-slate-500'}>
-                        {app.requires_transparency_notice ? 'Wajib Disetujui' : 'Tidak Wajib'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-400">
-                      <span>Cakupan Izin:</span>
-                      <span className="font-mono text-slate-300">{app.supported_scopes.length} Scopes</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
         {/* MODAL: HUBUNGKAN PLATFORM INTEGRASI */}
         {/* ========================================================================= */}
         {connectTargetApp && (
@@ -1236,162 +1088,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
                   {actionLoadingId === revokeModalTarget.id ? 'Memutus...' : 'Putuskan & Hentikan Worker'}
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* MODAL: ADMIN ADD NEW THIRD-PARTY APP TO REGISTRY */}
-        {/* ========================================================================= */}
-        {showAdminAddApp && (
-          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div
-              id="modal-admin-add-app"
-              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white">Daftarkan Platform Baru di Katalog</h2>
-                    <span className="text-[10px] text-slate-400">Admin Platform Registry CRUD</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowAdminAddApp(false)}
-                  className="text-slate-400 hover:text-white cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleAdminAddAppSubmit} className="space-y-3.5 text-xs">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Kode Aplikasi (Unik)</label>
-                    <input
-                      type="text"
-                      required
-                      value={newAppCode}
-                      onChange={(e) => setNewAppCode(e.target.value)}
-                      aria-label="Kode Aplikasi"
-                      className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Nama Tampilan</label>
-                    <input
-                      type="text"
-                      required
-                      value={newAppName}
-                      onChange={(e) => setNewAppName(e.target.value)}
-                      aria-label="Nama Tampilan"
-                      className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Kategori</label>
-                    <select
-                      value={newAppCategory}
-                      onChange={(e: any) => setNewAppCategory(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="social">Media Sosial</option>
-                      <option value="marketplace">Marketplace</option>
-                      <option value="workforce_collaboration">Kolaborasi Kerja</option>
-                      <option value="productivity">Produktivitas</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Icon</label>
-                    <select
-                      value={newAppIcon}
-                      onChange={(e) => setNewAppIcon(e.target.value)}
-                      className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="share2">Share / Jejaring</option>
-                      <option value="instagram">Instagram</option>
-                      <option value="video">TikTok Video</option>
-                      <option value="message-square">Slack / Chat</option>
-                      <option value="users">Teams / Rapat</option>
-                      <option value="trello">Trello / Kanban</option>
-                      <option value="shopping-bag">Tokopedia</option>
-                      <option value="shopping-cart">Shopee</option>
-                      <option value="mail">Email / Google</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Deskripsi Fungsional</label>
-                  <textarea
-                    rows={2}
-                    required
-                    value={newAppDesc}
-                    onChange={(e) => setNewAppDesc(e.target.value)}
-                    aria-label="Deskripsi Fungsional"
-                    className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Scopes (Pisahkan dengan koma)</label>
-                  <input
-                    type="text"
-                    value={newAppScopes}
-                    onChange={(e) => setNewAppScopes(e.target.value)}
-                    aria-label="Scopes"
-                    className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-800">
-                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newAppRequiresNotice}
-                      onChange={(e) => setNewAppRequiresNotice(e.target.checked)}
-                      className="rounded text-emerald-500 focus:ring-emerald-500"
-                    />
-                    <span className="font-semibold">Wajib Transparency Notice (Observasi Kerja)</span>
-                  </label>
-
-                  {newAppRequiresNotice && (
-                    <div>
-                      <label className="block text-slate-400 font-medium mb-1">Template Notice Transparansi</label>
-                      <textarea
-                        rows={2}
-                        value={newAppNoticeTemplate}
-                        onChange={(e) => setNewAppNoticeTemplate(e.target.value)}
-                        aria-label="Template Notice Transparansi"
-                        className="w-full px-3 py-2 rounded bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-slate-800 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdminAddApp(false)}
-                    className="px-3.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoadingId === 'admin_add_app'}
-                    className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-500 cursor-pointer disabled:opacity-50"
-                  >
-                    {actionLoadingId === 'admin_add_app' ? 'Menyimpan...' : 'Daftarkan Platform'}
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}

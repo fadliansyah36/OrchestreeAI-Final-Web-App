@@ -139,16 +139,16 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   const [newAgentPersona, setNewAgentPersona] = useState<string>('RESEARCHER');
   const [newAgentDeptId, setNewAgentDeptId] = useState<string>('');
 
-  const tenantId = tenant?.tenant_id || 'tenant_default_01';
+  const tenantId = tenant?.tenant_id || '';
 
   const getHeaders = useCallback(() => {
     return {
       'Content-Type': 'application/json',
       'X-Tenant-Id': tenantId,
       'X-User-Role': testRole,
-      'X-User-Id': tenant?.membership_id || 'usr_default_admin',
+      'X-User-Id': tenant?.membership_id || tenant?.user_id || '',
     };
-  }, [tenantId, testRole, tenant?.membership_id]);
+  }, [tenantId, testRole, tenant?.membership_id, tenant?.user_id]);
 
   const loadAllData = useCallback(async () => {
     setLoading(true);
@@ -1315,13 +1315,13 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         ) : activeTab === 'kanban' ? (
           <KanbanBoardScreen
             tenantId={tenantId}
-            currentUserId={tenant?.membership_id || 'usr_default_admin'}
+            currentUserId={tenant?.membership_id || tenant?.user_id || ''}
             onBack={() => setActiveTab('hub')}
           />
         ) : activeTab === 'attendance' ? (
           <WebAuthnAttendanceScreen
             tenantId={tenantId}
-            membershipId={tenant?.membership_id || 'usr_default_admin'}
+            membershipId={tenant?.membership_id || tenant?.user_id || ''}
             userName={tenant?.owner_full_name || 'Anggota Organisasi'}
             onBack={() => setActiveTab('hub')}
           />

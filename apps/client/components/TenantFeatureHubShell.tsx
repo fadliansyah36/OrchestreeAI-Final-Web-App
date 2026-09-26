@@ -233,7 +233,6 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       label: 'AI Chief of Staff & Morning Briefing (Arya)',
       icon: 'sparkles',
       route: '/enterprise/chief-of-staff',
-      badgeCount: isEnterprise ? 1 : undefined,
       isLocked: !isEnterprise,
       tierRequired: 'ENTERPRISE',
       onUpgradeClick: () => setActiveRoute('/enterprise/chief-of-staff'),
@@ -243,7 +242,6 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       label: 'Integration Fabric & CDC Real-Time (SAP/ERP)',
       icon: 'layers',
       route: '/enterprise/integration-fabric',
-      badgeCount: isEnterprise ? 2 : undefined,
       isLocked: !isEnterprise,
       tierRequired: 'ENTERPRISE',
       onUpgradeClick: () => setActiveRoute('/enterprise/integration-fabric'),
@@ -262,28 +260,24 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       label: 'Layanan Pelanggan & Pengawasan Refund',
       icon: 'sparkles',
       route: '/support/service-requests',
-      badgeCount: 2,
     },
     {
       key: 'marketing',
       label: 'Pemasaran, Kalender Konten & Marketplace',
       icon: 'sparkles',
       route: '/marketing/campaigns',
-      badgeCount: 3,
     },
     {
       key: 'selection',
       label: 'Universal Selection, Dynamic Analytics & Insights',
       icon: 'sparkles',
       route: '/selection',
-      badgeCount: 5,
     },
     {
       key: 'integrations',
       label: 'Integrasi Pihak Ketiga & Observasi Kerja',
       icon: 'sparkles',
       route: '/integrations',
-      badgeCount: 9,
     },
     {
       key: 'performance',
@@ -296,21 +290,18 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       label: 'Staf AI & Tenaga Kerja',
       icon: 'users',
       route: '/workforce/staff',
-      badgeCount: 15,
     },
     {
       key: 'operations',
       label: 'Orkestrasi & Alur Kerja',
       icon: 'briefcase',
       route: '/orchestrations/active',
-      badgeCount: 3,
     },
     {
       key: 'intelligence',
       label: 'Intelijen Pesaing & Radar Pasar',
       icon: 'sparkles',
       route: '/intelligence',
-      badgeCount: 4,
     },
     {
       key: 'brain',
@@ -329,7 +320,6 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       label: 'Keamanan & Izin Data AI (ABAC)',
       icon: 'shield',
       route: '/security/permissions',
-      badgeCount: 8,
     },
     {
       key: 'billing',
@@ -344,7 +334,7 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
         <span className="text-xs font-semibold text-slate-400">Organisasi Terdaftar</span>
         <div className="text-lg font-bold text-white mt-1">
-          {tenant?.display_name || 'Organisasi Aktif'}
+          {tenant?.display_name || tenant?.legal_name || 'Organisasi Aktif'}
         </div>
         <span className="text-[11px] text-[#34D399] font-mono mt-1 block">
           ID: {tenant?.tenant_id ? tenant.tenant_id.substring(0, 13) + '...' : 'Terhubung'}
@@ -361,12 +351,14 @@ export const TenantFeatureHubShell: React.FC<TenantFeatureHubShellProps> = ({
       </div>
 
       <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-        <span className="text-xs font-semibold text-slate-400">Jabatan AI Tersedia</span>
+        <span className="text-xs font-semibold text-slate-400">Tingkat Langganan</span>
         <div className="text-lg font-bold text-white mt-1 flex items-center space-x-1.5">
-          <Bot className="w-4 h-4 text-[#60A5FA]" />
-          <span>15 Staf Terstandarisasi</span>
+          <Sparkles className="w-4 h-4 text-[#60A5FA]" />
+          <span>{tenantTier?.plan_code || 'Starter / Evaluasi'}</span>
         </div>
-        <span className="text-[11px] text-[#60A5FA] mt-1 block">Multi-LLM Smart Router</span>
+        <span className="text-[11px] text-[#60A5FA] mt-1 block">
+          Tier Level {tenantTier?.tier_level ?? 1}
+        </span>
       </div>
 
       <div className="p-4 rounded-2xl bg-white/5 border border-white/10">

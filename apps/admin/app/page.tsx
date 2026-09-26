@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {
-  AdminSuperHubScreen,
-  EmptyState,
-} from '@orchestree/ui';
+import { EmptyState } from '@orchestree/ui';
+import { AdminSuperHubScreen } from '../components/AdminSuperHubScreen';
 import { ShieldCheck, Lock, ShieldAlert } from 'lucide-react';
 
 export default function AdminHomePage() {

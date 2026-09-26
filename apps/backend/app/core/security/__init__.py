@@ -20,6 +20,7 @@ class AuthenticatedTenantContext(BaseModel):
     roles: List[str] = Field(default_factory=list)
     capabilities: List[str] = Field(default_factory=list)
     is_mfa_verified: bool = False
+    app_scope: str = "tenant"  # "admin" | "tenant" (Isolasi Perimeter antar Apps)
 
 
 async def get_current_tenant_context(
@@ -29,12 +30,14 @@ async def get_current_tenant_context(
 ) -> AuthenticatedTenantContext:
     """
     Mengekstrak konteks tenant yang sah.
-    Aturan Anti-Spoofing:
+    Aturan Anti-Spoofing & Perimeter:
     Bila X-Tenant-Id dikirim oleh client, nilainya WAJIB identik dengan tenant_id
     yang terikat pada sesi/token otentikasi. Manipulasi lintas tenant langsung ditolak (403 Forbidden).
+    Sesi admin ditandai eksplisit dengan app_scope='admin' dan dipisahkan dari sesi tenant ('tenant').
     """
     # 1. Periksa token otentikasi
     header_caps = []
+    app_scope = "tenant"
     if not authorization or not authorization.startswith("Bearer "):
         if settings.APP_ENV == "local" and x_tenant_id:
             user_id = request.headers.get("x-user-id") or "usr_default_admin"
@@ -44,6 +47,8 @@ async def get_current_tenant_context(
             header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
             token_tenant_id = x_tenant_id
             is_mfa = request.headers.get("x-mfa-verified", "true").lower() in ("true", "1")
+            if any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles):
+                app_scope = "admin"
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,7 +58,7 @@ async def get_current_tenant_context(
         token = authorization.split(" ")[1]
 
         # Ekstraksi klaim token (mendukung JWT Supabase & token terstruktur harness)
-        user_id, token_tenant_id, roles, is_mfa = _extract_claims_from_token(token)
+        user_id, token_tenant_id, roles, is_mfa, app_scope = _extract_claims_from_token(token)
         raw_caps = request.headers.get("x-user-capabilities") or ""
         header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
 
@@ -96,6 +101,9 @@ async def get_current_tenant_context(
     if not roles:
         roles = ["STAFF_HUMAN"]
 
+    if any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles):
+        app_scope = "admin"
+
     return AuthenticatedTenantContext(
         user_id=user_id,
         tenant_id=token_tenant_id,
@@ -103,6 +111,7 @@ async def get_current_tenant_context(
         roles=roles,
         capabilities=list(set(capabilities)),
         is_mfa_verified=is_mfa,
+        app_scope=app_scope,
     )
 
 

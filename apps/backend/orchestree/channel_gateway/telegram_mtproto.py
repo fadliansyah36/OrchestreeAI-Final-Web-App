@@ -637,9 +637,9 @@ async def start_persistent_listener_from_db(
 
 async def init_all_active_mtproto_listeners(engine=None):
     """Memuat dan menjalankan ulang semua listener MTProto aktif saat backend boot."""
-    if engine is None:
-        engine = get_engine()
     try:
+        if engine is None:
+            engine = get_engine()
         with engine.begin() as conn:
             rows = conn.execute(sa.text("""
                 SELECT ca.id as channel_account_id, ca.tenant_id

@@ -281,6 +281,39 @@ async function runTestSuite() {
     'Saat backend dan Supabase siap, status wajib connected'
   );
 
+  // Test 6: Verifikasi Pemisahan Bersih 3 Repositori Mandiri
+  console.log('\n6. Verifikasi Pemisahan Bersih 3 Repositori Mandiri (Zero Admin Screens in apps/client):');
+  const clientComponentsDir = path.resolve('apps/client/components');
+  const clientFiles = fs.readdirSync(clientComponentsDir);
+  const leakedAdminFiles = clientFiles.filter(f =>
+    f.toLowerCase().includes('adminconsole') ||
+    f.toLowerCase().includes('adminoverview') ||
+    f.toLowerCase().includes('agentblueprint')
+  );
+
+  record(
+    'Nihil Komponen Admin Khusus di apps/client/components',
+    '0 file bocor',
+    `${leakedAdminFiles.length} file bocor: ${leakedAdminFiles.join(', ')}`,
+    leakedAdminFiles.length === 0,
+    'Layar admin hanya berada di apps/admin sesuai pemisahan domain & 3 repositori mandiri'
+  );
+
+  // Test 7: Verifikasi DOM Fail-Closed (Render HANYA BackendUnavailableScreen saat Disconnected)
+  console.log('\n7. Verifikasi DOM Fail-Closed (Zero Leak Children saat Disconnected):');
+  const gateSource = fs.readFileSync(path.resolve('packages/ui/src/feedback/BackendConnectivityGate.tsx'), 'utf-8');
+  const strictlyBlocksChildren = gateSource.includes("if (status === 'disconnected')") &&
+    gateSource.includes('<BackendUnavailableScreen');
+  const noCssHiding = !gateSource.includes('display: none') && !gateSource.includes('hidden');
+
+  record(
+    'Gate Merender HANYA <BackendUnavailableScreen> saat Terputus (Bukan Sembunyi CSS)',
+    'True',
+    (strictlyBlocksChildren && noCssHiding) ? 'True' : 'False',
+    strictlyBlocksChildren && noCssHiding,
+    'Children tidak di-mount ke DOM sama sekali saat koneksi backend tidak siap'
+  );
+
   // Rekap Akhir
   console.log('\n--------------------------------------------------------------------------------');
   const total = results.length;

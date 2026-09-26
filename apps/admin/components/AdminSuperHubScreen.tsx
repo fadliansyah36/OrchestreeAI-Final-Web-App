@@ -26,9 +26,7 @@ import {
   BarChart3,
   DollarSign
 } from 'lucide-react';
-import { EmptyState } from '../feedback/EmptyState';
-import { ErrorState } from '../feedback/ErrorState';
-import { SkeletonLoader, HubAnalyticsSkeleton } from '../feedback/SkeletonLoader';
+import { EmptyState, ErrorState, SkeletonLoader, HubAnalyticsSkeleton } from '@orchestree/ui';
 
 export type AdminHubTab =
   | 'overview'
