@@ -79,3 +79,64 @@ export interface StartupGateStatus {
   };
   evaluation: string;
 }
+
+export interface PersonaQuestionItem {
+  id: string;
+  question_key: string;
+  question_text: string;
+  question_type: 'single_choice' | 'multi_choice' | 'essay';
+  options?: Array<{ value: string; label: string }> | null;
+  category: string;
+  display_order: number;
+  is_required: boolean;
+  is_active: boolean;
+}
+
+export interface PersonaSessionResponse {
+  session_id: string;
+  tenant_id: string;
+  status: string;
+  current_question_index: number;
+  memory_write_pending: boolean;
+  total_questions: number;
+  answered_count: number;
+  questions: PersonaQuestionItem[];
+  responses: Record<string, any>;
+  started_at: string;
+  completed_at?: string | null;
+}
+
+export interface SubmitPersonaAnswerResponse {
+  status: string;
+  session_id: string;
+  question_id: string;
+  current_question_index: number;
+  clarification_needed: boolean;
+  clarification_question?: string | null;
+  answered_count: number;
+  total_questions: number;
+}
+
+export interface CompletePersonaSessionResponse {
+  status: string;
+  session_id: string;
+  tenant_id: string;
+  redirect_to: string;
+  memory_write_pending: boolean;
+  document_id?: string | null;
+  message: string;
+}
+
+export interface PaidPlanCheckoutResponse {
+  invoice_id: string;
+  invoice_number: string;
+  amount: number;
+  currency: string;
+  plan_code: string;
+  plan_name: string;
+  payment_gateway: string;
+  payment_url: string;
+  client_key?: string | null;
+  status: string;
+}
+

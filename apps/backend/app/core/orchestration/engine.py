@@ -110,6 +110,41 @@ class OrchestrationEngine:
             ],
         )
 
+    def get_onboarding_persona_graph_spec(self) -> WorkflowGraphSpec:
+        """Graf resmi Onboarding Persona Intake: CLASSIFY -> LLM_GENERATE -> TOOL_CALL -> DELIVER"""
+        return WorkflowGraphSpec(
+            entry_node="node_classify_tenant",
+            nodes=[
+                WorkflowNodeSpec(
+                    id="node_classify_tenant",
+                    type="CLASSIFY",
+                    label="Deteksi Tenant Baru Pasca-Registrasi",
+                    next=["node_adaptive_clarification"],
+                ),
+                WorkflowNodeSpec(
+                    id="node_adaptive_clarification",
+                    type="LLM_GENERATE",
+                    label="Penyusunan Klarifikasi Adaptif Persona (Opsional)",
+                    config={"task": "onboarding_clarification"},
+                    next=["node_write_persona_memory"],
+                ),
+                WorkflowNodeSpec(
+                    id="node_write_persona_memory",
+                    type="TOOL_CALL",
+                    label="Penyimpanan Terstruktur Company Brain (Internal Only)",
+                    config={"tool": "memory.write_persona_profile"},
+                    next=["node_deliver_onboarding_redirect"],
+                ),
+                WorkflowNodeSpec(
+                    id="node_deliver_onboarding_redirect",
+                    type="DELIVER",
+                    label="Penyelesaian Persona & Sinyal Redirect Pricing Checkout",
+                    next=[],
+                ),
+            ],
+        )
+
+
     async def run(self, req: WorkflowDispatchRequest) -> WorkflowDispatchResult:
         """
         Menjalankan alur kerja kognitif otonom (OrchestrationEngine.run).
@@ -128,8 +163,11 @@ class OrchestrationEngine:
         engine = get_engine()
 
         # Ambil atau fallback ke graph spec default
-        graph_spec = self.get_default_graph_spec()
         wf_def_id = req.workflow_definition_id
+        if wf_def_id == "onboarding_persona_intake" or req.intent_text == "onboarding_persona_intake":
+            graph_spec = self.get_onboarding_persona_graph_spec()
+        else:
+            graph_spec = self.get_default_graph_spec()
 
         try:
             async with engine.begin() as conn:
@@ -137,7 +175,7 @@ class OrchestrationEngine:
                     sa.text("SELECT set_config('app.tenant_id', :val, true);"),
                     {"val": req.tenant_id},
                 )
-                if wf_def_id:
+                if wf_def_id and wf_def_id != "onboarding_persona_intake":
                     res = await conn.execute(
                         sa.text("SELECT graph_spec FROM workflow_definitions WHERE id = :id;"),
                         {"id": wf_def_id},
@@ -145,7 +183,7 @@ class OrchestrationEngine:
                     row = res.fetchone()
                     if row and row[0]:
                         graph_spec = WorkflowGraphSpec.model_validate(row[0])
-                else:
+                elif not wf_def_id:
                     # Ambil workflow definition default jika ada
                     res = await conn.execute(
                         sa.text("SELECT id, graph_spec FROM workflow_definitions WHERE name = 'Standar Pemrosesan Intent Otonom' LIMIT 1;"),
@@ -155,6 +193,7 @@ class OrchestrationEngine:
                         wf_def_id = str(row[0])
                         if row[1]:
                             graph_spec = WorkflowGraphSpec.model_validate(row[1])
+
 
                 # Simpan record eksekusi awal (Checkpoint 0)
                 await conn.execute(
@@ -560,6 +599,11 @@ class OrchestrationEngine:
             tool_input = {"query": req.intent_text, "category": "general"}
         elif tool_name == "crm.contact_verify":
             tool_input = {"contact_value": req.intent_text, "channel_type": "whatsapp"}
+        elif tool_name == "memory.write_persona_profile":
+            tool_input = {
+                "session_id": context.get("session_id"),
+                "tenant_id": req.tenant_id,
+            }
 
         tool_ctx = ToolExecutionContext(
             tenant_id=req.tenant_id,
@@ -581,6 +625,39 @@ class OrchestrationEngine:
     async def _execute_llm_generate(
         self, req: WorkflowDispatchRequest, node: WorkflowNodeSpec, context: Dict[str, Any], execution_id: str
     ) -> Dict[str, Any]:
+        if node.config.get("task") == "onboarding_clarification":
+            # Node 2 (LLM_GENERATE, opsional-adaptif)
+            if context.get("skip_clarification", False):
+                return {"clarification_needed": False, "reason": "skip_clarification_flag"}
+            essay_answer = str(context.get("latest_essay_answer", "") or "")
+            if essay_answer and (len(essay_answer.strip()) < 15 or len(essay_answer.split()) < 3):
+                prompt = (
+                    f"Pengguna sedang mengisi kuesioner onboarding perusahaan baru. Jawaban esai terkini mereka: \"{essay_answer}\". "
+                    f"Pertanyaan kuesionernya: \"{context.get('latest_question_text', '')}\". "
+                    f"Karena jawaban ini terlalu singkat atau ambigu, susunlah SATU pertanyaan klarifikasi lanjutan "
+                    f"yang santun, ringkas (maksimal 1 kalimat), dan relevan agar profil Company Brain dapat diground dengan presisi."
+                )
+                try:
+                    resp = await self.model_router.route(
+                        ModelRouterRequest(
+                            tenant_id=req.tenant_id,
+                            task_type="text_generation",
+                            prompt=prompt,
+                            temperature=0.3,
+                            max_tokens=100,
+                        )
+                    )
+                    return {
+                        "clarification_needed": True,
+                        "clarification_question": resp.content.strip(),
+                        "provider": resp.provider_id,
+                        "model": resp.model_id,
+                    }
+                except Exception as e:
+                    logger.warning(f"Gagal generate klarifikasi adaptif, dilewati: {e}")
+                    return {"clarification_needed": False, "error": str(e)}
+            return {"clarification_needed": False, "reason": "answer_sufficient"}
+
         prompt = node.config.get("prompt_template", "Ringkas hasil alur kerja berikut: ") + json.dumps(context)
         resp = await self.model_router.route(
             ModelRouterRequest(
@@ -597,6 +674,16 @@ class OrchestrationEngine:
         tool_result = context.get("tool_result", {})
         classification = context.get("classification", {})
 
+        if context.get("session_id") or req.workflow_definition_id == "onboarding_persona_intake":
+            return {
+                "success": True,
+                "message": "Profil Company Brain berhasil disintesis dan sesi onboarding persona selesai.",
+                "status": "completed",
+                "session_id": context.get("session_id"),
+                "redirect_to": "/billing?checkout=1",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
         summary_msg = f"Intent '{req.intent_text}' berhasil diproses secara otonom."
         if "task_id" in tool_result:
             summary_msg = f"Kartu tugas '{tool_result.get('title')}' berhasil dibuat pada Kanban (ID: {tool_result.get('task_id')})."
@@ -610,6 +697,7 @@ class OrchestrationEngine:
             "tool_result": tool_result,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
+
 
     async def _execute_persona_handoff(
         self, req: WorkflowDispatchRequest, node: WorkflowNodeSpec, context: Dict[str, Any], execution_id: str

@@ -367,7 +367,237 @@ async def tool_cart_create(context: ToolExecutionContext, input_data: Dict[str, 
     }
 
 
+# --- 6. Tool: memory.write_persona_profile (Internal Only - Strict Boundary) ---
+class WritePersonaProfileInput(BaseModel):
+    session_id: str = Field(..., description="ID sesi kuesioner persona onboarding")
+    tenant_id: Optional[str] = Field(None, description="ID tenant (opsional, diambil dari context)")
+
+
+class WritePersonaProfileOutput(BaseModel):
+    document_id: str
+    tenant_id: str
+    title: str
+    status: str
+    audience_scope: str
+    memory_write_pending: bool = False
+
+
+@mcp_tool(
+    name="memory.write_persona_profile",
+    description="Menyintesis jawaban persona onboarding menjadi Company Brain dengan boundary internal_only",
+    risk_tier="medium",
+    category="knowledge",
+    is_idempotent=True,
+    timeout_seconds=30.0,
+    context_scope="internal_only",
+    input_model=WritePersonaProfileInput,
+    output_model=WritePersonaProfileOutput,
+)
+async def tool_write_persona_profile(context: ToolExecutionContext, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    from decimal import Decimal
+    from app.core.model_router.router import get_model_router, ModelRouterRequest
+    from app.domains.memory.engine import HybridMemoryEngine, MemoryDocumentCreate
+
+    session_id = input_data.get("session_id")
+    if not session_id:
+        raise ValueError("session_id wajib disertakan untuk memproses profil persona.")
+
+    effective_tenant = input_data.get("tenant_id") or context.tenant_id
+    engine = get_engine()
+
+    # 1. Validasi seluruh pertanyaan wajib telah terjawab
+    async with engine.begin() as conn:
+        # Cek data sesi dan tenant
+        ses_res = await conn.execute(
+            sa.text("""
+                SELECT s.id, s.tenant_id, t.legal_name, t.display_name
+                FROM onboarding_persona_sessions s
+                JOIN tenants t ON t.id = s.tenant_id
+                WHERE s.id = :sid;
+            """),
+            {"sid": session_id},
+        )
+        ses_row = ses_res.fetchone()
+        if not ses_row:
+            raise ValueError(f"Sesi persona {session_id} tidak ditemukan.")
+
+        target_tenant_id = str(ses_row[1])
+        tenant_name = ses_row[3] or ses_row[2] or f"Organisasi {target_tenant_id[:8]}"
+
+        # Periksa pertanyaan wajib yang belum terjawab
+        unanswered_res = await conn.execute(
+            sa.text("""
+                SELECT q.id, q.question_key, q.question_text
+                FROM onboarding_persona_questions q
+                WHERE q.is_active = true AND q.is_required = true
+                  AND q.id NOT IN (
+                      SELECT question_id FROM onboarding_persona_responses WHERE session_id = :sid
+                  );
+            """),
+            {"sid": session_id},
+        )
+        unanswered = unanswered_res.fetchall()
+        if unanswered:
+            missing_keys = [r[1] for r in unanswered]
+            raise ValueError(f"Terdapat pertanyaan wajib yang belum dijawab: {', '.join(missing_keys)}")
+
+        # Ambil seluruh respon pertanyaan
+        resp_res = await conn.execute(
+            sa.text("""
+                SELECT q.question_key, q.question_text, q.category, r.answer_value
+                FROM onboarding_persona_responses r
+                JOIN onboarding_persona_questions q ON q.id = r.question_id
+                WHERE r.session_id = :sid
+                ORDER BY q.display_order ASC;
+            """),
+            {"sid": session_id},
+        )
+        all_responses = resp_res.fetchall()
+
+    # Format ringkasan respons untuk LLM Model Router
+    formatted_responses = []
+    response_dict = {}
+    for row in all_responses:
+        q_key, q_text, q_cat, ans = row
+        val_str = json.dumps(ans, ensure_ascii=False) if isinstance(ans, (dict, list)) else str(ans)
+        formatted_responses.append(f"[{q_cat.upper()}] {q_text}\nJawaban: {val_str}")
+        response_dict[q_key] = ans
+
+    context_prompt = "\n\n".join(formatted_responses)
+
+    model_router = get_model_router()
+    memory_engine = HybridMemoryEngine()
+
+    llm_prompt = (
+        f"Anda adalah Chief Knowledge Officer OrchestreeAI. Berdasarkan hasil kuesioner onboarding persona "
+        f"perusahaan '{tenant_name}', susun profil terstruktur Company Brain yang komprehensif.\n\n"
+        f"DATA JAWABAN ONBOARDING:\n{context_prompt}\n\n"
+        f"Format dokumen profil ini dengan tajuk rapi: Ringkasan Bisnis, Sektor & Industri, "
+        f"Profil Target Pasar, Tantangan Operasional Prioritas, Sasaran Strategis 3-6 Bulan, "
+        f"Tolok Ukur Kompetitor, dan Karakter Nada Komunikasi (Brand Voice)."
+    )
+
+    llm_success = False
+    synthesized_content = ""
+    synthesized_summary = ""
+
+    # Cadangkan transaksi Credit Ledger (platform_cost - ditanggung platform)
+    async with engine.begin() as conn:
+        tx_id = str(uuid.uuid4())
+        await conn.execute(
+            sa.text("""
+                INSERT INTO tenant_credit_transactions (
+                    id, tenant_id, transaction_type, amount, balance_after, reference_id, description, metadata
+                ) VALUES (
+                    :id, :tid, 'platform_cost', 0.0000,
+                    (SELECT coalesce(balance, 0) FROM tenant_credit_wallet WHERE tenant_id = :tid LIMIT 1),
+                    :ref_id, 'Biaya inferensi Company Brain Onboarding (ditanggung platform)', :meta
+                );
+            """),
+            {
+                "id": tx_id,
+                "tid": target_tenant_id,
+                "ref_id": session_id,
+                "meta": json.dumps({"session_id": session_id, "cost_absorbed_by_platform": True}),
+            },
+        )
+
+    try:
+        llm_resp = await model_router.route(
+            ModelRouterRequest(
+                tenant_id=target_tenant_id,
+                task_type="text_generation",
+                prompt=llm_prompt,
+                system_prompt="Anda adalah penyintesis Company Brain OrchestreeAI yang menyusun profil bisnis internal berakurasi tinggi.",
+                temperature=0.3,
+            )
+        )
+        if llm_resp.status == "success" and llm_resp.content.strip():
+            synthesized_content = llm_resp.content.strip()
+            synthesized_summary = synthesized_content[:300] + ("..." if len(synthesized_content) > 300 else "")
+            llm_success = True
+    except Exception as llm_err:
+        logger.warning(f"Model Router inferensi Company Brain gagal (akan dijadwalkan ulang): {llm_err}")
+        llm_success = False
+
+    # Jika Model Router berhasil, simpan dokumen ke memory_documents dengan audience_scope='internal_only'
+    doc_id = str(uuid.uuid4())
+    if llm_success and synthesized_content:
+        try:
+            doc_create = MemoryDocumentCreate(
+                title=f"Profil Persona Perusahaan: {tenant_name}",
+                content=synthesized_content,
+                summary=synthesized_summary,
+                category="knowledge",
+                source_type="onboarding_persona",
+                source_id=session_id,
+                data_classification="confidential",
+                audience_scope="internal_only",
+                confidence=1.0,
+                decay_factor=0.01,
+                metadata={
+                    "session_id": session_id,
+                    "responses": response_dict,
+                    "generated_by": "onboarding_persona_workflow",
+                },
+            )
+            ingest_res = await memory_engine.ingest_document(
+                tenant_id=target_tenant_id,
+                doc_in=doc_create,
+            )
+            doc_id = ingest_res.get("document_id", doc_id)
+
+            # Update sesi selesai sempurna
+            async with engine.begin() as conn:
+                await conn.execute(
+                    sa.text("""
+                        UPDATE onboarding_persona_sessions
+                        SET memory_write_pending = false,
+                            status = 'completed',
+                            completed_at = now()
+                        WHERE id = :sid;
+                    """),
+                    {"sid": session_id},
+                )
+
+            return {
+                "document_id": doc_id,
+                "tenant_id": target_tenant_id,
+                "title": f"Profil Persona Perusahaan: {tenant_name}",
+                "status": "ingested",
+                "audience_scope": "internal_only",
+                "memory_write_pending": False,
+            }
+        except Exception as ingest_err:
+            logger.error(f"Gagal ingest dokumen Company Brain: {ingest_err}")
+            llm_success = False
+
+    # Fallback jika Model Router / Ingestion mengalami kendala (Penanganan Risiko C.6):
+    # Tandai memory_write_pending=true agar alur registrasi & pricing checkout TIDAK terblokir
+    async with engine.begin() as conn:
+        await conn.execute(
+            sa.text("""
+                UPDATE onboarding_persona_sessions
+                SET memory_write_pending = true,
+                    status = 'completed',
+                    completed_at = now()
+                WHERE id = :sid;
+            """),
+            {"sid": session_id},
+        )
+
+    return {
+        "document_id": doc_id,
+        "tenant_id": target_tenant_id,
+        "title": f"Profil Persona Perusahaan: {tenant_name}",
+        "status": "pending_async_write",
+        "audience_scope": "internal_only",
+        "memory_write_pending": True,
+    }
+
+
 def register_builtin_tools():
     """Memastikan semua perkakas bawaan terdaftar."""
     # Menjalankan import modul mendaftarkan fungsi melalui dekorator @mcp_tool
     return True
+

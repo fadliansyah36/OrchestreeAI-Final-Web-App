@@ -16,6 +16,8 @@ import { CreditFormulaConfigScreen } from './CreditFormulaConfigScreen';
 import { CreditTopupPackageScreen } from './CreditTopupPackageScreen';
 import { TenantCreditOverrideScreen } from './TenantCreditOverrideScreen';
 import { PaymentReconciliationScreen } from './PaymentReconciliationScreen';
+import { OnboardingPersonaQuestionCuratorScreen } from './OnboardingPersonaQuestionCuratorScreen';
+import { HelpCircle } from 'lucide-react';
 
 export type CommercialTab =
   | 'financial-summary'
@@ -24,7 +26,8 @@ export type CommercialTab =
   | 'facility-matrix'
   | 'credit-formula'
   | 'topup-packages'
-  | 'credit-overrides';
+  | 'credit-overrides'
+  | 'onboarding-questions';
 
 interface CommercialManagementHubProps {
   initialTab?: CommercialTab;
@@ -75,6 +78,12 @@ export function CommercialManagementHub({ initialTab = 'financial-summary' }: Co
       label: 'Override & Penyesuaian',
       icon: ShieldAlert,
       description: 'Unlimited override & kompensasi saldo khusus',
+    },
+    {
+      id: 'onboarding-questions',
+      label: 'Kuesioner Persona',
+      icon: HelpCircle,
+      description: 'Kurasi pertanyaan eksplorasi bisnis & profil Company Brain',
     },
   ];
 
@@ -132,6 +141,7 @@ export function CommercialManagementHub({ initialTab = 'financial-summary' }: Co
         {activeTab === 'credit-formula' && <CreditFormulaConfigScreen />}
         {activeTab === 'topup-packages' && <CreditTopupPackageScreen />}
         {activeTab === 'credit-overrides' && <TenantCreditOverrideScreen />}
+        {activeTab === 'onboarding-questions' && <OnboardingPersonaQuestionCuratorScreen />}
       </div>
     </div>
   );
