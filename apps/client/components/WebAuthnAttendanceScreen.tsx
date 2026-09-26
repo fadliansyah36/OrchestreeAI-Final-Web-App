@@ -170,23 +170,7 @@ export const WebAuthnAttendanceScreen: React.FC<WebAuthnAttendanceScreenProps> =
           },
         });
       } catch (browserErr: any) {
-        // Fallback jika dibatalkan oleh pengguna atau lingkungan container sandbox tanpa autentikator fisik
-        console.warn('Browser credentials.create:', browserErr.message);
-        const fallbackCredId = 'cred_' + window.crypto.randomUUID();
-        const verifyRes = await fetch('/api/v1/attendance/webauthn/register-verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tenant_id: tenantId,
-            tenant_membership_id: membershipId,
-            credential_id: fallbackCredId,
-            public_key: 'verified_ec256_hardware_key',
-          }),
-        });
-        if (!verifyRes.ok) throw new Error('Gagal memverifikasi pendaftaran kredensial.');
-        setSuccessMsg('Kredensial biometrik WebAuthn berhasil didaftarkan.');
-        await loadData();
-        return;
+        throw new Error(browserErr?.message ? `Autentikasi biometrik dibatalkan/gagal: ${browserErr.message}` : 'Pendaftaran kredensial biometrik WebAuthn dibatalkan.');
       }
 
       if (credential) {

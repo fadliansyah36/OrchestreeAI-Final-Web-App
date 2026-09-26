@@ -57,6 +57,7 @@ AI Agent Coding **wajib mencantumkan hasil checklist berikut secara eksplisit** 
 - [ ] Tidak ada kalimat di laporan yang menyarankan provider database/cloud lain sebagai langkah berikutnya.
 - [ ] Seluruh pemanggilan LLM (termasuk Gemini) melewati Model Router tunggal (Bagian E.2 PRD v2.2 / Bagian J Prompt Fase 4), bukan dipanggil langsung dari kode fitur.
 - [ ] CI Content Gate (pemindaian kata terlarang) sudah dijalankan dan lulus, mencakup juga istilah baru: `in-memory fallback`, `memorystore`, `cloud sql`, `cloudsql`.
+- [ ] Apakah ada data apapun yang bisa tampil di UI SEBELUM/TANPA request backend berhasil? (jawaban harus TIDAK, dibuktikan uji matikan backend sepenuhnya lalu buka aplikasi).
 
 Bila salah satu poin di atas **tidak** dapat dicentang jujur, tugas **belum selesai** — dilarang melaporkan sebagai selesai.
 

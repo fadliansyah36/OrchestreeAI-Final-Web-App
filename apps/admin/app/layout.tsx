@@ -1,5 +1,5 @@
 import React from 'react';
-import { OrchIntlProvider } from '@orchestree/ui';
+import { OrchIntlProvider, BackendConnectivityGate } from '@orchestree/ui';
 import './globals.css';
 
 export const viewport = {
@@ -49,7 +49,9 @@ export default function AdminRootLayout({
       </head>
       <body className="min-h-screen bg-[#070D18] text-white antialiased font-sans">
         <OrchIntlProvider>
-          {children}
+          <BackendConnectivityGate>
+            {children}
+          </BackendConnectivityGate>
         </OrchIntlProvider>
       </body>
     </html>

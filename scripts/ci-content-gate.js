@@ -189,6 +189,29 @@ function runContentGate() {
       // CI Guard (Bagian B.5 & D.4): Dilarang query langsung tabel Supabase (.from) di frontend apps/client dan apps/admin
       const relPath = path.relative(rootDir, filePath).replace(/\\/g, '/');
       const isFrontend = relPath.startsWith('apps/client/') || relPath.startsWith('apps/admin/') || relPath.startsWith('src/') || relPath.startsWith('packages/');
+      
+      // CI Guard (Bagian E.3): Dilarang initialData / placeholderData literal pada query hook
+      if (isFrontend && /(?:initialData|placeholderData)\s*:\s*(\[|\{)/.test(line)) {
+        violations.push({
+          file: relPath,
+          line: index + 1,
+          term: 'literal initialData/placeholderData',
+          snippet: line.trim()
+        });
+      }
+
+      // CI Guard (Bagian E.3): Dilarang persist middleware Zustand pada store data domain bisnis
+      if (isFrontend && /persist\s*\(/.test(line)) {
+        if (!relPath.toLowerCase().includes('theme') && !relPath.toLowerCase().includes('locale') && !relPath.toLowerCase().includes('ui') && !relPath.toLowerCase().includes('pref')) {
+          violations.push({
+            file: relPath,
+            line: index + 1,
+            term: 'zustand persist on business data store',
+            snippet: line.trim()
+          });
+        }
+      }
+
       if (isFrontend && (line.includes('.from(') || line.includes('.from("') || line.includes(".from('"))) {
         if (!line.includes('Array.from') && !line.includes('Buffer.from')) {
           violations.push({

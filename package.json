@@ -26,6 +26,7 @@
     "supabase:db-push": "supabase db push",
     "db:migrate": "cd apps/backend && alembic upgrade head",
     "test:security": "npx tsx tests/test_comprehensive_security_gate.ts",
+    "test:connectivity": "npx tsx tests/test_frontend_connectivity_gate.ts",
     "lint": "tsc --noEmit && node scripts/ci-content-gate.js && python3 scripts/security_ast_scanner.py"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
-// OrchestreeAI Production Service Worker (PWA Compliance)
-const CACHE_NAME = 'orchestree-pwa-v1';
+// OrchestreeAI Production Service Worker (PWA Compliance & Fail-Closed Gate)
+const CACHE_NAME = 'orchestree-pwa-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
@@ -35,12 +35,20 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Bypass non-GET requests and API calls
-  if (request.method !== 'GET' || url.pathname.startsWith('/api/')) {
+  // Strictly NetworkOnly for all API endpoints, health probes, WebSocket, and non-GET requests
+  // PRD v2.2 Real Data Enforcement: Never serve stale/cached business responses
+  if (
+    request.method !== 'GET' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/health/') ||
+    url.pathname.startsWith('/public/') ||
+    url.pathname.startsWith('/ws') ||
+    url.pathname === '/openapi.json'
+  ) {
     return;
   }
 
-  // Navigation requests: Network-first with offline cache fallback
+  // Navigation requests: Network-first with offline shell cache fallback
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)

@@ -19,6 +19,7 @@ import {
   ArrowRight,
   MessageSquare,
   AlertTriangle,
+  AlertCircle,
   RotateCcw,
   Check,
   X,
@@ -101,6 +102,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
     'Sebagai asisten AI, perlu dicatat bahwa pesanan Anda nomor INV-2026-990 dengan total harga Rp 350.000 telah kami verifikasi. Diskon 15% kode HEMAT15 telah diterapkan. Apakah ada hal lain yang bisa saya bantu hari ini?'
   );
   const [humanizeCustomerName, setHumanizeCustomerName] = useState('Anisa');
+  const [humanizeError, setHumanizeError] = useState<string | null>(null);
   const [humanizeResult, setHumanizeResult] = useState<{
     humanized_text: string;
     is_modified: boolean;
@@ -256,6 +258,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
 
   const handleRunHumanizer = async () => {
     setIsHumanizing(true);
+    setHumanizeError(null);
     try {
       const res = await fetch(`/api/v1/tenants/${tenantId}/service/humanize`, {
         method: 'POST',
@@ -272,30 +275,13 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
         const data = await res.json();
         setHumanizeResult(data);
       } else {
-        // Fallback local rule-based execution
-        const cleaned = rawHumanizeInput
-          .replace(/\bsebagai asisten ai\b.*?,?\s*/gi, '')
-          .replace(/\bperlu dicatat bahwa\b,?\s*/gi, 'Catatan penting ya kak, ')
-          .replace(/\bapakah ada hal lain yang bisa saya bantu hari ini\?\b/gi, 'Ada yang ingin ditanyakan lagi kak?');
-        const humanized = `Halo Kak ${humanizeCustomerName}, ${cleaned.trim()}`;
-        setHumanizeResult({
-          humanized_text: humanized,
-          is_modified: true,
-          factual_invariance_passed: true,
-          validation_note: 'Fakta nominal Rp 350.000 dan kode HEMAT15 terverifikasi 100% utuh.',
-        });
+        const errData = await res.json().catch(() => ({}));
+        setHumanizeResult(null);
+        setHumanizeError(errData.detail || 'Gagal memproses naturalisasi teks dari server backend.');
       }
-    } catch (e) {
-      const cleaned = rawHumanizeInput
-        .replace(/\bsebagai asisten ai\b.*?,?\s*/gi, '')
-        .replace(/\bperlu dicatat bahwa\b,?\s*/gi, 'Catatan penting ya kak, ')
-        .replace(/\bapakah ada hal lain yang bisa saya bantu hari ini\?\b/gi, 'Ada yang ingin ditanyakan lagi kak?');
-      setHumanizeResult({
-        humanized_text: `Halo Kak ${humanizeCustomerName}, ${cleaned.trim()}`,
-        is_modified: true,
-        factual_invariance_passed: true,
-        validation_note: 'Fakta numerik terverifikasi invarian.',
-      });
+    } catch (e: any) {
+      setHumanizeResult(null);
+      setHumanizeError(e.message || 'Koneksi ke backend terputus saat memproses naturalisasi teks.');
     } finally {
       setIsHumanizing(false);
     }
@@ -729,7 +715,15 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
                 <label className="block text-xs font-semibold text-slate-300">
                   Hasil Teks Tervalidasi (Final Grounded Text)
                 </label>
-                {humanizeResult ? (
+                {humanizeError ? (
+                  <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/60 text-xs text-red-300 flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                    <div>
+                      <strong className="block font-semibold">Gagal Memproses Permintaan</strong>
+                      <span>{humanizeError}</span>
+                    </div>
+                  </div>
+                ) : humanizeResult ? (
                   <div className="space-y-3">
                     <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-200 leading-relaxed font-sans min-h-[140px]">
                       {humanizeResult.humanized_text}
