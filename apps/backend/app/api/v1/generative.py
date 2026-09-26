@@ -73,9 +73,38 @@ class PromptCategoryUpdate(BaseModel):
     display_order: Optional[int] = None
 
 
+class PromptStyleCreate(BaseModel):
+    style_code: str = Field(..., min_length=2, max_length=64)
+    display_name: str = Field(..., min_length=2, max_length=120)
+    description: str = Field(..., min_length=3, max_length=500)
+    icon_key: str = Field(default="shapes")
+    display_order: int = Field(default=0)
+
+
+class PromptStyleUpdate(BaseModel):
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    icon_key: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+class SeedingBatchCreate(BaseModel):
+    batch_label: str = Field(..., min_length=3, max_length=150)
+    requested_template_count: int = Field(..., ge=1, le=200)
+    estimated_total_credit: Optional[float] = Field(default=None, ge=0.0)
+    plan_details: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class SeedingBatchStatusUpdate(BaseModel):
+    status: str = Field(..., pattern="^(pending_approval|approved|running|completed|failed)$")
+    approved_by: Optional[str] = None
+
+
 class AtomicPromptTemplateCreate(BaseModel):
     category_id: Optional[str] = None
     category_code: Optional[str] = None
+    style_family_id: Optional[str] = None
+    style_code: Optional[str] = None
     template_name: str = Field(..., min_length=3, max_length=150)
     concept_summary: str = Field(..., min_length=5, max_length=500)
     subject_field: str = Field(..., min_length=3)
@@ -96,6 +125,8 @@ class AtomicPromptTemplateCreate(BaseModel):
 class AtomicPromptTemplateUpdate(BaseModel):
     category_id: Optional[str] = None
     category_code: Optional[str] = None
+    style_family_id: Optional[str] = None
+    style_code: Optional[str] = None
     template_name: Optional[str] = None
     concept_summary: Optional[str] = None
     subject_field: Optional[str] = None
@@ -291,15 +322,148 @@ async def delete_prompt_category(
         raise HTTPException(status_code=400, detail=str(err))
 
 
+# ==============================================================================
+# KELUARGA GAYA VISUAL (SUMBU KEDUA)
+# ==============================================================================
+
+@router.get("/prompt-styles", response_model=Dict[str, Any])
+async def list_prompt_styles(tenant_id: str):
+    """Mengambil master data 16 keluarga gaya visual beserta jumlah template aktif."""
+    try:
+        styles = ImageRouterService.list_prompt_styles(tenant_id)
+        return {"status": "ok", "data": styles}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
+
+@router.post("/prompt-styles", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_prompt_style(
+    tenant_id: str,
+    payload: PromptStyleCreate,
+):
+    """Menambahkan keluarga gaya visual baru (Super Admin)."""
+    try:
+        created = ImageRouterService.create_prompt_style(payload.model_dump())
+        return {"status": "ok", "data": created}
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.put("/prompt-styles/{style_id}", response_model=Dict[str, Any])
+async def update_prompt_style(
+    tenant_id: str,
+    style_id: str,
+    payload: PromptStyleUpdate,
+):
+    """Memperbarui metadata keluarga gaya visual (Super Admin)."""
+    try:
+        clean_payload = {k: v for k, v in payload.model_dump().items() if v is not None}
+        updated = ImageRouterService.update_prompt_style(style_id, clean_payload)
+        return {"status": "ok", "data": updated}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.delete("/prompt-styles/{style_id}", response_model=Dict[str, Any])
+async def delete_prompt_style(
+    tenant_id: str,
+    style_id: str,
+):
+    """Menghapus keluarga gaya visual (Super Admin)."""
+    try:
+        ImageRouterService.delete_prompt_style(style_id)
+        return {"status": "ok", "deleted": True}
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+# ==============================================================================
+# BATCH SEEDING KONTROL BIAYA
+# ==============================================================================
+
+@router.get("/seeding-batches", response_model=Dict[str, Any])
+async def list_seeding_batches(tenant_id: str):
+    """Mengambil riwayat job seeding massal template prompt beserta status dan biaya kredit."""
+    try:
+        batches = ImageRouterService.list_seeding_batches()
+        return {"status": "ok", "data": batches}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
+
+@router.post("/seeding-batches", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+async def create_seeding_batch(
+    tenant_id: str,
+    payload: SeedingBatchCreate,
+):
+    """Mendaftarkan rencana batch seeding massal baru dengan status pending_approval."""
+    try:
+        created = ImageRouterService.create_seeding_batch(payload.model_dump())
+        return {"status": "ok", "data": created}
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.patch("/seeding-batches/{batch_id}/status", response_model=Dict[str, Any])
+async def update_seeding_batch_status(
+    tenant_id: str,
+    batch_id: str,
+    payload: SeedingBatchStatusUpdate,
+):
+    """Menyetujui (approve), menjalankan, atau membatalkan batch seeding massal (Super Admin)."""
+    try:
+        updated = ImageRouterService.update_seeding_batch_status(
+            batch_id=batch_id,
+            status_val=payload.status,
+            approved_by=payload.approved_by,
+        )
+        return {"status": "ok", "data": updated}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.post("/seeding-batches/{batch_id}/execute", response_model=Dict[str, Any])
+async def execute_seeding_batch(
+    tenant_id: str,
+    batch_id: str,
+):
+    """
+    Mengeksekusi batch seeding template prompt yang telah disetujui (status approved).
+    Memotong kredit riil melalui ledger (tenant_credit_transactions) dan menghasilkan
+    gambar serta template prompt atomik baru ke dalam pustaka platform.
+    """
+    try:
+        result = ImageRouterService.execute_seeding_batch(
+            batch_id=batch_id,
+            tenant_id=tenant_id,
+        )
+        return {"status": "ok", "data": result}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
+
+
+# ==============================================================================
+# PUSTAKA TEMPLATE PROMPT (FILTER DUA SUMBU & KEJUTKAN SAYA)
+# ==============================================================================
+
 @router.get("/prompt-templates", response_model=Dict[str, Any])
 async def list_prompt_library_templates(
     tenant_id: str,
     category_code: Optional[str] = Query(None, description="Kode kategori (misal: social_media_post, product_photo)"),
+    style_code: Optional[str] = Query(None, description="Kode gaya visual (misal: studio_realism, flat_vector)"),
     scope: str = Query("all", description="Cakupan template: 'all', 'global', atau 'private'"),
     search: Optional[str] = Query(None, description="Pencarian nama template, konsep, atau subjek"),
 ):
     """
     Mengambil daftar pustaka template prompt atomik dengan gambar contoh nyata.
+    Mendukung taksonomi dua sumbu: Kebutuhan Bisnis (category_code) × Gaya Visual (style_code).
     Diurutkan secara cerdas: kategori yang paling sering digunakan tenant diprioritaskan di atas
     (rekomendasi berbasis riwayat pemakaian nyata), diikuti popularitas usage_count.
     """
@@ -307,10 +471,35 @@ async def list_prompt_library_templates(
         templates = ImageRouterService.list_prompt_library_templates(
             tenant_id=tenant_id,
             category_code=category_code,
+            style_code=style_code,
             scope=scope,
             search=search,
         )
         return {"status": "ok", "data": templates}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
+
+@router.get("/prompt-templates/surprise-me", response_model=Dict[str, Any])
+async def surprise_me_prompt_template(
+    tenant_id: str,
+    category_code: Optional[str] = Query(None, description="Filter opsional kategori kebutuhan bisnis"),
+    style_code: Optional[str] = Query(None, description="Filter opsional keluarga gaya visual"),
+):
+    """
+    Mode 'Kejutkan Saya': Memilih satu template secara acak dari kombinasi yang
+    BELUM pernah dipakai oleh tenant ini (NOT EXISTS terhadap prompt_template_usage_log).
+    Mendorong eksplorasi gaya visual baru.
+    """
+    try:
+        template = ImageRouterService.get_surprise_prompt_template(
+            tenant_id=tenant_id,
+            category_code=category_code,
+            style_code=style_code,
+        )
+        return {"status": "ok", "data": template}
+    except ValueError as err:
+        raise HTTPException(status_code=404, detail=str(err))
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
 

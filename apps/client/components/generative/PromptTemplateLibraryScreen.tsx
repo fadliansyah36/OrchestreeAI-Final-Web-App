@@ -30,9 +30,39 @@ import {
   HelpCircle,
   X,
   RefreshCw,
-  FolderLock
+  FolderLock,
+  BookOpen,
+  Package,
+  Palette,
+  Home,
+  Building,
+  Cpu,
+  Shapes,
+  Droplet,
+  Box,
+  Grid,
+  Zap,
+  PenTool,
+  Film,
+  Shirt,
+  Brush,
+  Feather,
+  Sun,
+  Image as ImageIcon,
+  Clock,
+  Dices
 } from 'lucide-react';
 import { EmptyState, SkeletonLoader } from '@orchestree/ui';
+
+export interface PromptStyleFamily {
+  id: string;
+  style_code: string;
+  display_name: string;
+  description: string;
+  icon_key: string;
+  display_order: number;
+  template_count?: number;
+}
 
 export interface AtomicPromptTemplate {
   id: string;
@@ -40,6 +70,12 @@ export interface AtomicPromptTemplate {
   category_code: string;
   category_name?: string;
   category_icon?: string;
+  style_family_id?: string;
+  style_code?: string;
+  style_name?: string;
+  style_description?: string;
+  style_icon?: string;
+  seeding_batch_id?: string;
   template_name: string;
   concept_summary: string;
   subject_field: string;
@@ -90,6 +126,32 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
   'monitor': Monitor,
   'calendar': Calendar,
   'layers': Layers,
+  'book-open': BookOpen,
+  'package': Package,
+  'palette': Palette,
+  'home': Home,
+  'building': Building,
+  'cpu': Cpu,
+  'sparkles': Sparkles,
+};
+
+const STYLE_ICON_MAP: Record<string, React.ElementType> = {
+  'camera': Camera,
+  'shapes': Shapes,
+  'droplet': Droplet,
+  'box': Box,
+  'grid': Grid,
+  'zap': Zap,
+  'pen-tool': PenTool,
+  'smile': Smile,
+  'film': Film,
+  'shirt': Shirt,
+  'brush': Brush,
+  'building': Building,
+  'feather': Feather,
+  'sun': Sun,
+  'image': ImageIcon,
+  'clock': Clock,
 };
 
 export function PromptTemplateLibraryScreen({
@@ -98,15 +160,19 @@ export function PromptTemplateLibraryScreen({
   onSaveNewTemplateRequested,
 }: PromptTemplateLibraryScreenProps) {
   const [categories, setCategories] = useState<PromptCategory[]>([]);
+  const [styles, setStyles] = useState<PromptStyleFamily[]>([]);
   const [templates, setTemplates] = useState<AtomicPromptTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter & Search states
+  // Two-Axis Filter & Search states
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStyle, setSelectedStyle] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'global' | 'private'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [surpriseLoading, setSurpriseLoading] = useState<boolean>(false);
+  const [surpriseNotice, setSurpriseNotice] = useState<string | null>(null);
 
   // Detail Modal / Educational Modal
   const [inspectingTemplate, setInspectingTemplate] = useState<AtomicPromptTemplate | null>(null);
@@ -115,6 +181,7 @@ export function PromptTemplateLibraryScreen({
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [createForm, setCreateForm] = useState({
     category_code: 'social_media_post',
+    style_code: 'studio_realism',
     template_name: '',
     concept_summary: '',
     subject_field: '',
@@ -149,6 +216,21 @@ export function PromptTemplateLibraryScreen({
     }
   };
 
+  const fetchStyles = async () => {
+    try {
+      const res = await fetch(`/api/v1/tenants/${tenantId}/generative/prompt-styles`, {
+        headers: {
+          'X-Tenant-Id': tenantId,
+        },
+      });
+      if (!res.ok) throw new Error('Gagal memuat keluarga gaya visual.');
+      const data = await res.json();
+      setStyles(data.data || []);
+    } catch (err: any) {
+      console.error('Error fetching prompt styles:', err);
+    }
+  };
+
   const fetchTemplates = async () => {
     setLoading(true);
     setError(null);
@@ -156,6 +238,9 @@ export function PromptTemplateLibraryScreen({
       let url = `/api/v1/tenants/${tenantId}/generative/prompt-templates?scope=${scopeFilter}`;
       if (selectedCategory !== 'all') {
         url += `&category_code=${encodeURIComponent(selectedCategory)}`;
+      }
+      if (selectedStyle !== 'all') {
+        url += `&style_code=${encodeURIComponent(selectedStyle)}`;
       }
       if (searchQuery.trim()) {
         url += `&search=${encodeURIComponent(searchQuery.trim())}`;
@@ -177,13 +262,48 @@ export function PromptTemplateLibraryScreen({
     }
   };
 
+  const handleSurpriseMe = async () => {
+    setSurpriseLoading(true);
+    setSurpriseNotice(null);
+    try {
+      let url = `/api/v1/tenants/${tenantId}/generative/prompt-templates/surprise-me?`;
+      if (selectedCategory !== 'all') {
+        url += `category_code=${encodeURIComponent(selectedCategory)}&`;
+      }
+      if (selectedStyle !== 'all') {
+        url += `style_code=${encodeURIComponent(selectedStyle)}`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          'X-Tenant-Id': tenantId,
+        },
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || 'Tidak ada template yang cocok untuk dikejutkan.');
+      }
+      const resData = await res.json();
+      const surpriseTemplate: AtomicPromptTemplate = resData.data;
+      if (surpriseTemplate) {
+        setSurpriseNotice(`Kejutkan Saya: "${surpriseTemplate.template_name}" (${surpriseTemplate.style_name || surpriseTemplate.style_code || 'Gaya Terpadu'}) terpilih secara acak!`);
+        setInspectingTemplate(surpriseTemplate);
+      }
+    } catch (err: any) {
+      setSurpriseNotice(err.message || 'Gagal menjalankan fitur Kejutkan Saya.');
+    } finally {
+      setSurpriseLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
+    fetchStyles();
   }, [tenantId]);
 
   useEffect(() => {
     fetchTemplates();
-  }, [tenantId, selectedCategory, scopeFilter, searchQuery]);
+  }, [tenantId, selectedCategory, selectedStyle, scopeFilter, searchQuery]);
 
   const handleCopyPrompt = (template: AtomicPromptTemplate, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -307,6 +427,15 @@ export function PromptTemplateLibraryScreen({
 
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={handleSurpriseMe}
+              disabled={surpriseLoading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-purple-950/40 cursor-pointer min-h-[44px] disabled:opacity-50"
+              title="Kejutkan Saya: Memilih acak template dari kombinasi yang belum pernah dipakai organisasi Anda"
+            >
+              <Dices className={`w-4 h-4 ${surpriseLoading ? 'animate-spin' : ''}`} />
+              <span>{surpriseLoading ? 'Mengacak...' : 'Kejutkan Saya'}</span>
+            </button>
+            <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs transition shadow-lg shadow-emerald-950/40 cursor-pointer min-h-[44px]"
             >
@@ -316,6 +445,7 @@ export function PromptTemplateLibraryScreen({
             <button
               onClick={() => {
                 fetchCategories();
+                fetchStyles();
                 fetchTemplates();
               }}
               className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
@@ -327,8 +457,24 @@ export function PromptTemplateLibraryScreen({
         </div>
       </div>
 
-      {/* Filter Kategori & Pencarian */}
-      <div className="space-y-3">
+      {/* Notifikasi Kejutkan Saya */}
+      {surpriseNotice && (
+        <div className="p-4 rounded-2xl bg-purple-950/40 border border-purple-800/60 text-purple-200 text-xs flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="font-medium">{surpriseNotice}</span>
+          </div>
+          <button
+            onClick={() => setSurpriseNotice(null)}
+            className="text-purple-400 hover:text-white p-1 rounded-lg hover:bg-purple-900/50 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Filter Taksonomi Dua Sumbu & Pencarian */}
+      <div className="space-y-4">
         {/* Search & Scope Tabs */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="relative flex-1">
@@ -385,43 +531,114 @@ export function PromptTemplateLibraryScreen({
           </div>
         </div>
 
-        {/* Kategori Horizontal Scroll */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[40px] flex items-center gap-2 ${
-              selectedCategory === 'all'
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
-                : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Seluruh Kategori ({templates.length})</span>
-          </button>
-
-          {categories.map((cat) => {
-            const IconComp = CATEGORY_ICON_MAP[cat.icon_key] || Sparkles;
-            const isSelected = selectedCategory === cat.category_code;
-            return (
+        {/* SUMBU 1: Kategori Kebutuhan Bisnis (14 Kategori) */}
+        <div className="space-y-1.5 bg-slate-900/40 p-3 rounded-2xl border border-slate-800/80">
+          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sumbu 1: Kategori Kebutuhan Bisnis ({categories.length})</span>
+            </span>
+            {selectedCategory !== 'all' && (
               <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.category_code)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[40px] flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
-                    : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
-                }`}
+                onClick={() => setSelectedCategory('all')}
+                className="text-[11px] text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
               >
-                <IconComp className="w-3.5 h-3.5" />
-                <span>{cat.display_name}</span>
-                {typeof cat.template_count === 'number' && cat.template_count > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
-                    {cat.template_count}
-                  </span>
-                )}
+                Reset Kategori
               </button>
-            );
-          })}
+            )}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[36px] flex items-center gap-1.5 ${
+                selectedCategory === 'all'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                  : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Semua Kategori</span>
+            </button>
+
+            {categories.map((cat) => {
+              const IconComp = CATEGORY_ICON_MAP[cat.icon_key] || Sparkles;
+              const isSelected = selectedCategory === cat.category_code;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.category_code)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[36px] flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm'
+                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{cat.display_name}</span>
+                  {typeof cat.template_count === 'number' && cat.template_count > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
+                      {cat.template_count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SUMBU 2: Keluarga Gaya Visual (16 Gaya Visual) */}
+        <div className="space-y-1.5 bg-slate-900/40 p-3 rounded-2xl border border-slate-800/80">
+          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5 text-purple-400" />
+              <span>Sumbu 2: Keluarga Gaya Visual ({styles.length})</span>
+            </span>
+            {selectedStyle !== 'all' && (
+              <button
+                onClick={() => setSelectedStyle('all')}
+                className="text-[11px] text-purple-400 hover:text-purple-300 underline cursor-pointer"
+              >
+                Reset Gaya
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-800">
+            <button
+              onClick={() => setSelectedStyle('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[36px] flex items-center gap-1.5 ${
+                selectedStyle === 'all'
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-sm'
+                  : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>Semua Gaya Visual</span>
+            </button>
+
+            {styles.map((st) => {
+              const IconComp = STYLE_ICON_MAP[st.icon_key] || Palette;
+              const isSelected = selectedStyle === st.style_code;
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setSelectedStyle(st.style_code)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer border min-h-[36px] flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-sm'
+                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{st.display_name}</span>
+                  {typeof st.template_count === 'number' && st.template_count > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
+                      {st.template_count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -542,10 +759,16 @@ export function PromptTemplateLibraryScreen({
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-800">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase font-mono">
                     {inspectingTemplate.category_code}
                   </span>
+                  {inspectingTemplate.style_name && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 text-[10px] font-bold font-mono flex items-center gap-1">
+                      <Palette className="w-3 h-3 text-purple-400" />
+                      <span>{inspectingTemplate.style_name}</span>
+                    </span>
+                  )}
                   <span className="text-slate-400 text-xs font-mono">
                     Rasio: {inspectingTemplate.recommended_aspect_ratio}
                   </span>
@@ -557,6 +780,9 @@ export function PromptTemplateLibraryScreen({
                 </div>
                 <h3 className="text-lg font-bold text-white">{inspectingTemplate.template_name}</h3>
                 <p className="text-xs text-slate-300 leading-relaxed">{inspectingTemplate.concept_summary}</p>
+                {inspectingTemplate.style_description && (
+                  <p className="text-[11px] text-purple-300/80 italic">Karakteristik Gaya: {inspectingTemplate.style_description}</p>
+                )}
               </div>
               <button
                 onClick={() => setInspectingTemplate(null)}
@@ -769,9 +995,9 @@ export function PromptTemplateLibraryScreen({
             )}
 
             <form onSubmit={handleCreatePrivateTemplate} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Kategori Template *</label>
+                  <label className="font-semibold text-slate-300">Kategori Bisnis *</label>
                   <select
                     value={createForm.category_code}
                     onChange={(e) => setCreateForm({ ...createForm, category_code: e.target.value })}
@@ -786,7 +1012,22 @@ export function PromptTemplateLibraryScreen({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-300">Rasio Aspek Rekomendasi</label>
+                  <label className="font-semibold text-slate-300">Gaya Visual *</label>
+                  <select
+                    value={createForm.style_code}
+                    onChange={(e) => setCreateForm({ ...createForm, style_code: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 min-h-[44px]"
+                  >
+                    {styles.map((s) => (
+                      <option key={s.id} value={s.style_code}>
+                        {s.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Rasio Aspek</label>
                   <select
                     value={createForm.recommended_aspect_ratio}
                     onChange={(e) => setCreateForm({ ...createForm, recommended_aspect_ratio: e.target.value })}
@@ -973,11 +1214,19 @@ function TemplateCard({ template, isCopied, onCopy, onUse, onInspect }: Template
           )}
 
           {/* Badges Over Image */}
-          <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-            <span className="px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[10px] font-mono font-semibold text-emerald-400 border border-emerald-500/30">
-              {template.category_code}
-            </span>
-            <div className="flex items-center gap-1">
+          <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-[10px] font-mono font-semibold text-emerald-400 border border-emerald-500/30">
+                {template.category_code}
+              </span>
+              {template.style_name && (
+                <span className="px-2 py-0.5 rounded-md bg-purple-950/85 backdrop-blur-md text-[10px] font-mono font-semibold text-purple-300 border border-purple-500/30 flex items-center gap-1">
+                  <Palette className="w-2.5 h-2.5 text-purple-400" />
+                  <span>{template.style_name}</span>
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
               {template.is_recommended && (
                 <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold flex items-center gap-1 shadow-sm">
                   <Flame className="w-3 h-3 fill-slate-950" />

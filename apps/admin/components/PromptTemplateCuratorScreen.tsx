@@ -28,7 +28,27 @@ import {
   Monitor,
   Calendar,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  Palette,
+  Shapes,
+  Droplet,
+  Box,
+  Grid,
+  Zap,
+  PenTool,
+  Film,
+  Shirt,
+  Brush,
+  Feather,
+  Sun,
+  Image as ImageIcon,
+  Clock,
+  PlayCircle,
+  FileText,
+  CheckCircle,
+  Ban,
+  Coins,
+  ShieldAlert
 } from 'lucide-react';
 import { EmptyState, SkeletonLoader } from '@orchestree/ui';
 
@@ -43,12 +63,43 @@ export interface AdminPromptCategory {
   created_at?: string;
 }
 
+export interface AdminPromptStyle {
+  id: string;
+  style_code: string;
+  display_name: string;
+  description: string;
+  icon_key: string;
+  display_order: number;
+  template_count?: number;
+  created_at?: string;
+}
+
+export interface AdminSeedingBatch {
+  id: string;
+  batch_label: string;
+  requested_template_count: number;
+  estimated_total_credit: number;
+  actual_total_credit: number;
+  status: 'pending_approval' | 'approved' | 'in_progress' | 'completed' | 'failed' | 'rejected';
+  approved_by?: string | null;
+  approved_at?: string | null;
+  completed_at?: string | null;
+  plan_details: any;
+  created_at: string;
+  generated_count?: number;
+}
+
 export interface AdminPromptTemplate {
   id: string;
   category_id: string;
   category_code: string;
   category_name?: string;
   category_icon?: string;
+  style_family_id?: string;
+  style_code?: string;
+  style_name?: string;
+  style_description?: string;
+  style_icon?: string;
   template_name: string;
   concept_summary: string;
   subject_field: string;
@@ -83,11 +134,34 @@ const CATEGORY_ICON_MAP: Record<string, React.ElementType> = {
   'monitor': Monitor,
   'calendar': Calendar,
   'layers': Layers,
+  'palette': Palette,
+};
+
+const STYLE_ICON_MAP: Record<string, React.ElementType> = {
+  'camera': Camera,
+  'shapes': Shapes,
+  'droplet': Droplet,
+  'box': Box,
+  'grid': Grid,
+  'zap': Zap,
+  'pen-tool': PenTool,
+  'smile': Smile,
+  'film': Film,
+  'shirt': Shirt,
+  'brush': Brush,
+  'building': Layers,
+  'feather': Feather,
+  'sun': Sun,
+  'image': ImageIcon,
+  'clock': Clock,
+  'palette': Palette,
 };
 
 export function PromptTemplateCuratorScreen() {
-  const [activeTab, setActiveTab] = useState<'templates' | 'categories'>('templates');
+  const [activeTab, setActiveTab] = useState<'templates' | 'styles' | 'categories' | 'batches'>('templates');
   const [categories, setCategories] = useState<AdminPromptCategory[]>([]);
+  const [styles, setStyles] = useState<AdminPromptStyle[]>([]);
+  const [batches, setBatches] = useState<AdminSeedingBatch[]>([]);
   const [templates, setTemplates] = useState<AdminPromptTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -95,9 +169,10 @@ export function PromptTemplateCuratorScreen() {
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStyle, setSelectedStyle] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Modals
+  // Modals: Category
   const [showCategoryModal, setShowCategoryModal] = useState<boolean>(false);
   const [editingCategory, setEditingCategory] = useState<AdminPromptCategory | null>(null);
   const [categoryForm, setCategoryForm] = useState({
@@ -108,10 +183,36 @@ export function PromptTemplateCuratorScreen() {
     display_order: 0,
   });
 
+  // Modals: Style Family
+  const [showStyleModal, setShowStyleModal] = useState<boolean>(false);
+  const [editingStyle, setEditingStyle] = useState<AdminPromptStyle | null>(null);
+  const [styleForm, setStyleForm] = useState({
+    style_code: '',
+    display_name: '',
+    description: '',
+    icon_key: 'camera',
+    display_order: 0,
+  });
+
+  // Modals: Seeding Batch
+  const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
+  const [inspectingBatch, setInspectingBatch] = useState<AdminSeedingBatch | null>(null);
+  const [batchExecutingId, setBatchExecutingId] = useState<string | null>(null);
+  const [batchForm, setBatchForm] = useState({
+    batch_label: '',
+    category_code: 'social_media_post',
+    style_code: 'studio_realism',
+    requested_template_count: 5,
+    estimated_total_credit: 25.0,
+    concept_theme: '',
+  });
+
+  // Modals: Template
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [editingTemplate, setEditingTemplate] = useState<AdminPromptTemplate | null>(null);
   const [templateForm, setTemplateForm] = useState({
     category_code: 'social_media_post',
+    style_code: 'studio_realism',
     template_name: '',
     concept_summary: '',
     subject_field: '',
@@ -145,10 +246,27 @@ export function PromptTemplateCuratorScreen() {
         setCategories(catData.data || []);
       }
 
-      // 2. Fetch templates
+      // 2. Fetch style families (Sumbu 2)
+      const styleRes = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles`);
+      if (styleRes.ok) {
+        const styleData = await styleRes.json();
+        setStyles(styleData.data || []);
+      }
+
+      // 3. Fetch seeding batches
+      const batchRes = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches`);
+      if (batchRes.ok) {
+        const batchData = await batchRes.json();
+        setBatches(batchData.data || []);
+      }
+
+      // 4. Fetch templates
       let tplUrl = `/api/v1/tenants/${adminTenantId}/generative/prompt-templates?scope=global`;
       if (selectedCategory !== 'all') {
         tplUrl += `&category_code=${encodeURIComponent(selectedCategory)}`;
+      }
+      if (selectedStyle !== 'all') {
+        tplUrl += `&style_code=${encodeURIComponent(selectedStyle)}`;
       }
       if (searchQuery.trim()) {
         tplUrl += `&search=${encodeURIComponent(searchQuery.trim())}`;
@@ -167,7 +285,7 @@ export function PromptTemplateCuratorScreen() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, selectedStyle, searchQuery]);
 
   const handleOpenCreateCategory = () => {
     setEditingCategory(null);
@@ -253,10 +371,227 @@ export function PromptTemplateCuratorScreen() {
     }
   };
 
+  // Style CRUD Handlers
+  const handleOpenCreateStyle = () => {
+    setEditingStyle(null);
+    setStyleForm({
+      style_code: '',
+      display_name: '',
+      description: '',
+      icon_key: 'camera',
+      display_order: styles.length + 1,
+    });
+    setShowStyleModal(true);
+  };
+
+  const handleOpenEditStyle = (st: AdminPromptStyle) => {
+    setEditingStyle(st);
+    setStyleForm({
+      style_code: st.style_code,
+      display_name: st.display_name,
+      description: st.description,
+      icon_key: st.icon_key,
+      display_order: st.display_order,
+    });
+    setShowStyleModal(true);
+  };
+
+  const handleSaveStyle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!styleForm.style_code.trim() || !styleForm.display_name.trim()) return;
+
+    setActionLoading(true);
+    try {
+      if (editingStyle) {
+        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles/${editingStyle.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            display_name: styleForm.display_name.trim(),
+            description: styleForm.description.trim(),
+            icon_key: styleForm.icon_key,
+            display_order: parseInt(String(styleForm.display_order), 10) || 0,
+          }),
+        });
+        if (!res.ok) throw new Error('Gagal memperbarui gaya visual.');
+        setSuccessMsg(`Gaya visual "${styleForm.display_name}" berhasil diperbarui.`);
+      } else {
+        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            style_code: styleForm.style_code.trim().toLowerCase(),
+            display_name: styleForm.display_name.trim(),
+            description: styleForm.description.trim(),
+            icon_key: styleForm.icon_key,
+            display_order: parseInt(String(styleForm.display_order), 10) || 0,
+          }),
+        });
+        if (!res.ok) throw new Error('Gagal menambahkan gaya visual.');
+        setSuccessMsg(`Gaya visual "${styleForm.display_name}" berhasil didaftarkan.`);
+      }
+      setShowStyleModal(false);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setSuccessMsg(null), 3500);
+    }
+  };
+
+  const handleDeleteStyle = async (styleId: string, name: string) => {
+    if (!confirm(`Hapus gaya visual "${name}"? Seluruh template terkait akan terpengaruh.`)) return;
+    try {
+      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles/${styleId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Gagal menghapus gaya visual.');
+      setSuccessMsg(`Gaya visual "${name}" berhasil dihapus.`);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setTimeout(() => setSuccessMsg(null), 3500);
+    }
+  };
+
+  // Seeding Batch Operations Handlers
+  const handleOpenCreateBatch = () => {
+    setBatchForm({
+      batch_label: `Batch Kurasi ${new Date().toLocaleDateString('id-ID')}`,
+      category_code: categories[0]?.category_code || 'social_media_post',
+      style_code: styles[0]?.style_code || 'studio_realism',
+      requested_template_count: 5,
+      estimated_total_credit: 25.0,
+      concept_theme: 'Produk UMKM dan kemasan retail profesional',
+    });
+    setShowBatchModal(true);
+  };
+
+  const handleSaveBatchPlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchForm.batch_label.trim()) return;
+
+    setActionLoading(true);
+    try {
+      const planDetails = [];
+      for (let i = 1; i <= batchForm.requested_template_count; i++) {
+        planDetails.push({
+          template_name: `${batchForm.batch_label} - Varian #${i}`,
+          concept_summary: `${batchForm.concept_theme || 'Koleksi visual komersial'} - Desain varian #${i}`,
+          category_code: batchForm.category_code,
+          style_code: batchForm.style_code,
+          subject_field: `${batchForm.concept_theme || 'Produk unggulan'} dengan tata letak visual variasi #${i}`,
+          scene_context_field: 'Latar belakang studio modern dengan kedalaman bidang lembut',
+          lighting_field: 'Pencahayaan studio lembut terarah dan rim light tajam',
+          material_texture_field: 'Tekstur permukaan detail realistis, matte finish premium',
+          composition_layout_field: 'Center framing hero product layout',
+          color_palette_field: 'Palet warna kontras harmonis',
+          style_reference_field: 'Commercial advertising product photography',
+          avoid_terms: ['blurry', 'watermark', 'oversaturated', 'distorted', 'low quality'],
+          prefer_terms: ['sharp focus', 'commercial quality', 'crisp lighting'],
+          recommended_aspect_ratio: '1:1',
+          recommended_platform: ['instagram_feed', 'marketplace_banner']
+        });
+      }
+
+      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batch_label: batchForm.batch_label.trim(),
+          requested_template_count: batchForm.requested_template_count,
+          estimated_total_credit: batchForm.requested_template_count * 5.0,
+          plan_details: planDetails,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Gagal mendaftarkan rencana batch seeding.');
+      setSuccessMsg(`Rencana batch "${batchForm.batch_label}" berhasil didaftarkan untuk persetujuan (pending approval).`);
+      setShowBatchModal(false);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setSuccessMsg(null), 3500);
+    }
+  };
+
+  const handleApproveBatch = async (batchId: string, label: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batchId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'approved',
+          approved_by: adminTenantId,
+        }),
+      });
+      if (!res.ok) throw new Error('Gagal menyetujui batch seeding.');
+      setSuccessMsg(`Batch "${label}" telah disetujui (Approved). Siap dieksekusi.`);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setSuccessMsg(null), 3500);
+    }
+  };
+
+  const handleRejectBatch = async (batchId: string, label: string) => {
+    if (!confirm(`Tolak rencana batch "${label}"?`)) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batchId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'rejected',
+        }),
+      });
+      if (!res.ok) throw new Error('Gagal menolak batch seeding.');
+      setSuccessMsg(`Batch "${label}" ditolak (Rejected).`);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setActionLoading(false);
+      setTimeout(() => setSuccessMsg(null), 3500);
+    }
+  };
+
+  const handleExecuteBatch = async (batch: AdminSeedingBatch) => {
+    const ok = confirm(`Jalankan eksekusi batch generator "${batch.batch_label}"?\n\nTindakan ini akan memotong kredit nyata via ledger (estimasi: ${batch.estimated_total_credit} kredit) dan menghasilkan ${batch.requested_template_count} template prompt baru.`);
+    if (!ok) return;
+
+    setBatchExecutingId(batch.id);
+    try {
+      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batch.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Gagal mengeksekusi batch seeding.');
+
+      setSuccessMsg(`Batch "${batch.batch_label}" sukses dieksekusi! ${data.data?.generated_count || batch.requested_template_count} template berhasil digenerasi dengan total kredit ledger: ${data.data?.actual_total_credit} kredit.`);
+      await fetchData();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Terjadi kesalahan saat eksekusi batch.');
+    } finally {
+      setBatchExecutingId(null);
+      setTimeout(() => setSuccessMsg(null), 5000);
+    }
+  };
+
+  // Template Handlers
   const handleOpenCreateTemplate = () => {
     setEditingTemplate(null);
     setTemplateForm({
       category_code: categories[0]?.category_code || 'social_media_post',
+      style_code: styles[0]?.style_code || 'studio_realism',
       template_name: '',
       concept_summary: '',
       subject_field: '',
@@ -280,6 +615,7 @@ export function PromptTemplateCuratorScreen() {
     setEditingTemplate(tpl);
     setTemplateForm({
       category_code: tpl.category_code,
+      style_code: tpl.style_code || 'studio_realism',
       template_name: tpl.template_name,
       concept_summary: tpl.concept_summary,
       subject_field: tpl.subject_field,
@@ -314,6 +650,7 @@ export function PromptTemplateCuratorScreen() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            style_code: templateForm.style_code,
             template_name: templateForm.template_name.trim(),
             concept_summary: templateForm.concept_summary.trim() || templateForm.template_name.trim(),
             subject_field: templateForm.subject_field.trim(),
@@ -338,6 +675,7 @@ export function PromptTemplateCuratorScreen() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             category_code: templateForm.category_code,
+            style_code: templateForm.style_code,
             template_name: templateForm.template_name.trim(),
             concept_summary: templateForm.concept_summary.trim() || templateForm.template_name.trim(),
             subject_field: templateForm.subject_field.trim(),
@@ -392,15 +730,15 @@ export function PromptTemplateCuratorScreen() {
           <div className="flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-emerald-400" />
             <h1 className="text-xl font-bold tracking-tight text-white">
-              Kurasi Pustaka Template Prompt & Kategori Global
+              Kurasi Pustaka Template Prompt & Taksonomi Dua Sumbu
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Pengelolaan repositori resmi template prompt atomik terstruktur dan kategori visual untuk seluruh tenant platform.
+            Pengelolaan repositori resmi template prompt atomik, keluarga gaya visual, kategori bisnis, serta kontrol biaya batch seeding platform.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button"
             onClick={fetchData}
@@ -409,7 +747,7 @@ export function PromptTemplateCuratorScreen() {
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Segarkan</span>
           </button>
-          {activeTab === 'templates' ? (
+          {activeTab === 'templates' && (
             <button
               type="button"
               onClick={handleOpenCreateTemplate}
@@ -418,7 +756,18 @@ export function PromptTemplateCuratorScreen() {
               <Plus className="w-4 h-4" />
               <span>Tambah Template Global</span>
             </button>
-          ) : (
+          )}
+          {activeTab === 'styles' && (
+            <button
+              type="button"
+              onClick={handleOpenCreateStyle}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white shadow-md transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Tambah Gaya Visual</span>
+            </button>
+          )}
+          {activeTab === 'categories' && (
             <button
               type="button"
               onClick={handleOpenCreateCategory}
@@ -426,6 +775,16 @@ export function PromptTemplateCuratorScreen() {
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Kategori Master</span>
+            </button>
+          )}
+          {activeTab === 'batches' && (
+            <button
+              type="button"
+              onClick={handleOpenCreateBatch}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-xs font-semibold text-white shadow-md transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Rencanakan Batch Baru</span>
             </button>
           )}
         </div>
@@ -457,11 +816,11 @@ export function PromptTemplateCuratorScreen() {
       )}
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('templates')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'templates'
               ? 'bg-emerald-600 text-white shadow-md'
               : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
@@ -472,15 +831,39 @@ export function PromptTemplateCuratorScreen() {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('styles')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'styles'
+              ? 'bg-purple-600 text-white shadow-md'
+              : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5" />
+          <span>Keluarga Gaya Visual ({styles.length})</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('categories')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition ${
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'categories'
               ? 'bg-emerald-600 text-white shadow-md'
               : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Kategori Master Data ({categories.length})</span>
+          <span>Kategori Kebutuhan Bisnis ({categories.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('batches')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'batches'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Coins className="w-3.5 h-3.5" />
+          <span>Batch Seeding & Kontrol Biaya ({batches.length})</span>
         </button>
       </div>
 
@@ -488,21 +871,39 @@ export function PromptTemplateCuratorScreen() {
       {activeTab === 'templates' && (
         <div className="space-y-5">
           {/* Filter Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">Kategori:</span>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
-              >
-                <option value="all">Semua Kategori ({templates.length})</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.category_code}>
-                    {c.display_name}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl flex-wrap">
+            <div className="flex items-center gap-4 flex-wrap w-full sm:w-auto">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">Kategori Bisnis:</span>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="all">Semua Kategori ({templates.length})</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.category_code}>
+                      {c.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">Gaya Visual:</span>
+                <select
+                  value={selectedStyle}
+                  onChange={(e) => setSelectedStyle(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-purple-500"
+                >
+                  <option value="all">Semua Gaya Visual ({styles.length})</option>
+                  {styles.map((s) => (
+                    <option key={s.id} value={s.style_code}>
+                      {s.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="relative w-full sm:w-72">
@@ -525,7 +926,7 @@ export function PromptTemplateCuratorScreen() {
               id="admin-no-templates"
               icon={Sparkles}
               title="Belum Ada Template Global"
-              description="Belum ada template prompt terdaftar pada kategori ini. Anda dapat menambahkan template atomik baru."
+              description="Belum ada template prompt terdaftar pada kategori atau gaya ini. Anda dapat menambahkan template atomik baru."
               actionLabel="Tambah Template Global"
               onAction={handleOpenCreateTemplate}
             />
@@ -552,10 +953,18 @@ export function PromptTemplateCuratorScreen() {
                             <IconComponent className="w-8 h-8" />
                           </div>
                         )}
-                        <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur border border-slate-800 text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                          <IconComponent className="w-3 h-3" />
-                          <span>{tpl.category_name || tpl.category_code}</span>
-                        </span>
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur border border-slate-800 text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                            <IconComponent className="w-3 h-3" />
+                            <span>{tpl.category_name || tpl.category_code}</span>
+                          </span>
+                          {tpl.style_name && (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-950/80 backdrop-blur border border-purple-800 text-[10px] text-purple-300 font-semibold flex items-center gap-1">
+                              <Palette className="w-2.5 h-2.5 text-purple-400" />
+                              <span>{tpl.style_name}</span>
+                            </span>
+                          )}
+                        </div>
                         <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-slate-950/80 backdrop-blur border border-slate-800 text-[10px] font-mono text-slate-300">
                           {tpl.recommended_aspect_ratio}
                         </span>
@@ -623,7 +1032,63 @@ export function PromptTemplateCuratorScreen() {
         </div>
       )}
 
-      {/* TAB 2: KATEGORI MASTER DATA */}
+      {/* TAB 2: KELUARGA GAYA VISUAL (SUMBU KEDUA) */}
+      {activeTab === 'styles' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {styles.map((st) => {
+              const IconComp = STYLE_ICON_MAP[st.icon_key] || Palette;
+              return (
+                <div
+                  key={st.id}
+                  className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-4 shadow-lg hover:border-purple-500/40 transition"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                        <IconComp className="w-5 h-5" />
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md">
+                        Urutan #{st.display_order}
+                      </span>
+                    </div>
+
+                    <h4 className="font-bold text-sm text-white">{st.display_name}</h4>
+                    <span className="text-[11px] font-mono text-purple-400 block mb-2">{st.style_code}</span>
+                    <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed">{st.description}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-500 font-semibold">
+                      {st.template_count || 0} template aktif
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditStyle(st)}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                        title="Edit Gaya Visual"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteStyle(st.id, st.display_name)}
+                        className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-800/40"
+                        title="Hapus Gaya Visual"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: KATEGORI KEBUTUHAN BISNIS */}
       {activeTab === 'categories' && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -632,7 +1097,7 @@ export function PromptTemplateCuratorScreen() {
               return (
                 <div
                   key={cat.id}
-                  className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-4"
+                  className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between space-y-4 shadow-lg hover:border-emerald-500/40 transition"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
@@ -676,6 +1141,171 @@ export function PromptTemplateCuratorScreen() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* TAB 4: BATCH SEEDING & KONTROL BIAYA */}
+      {activeTab === 'batches' && (
+        <div className="space-y-6">
+          {/* Summary Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+              <span className="text-xs text-slate-400 font-medium">Total Batch Seeding</span>
+              <p className="text-2xl font-bold text-white font-mono">{batches.length}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+              <span className="text-xs text-amber-400 font-medium">Menunggu Persetujuan</span>
+              <p className="text-2xl font-bold text-amber-400 font-mono">
+                {batches.filter((b) => b.status === 'pending_approval').length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+              <span className="text-xs text-emerald-400 font-medium">Batch Selesai</span>
+              <p className="text-2xl font-bold text-emerald-400 font-mono">
+                {batches.filter((b) => b.status === 'completed').length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+              <span className="text-xs text-sky-400 font-medium">Total Kredit Terpotong (Ledger)</span>
+              <p className="text-2xl font-bold text-sky-400 font-mono">
+                {batches.reduce((sum, b) => sum + (Number(b.actual_total_credit) || 0), 0).toFixed(1)}
+              </p>
+            </div>
+          </div>
+
+          {/* Table Batches */}
+          {batches.length === 0 ? (
+            <EmptyState
+              id="admin-no-batches"
+              icon={Coins}
+              title="Belum Ada Batch Seeding"
+              description="Rencana batch seeding massal memungkinkan administrator mengontrol kuota, estimasi biaya kredit, dan menyetujui generasi template secara terkendali."
+              actionLabel="Rencanakan Batch Pertama"
+              onAction={handleOpenCreateBatch}
+            />
+          ) : (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-mono text-[10px]">
+                    <tr>
+                      <th className="p-3.5">Nama Batch</th>
+                      <th className="p-3.5">Target Template</th>
+                      <th className="p-3.5">Estimasi Kredit</th>
+                      <th className="p-3.5">Aktual Kredit</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5">Dibuat</th>
+                      <th className="p-3.5 text-right">Aksi Manajemen</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    {batches.map((b) => {
+                      const isExecuting = batchExecutingId === b.id;
+                      return (
+                        <tr key={b.id} className="hover:bg-slate-800/30 transition">
+                          <td className="p-3.5 font-semibold text-white">
+                            <div>{b.batch_label}</div>
+                            <div className="text-[10px] text-slate-500 font-mono truncate max-w-xs">{b.id}</div>
+                          </td>
+                          <td className="p-3.5 font-mono">
+                            {b.generated_count || 0} / {b.requested_template_count} template
+                          </td>
+                          <td className="p-3.5 font-mono text-slate-400">
+                            {Number(b.estimated_total_credit).toFixed(1)} kredit
+                          </td>
+                          <td className="p-3.5 font-mono font-bold text-emerald-400">
+                            {Number(b.actual_total_credit).toFixed(1)} kredit
+                          </td>
+                          <td className="p-3.5">
+                            {b.status === 'pending_approval' && (
+                              <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold font-mono text-[10px]">
+                                Menunggu Approval
+                              </span>
+                            )}
+                            {b.status === 'approved' && (
+                              <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 font-semibold font-mono text-[10px]">
+                                Disetujui (Ready)
+                              </span>
+                            )}
+                            {b.status === 'in_progress' && (
+                              <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30 font-semibold font-mono text-[10px] animate-pulse">
+                                Sedang Dihasilkan...
+                              </span>
+                            )}
+                            {b.status === 'completed' && (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-semibold font-mono text-[10px]">
+                                Selesai
+                              </span>
+                            )}
+                            {b.status === 'rejected' && (
+                              <span className="px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 font-semibold font-mono text-[10px]">
+                                Ditolak
+                              </span>
+                            )}
+                            {b.status === 'failed' && (
+                              <span className="px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 font-semibold font-mono text-[10px]">
+                                Gagal
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-slate-400 font-mono text-[11px]">
+                            {new Date(b.created_at).toLocaleDateString('id-ID')}
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => setInspectingBatch(b)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-[11px] font-medium"
+                                title="Tinjau Rencana Batch"
+                              >
+                                Tinjau
+                              </button>
+                              {b.status === 'pending_approval' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveBatch(b.id, b.batch_label)}
+                                    disabled={actionLoading}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition shadow-sm"
+                                  >
+                                    Setujui
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectBatch(b.id, b.batch_label)}
+                                    disabled={actionLoading}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/60 text-rose-400 border border-rose-800/40 text-[11px]"
+                                  >
+                                    Tolak
+                                  </button>
+                                </>
+                              )}
+                              {b.status === 'approved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExecuteBatch(b)}
+                                  disabled={isExecuting}
+                                  className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-md disabled:opacity-50"
+                                >
+                                  {isExecuting ? (
+                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <PlayCircle className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isExecuting ? 'Mengeksekusi...' : 'Jalankan Batch'}</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
