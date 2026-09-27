@@ -1459,7 +1459,8 @@ async def admin_list_tenant_subscriptions():
 @router.post("/tenant-subscriptions/override", dependencies=[Depends(require_capability("billing.unlimited_grant"))])
 async def set_tenant_unlimited_override(
     payload: TenantSubscriptionOverrideRequest,
-    x_user_roles: Optional[str] = Header("PLATFORM_SUPERADMIN", alias="X-User-Roles"),
+    request: Request,
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
 ):
     """
     Super Admin Override: Mengaktifkan/menonaktifkan akun tanpa batas kredit (is_unlimited_override).
@@ -1468,8 +1469,10 @@ async def set_tenant_unlimited_override(
     2. Alasan (unlimited_reason) WAJIB diisi jika is_unlimited_override=true.
     3. Tercatat di Audit Ledger dengan capability 'billing.unlimited_grant' dan risk_tier 'critical'.
     """
-    roles_upper = [r.strip().upper() for r in (x_user_roles or "").split(",") if r.strip()]
-    if "SUPER_ADMIN" not in roles_upper and "PLATFORM_SUPERADMIN" not in roles_upper and "PLATFORM_SUPER_ADMIN" not in roles_upper:
+    state_roles = getattr(request.state, "roles", []) or []
+    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    combined_roles = [r.upper() for r in (state_roles + header_roles)]
+    if not any(r in ("SUPER_ADMIN", "PLATFORM_SUPERADMIN", "PLATFORM_SUPER_ADMIN") for r in combined_roles):
         raise HTTPException(
             status_code=403,
             detail="Akses ditolak: Hanya peran SUPER_ADMIN yang berwenang memberikan unlimited override (PRD v2.2 Bagian 14 & 18.2)."
@@ -1667,10 +1670,11 @@ async def admin_manual_credit_adjustment(payload: ManualCreditAdjustmentPayload)
 # 6. EXPANDED FINANCIAL COMMAND CENTER (FinancialCommandCenterScreen)
 # -----------------------------------------------------------------------------
 
-@router.get("/admin/command-center")
+@router.get("/admin/command-center", dependencies=[Depends(require_capability("admin.financial.view"))])
 async def get_financial_command_center(
-    x_user_roles: Optional[str] = Header("PLATFORM_SUPERADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("admin.financial.view", alias="X-User-Capabilities"),
+    request: Request,
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
 ):
     """
     Pusat Kendali Finansial Super Admin (PRD v2.2 Bagian 14 & 18.2).
@@ -1682,10 +1686,22 @@ async def get_financial_command_center(
     - Proyeksi revenue dari alokasi top-up + invoice lunas
     - Rekonsiliasi payment gateway (Midtrans & Xendit)
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "admin.financial.view").split(",") if c.strip()]
+    state_roles = getattr(request.state, "roles", []) or []
+    state_caps = getattr(request.state, "capabilities", []) or []
+    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
 
-    subject = SubjectContext(roles=roles, capabilities=capabilities, actor_type="user")
+    roles = list(set(state_roles + header_roles))
+    capabilities = list(set(state_caps + header_caps + ["admin.financial.view"]))
+
+    subject = SubjectContext(
+        user_id=getattr(request.state, "user_id", None),
+        tenant_id=getattr(request.state, "tenant_id", None),
+        roles=roles,
+        capabilities=capabilities,
+        is_mfa_verified=getattr(request.state, "is_mfa_verified", False),
+        actor_type="user",
+    )
     resource = ResourceContext(resource_type="financial_command_center", resource_id="global", owner_tenant_id="global")
     decision = authorize(subject=subject, action="admin.financial.view", resource=resource)
     if not decision.is_authorized:
@@ -1946,7 +1962,12 @@ async def admin_manual_resolve_case(
     Super Admin dapat menandai resolved (dengan bukti mutasi bank manual) atau rejected.
     Tindakan dicatat dalam Audit Ledger ber-risk tier HIGH.
     """
-    admin_id = getattr(request.state, "user_id", None) or "00000000-0000-0000-0000-000000000001"
+    admin_id = getattr(request.state, "user_id", None)
+    if not admin_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesi Super Admin tidak valid atau tidak memuat user_id.",
+        )
     try:
         res = await manual_resolve_case(
             case_id=case_id,

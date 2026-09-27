@@ -2650,7 +2650,7 @@ async def generate_chief_of_staff_briefing_endpoint(
                total_invocations, successful_invocations, failed_invocations,
                decay_rate_per_day, last_calculated_at
         FROM agent_skill_confidence
-        WHERE tenant_id = $1::uuid OR tenant_id = 'd1159d6d-0044-42ea-8007-d549a0011402'::uuid
+        WHERE tenant_id = $1::uuid
         ORDER BY total_invocations DESC, confidence_score ASC
         """,
         t_uuid,

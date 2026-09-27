@@ -110,7 +110,7 @@ interface FileArtifact {
 }
 
 export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
-  const tenantId = tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const tenantId = tenant?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
 
   const [activeTab, setActiveTab] = useState<'create' | 'gallery' | 'brand_locks' | 'templates'>('create');
   const [loading, setLoading] = useState(false);

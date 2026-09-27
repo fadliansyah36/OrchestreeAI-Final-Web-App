@@ -191,7 +191,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
   const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
 
   const recognitionRef = useRef<any>(null);
-  const tenantId = tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const tenantId = tenant?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
 
   const fetchOverview = useCallback(async (period: string) => {
     setLoading(true);

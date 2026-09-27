@@ -962,7 +962,7 @@ async def create_agent(
                 """),
                 {
                     "tenant_id": tenant_id,
-                    "actor_id": context.user_id or "00000000-0000-0000-0000-000000000001",
+                    "actor_id": context.user_id,
                     "res_id": new_id,
                     "dname": req.display_name.strip(),
                     "persona": req.persona_type.strip(),

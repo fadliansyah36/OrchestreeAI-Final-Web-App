@@ -58,6 +58,33 @@ OFFICIAL_BUILTIN_TOOLS = {
 }
 
 
+def _resolve_actor_uuid(conn, actor_id: Optional[str]) -> str:
+    if actor_id:
+        try:
+            return str(uuid.UUID(str(actor_id)))
+        except (ValueError, TypeError, AttributeError):
+            pass
+    try:
+        row = conn.execute(sa.text("""
+            SELECT u.id FROM users u
+            JOIN user_roles ur ON u.id = ur.user_id
+            JOIN roles r ON ur.role_id = r.id
+            WHERE r.role_code IN ('SUPER_ADMIN', 'PLATFORM_SUPERADMIN')
+            LIMIT 1;
+        """)).fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    try:
+        row = conn.execute(sa.text("SELECT id FROM users LIMIT 1;")).fetchone()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    return str(uuid.uuid4())
+
+
 def compute_source_reference_hash(reference_identity: str) -> str:
     """Menghasilkan hash satu arah SHA-256 untuk deduplikasi internal tanpa mengekspos rujukan asli."""
     if not reference_identity:
@@ -189,7 +216,7 @@ async def propose_blueprint_from_reference(
             )
 
             # 2. Catat riwayat tahap awal ke agent_blueprint_rollout_log
-            admin_uuid = operator_id or "00000000-0000-0000-0000-000000000001"
+            admin_uuid = _resolve_actor_uuid(conn, operator_id)
             conn.execute(
                 sa.text("""
                     INSERT INTO agent_blueprint_rollout_log (
@@ -300,7 +327,7 @@ async def promote_blueprint_stage(
             )
 
             # Catat ke agent_blueprint_rollout_log
-            admin_uuid = changed_by or "00000000-0000-0000-0000-000000000001"
+            admin_uuid = _resolve_actor_uuid(conn, changed_by)
             conn.execute(
                 sa.text("""
                     INSERT INTO agent_blueprint_rollout_log (

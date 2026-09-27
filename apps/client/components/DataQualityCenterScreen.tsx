@@ -80,7 +80,7 @@ export const DataQualityCenterScreen: React.FC<DataQualityCenterScreenProps> = (
   const [validationResult, setValidationResult] = useState<any>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
 
-  const tenantId = tenant?.tenant_id || 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const tenantId = tenant?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
 
   // Load Issues & Summary
   const loadData = async () => {

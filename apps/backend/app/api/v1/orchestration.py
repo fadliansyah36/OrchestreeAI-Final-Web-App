@@ -8,7 +8,7 @@ Endpoints:
 
 from typing import Optional, Dict, Any, List
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Header, Query
+from fastapi import APIRouter, HTTPException, Depends, Header, Query, Request
 from pydantic import BaseModel, Field
 
 from app.core.orchestration.engine import get_orchestration_engine, WorkflowDispatchRequest, WorkflowDispatchResult
@@ -30,31 +30,38 @@ class WorkflowDispatchIn(BaseModel):
     context_data: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-@router.post("/orchestration/workflows/dispatch", response_model=WorkflowDispatchResult)
-@router.post("/orchestration/dispatch", response_model=WorkflowDispatchResult)
+@router.post("/orchestration/workflows/dispatch", response_model=WorkflowDispatchResult, dependencies=[Depends(require_capability("workflow.dispatch"))])
+@router.post("/orchestration/dispatch", response_model=WorkflowDispatchResult, dependencies=[Depends(require_capability("workflow.dispatch"))])
 async def dispatch_workflow(
     payload: WorkflowDispatchIn,
+    request: Request,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("STAFF_AI", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("workflow.dispatch,workflow.node.execute,mcp.tool.invoke", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Memicu eksekusi alur kerja kognitif otonom dari intent.
     Titik Evaluasi PDP ke-1: Endpoint REST.
     """
-    tenant_id = payload.tenant_id or x_tenant_id
+    tenant_id = payload.tenant_id or x_tenant_id or getattr(request.state, "tenant_id", None)
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
 
-    roles = [r.strip() for r in (x_user_roles or "STAFF_AI").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+    state_roles = getattr(request.state, "roles", []) or []
+    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    roles = list(set(state_roles + header_roles)) or ["STAFF_AI"]
+
+    state_caps = getattr(request.state, "capabilities", []) or []
+    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
+    capabilities = list(set(state_caps + header_caps + ["workflow.dispatch"]))
+
+    is_mfa = getattr(request.state, "is_mfa_verified", False) or ((x_mfa_verified or "false").lower() in ("true", "1"))
 
     # --- TITIK EVALUASI PDP KE-1: REST API Dispatch ---
     subject = SubjectContext(
-        user_id=payload.actor_id or x_user_id,
+        user_id=payload.actor_id or x_user_id or getattr(request.state, "user_id", None),
         tenant_id=tenant_id,
         roles=roles,
         capabilities=capabilities,
@@ -101,8 +108,8 @@ async def dispatch_workflow(
 
 @router.get("/admin/llm-providers", dependencies=[Depends(require_capability("platform.admin.manage"))])
 async def get_admin_llm_providers(
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_mfa_verified: Optional[str] = Header("true", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Monitoring kesehatan dan status real-time 4 adapter provider LLM:

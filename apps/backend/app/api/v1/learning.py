@@ -37,15 +37,15 @@ async def get_decision_outcomes(
     tenant_id: str = Query(..., description="ID Tenant"),
     limit: int = Query(50, ge=1, le=100),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("learning.outcome.view", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     target_tenant = tenant_id or x_tenant_id
     if not target_tenant:
         raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
 
-    roles = [r.strip() for r in (x_user_roles or "TENANT_ADMIN").split(",") if r.strip()]
+    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
     capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
     is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
 
@@ -87,9 +87,9 @@ async def get_decision_outcomes(
 async def get_skill_confidences(
     tenant_id: str = Query(..., description="ID Tenant"),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("learning.confidence.view", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     target_tenant = tenant_id or x_tenant_id
     if not target_tenant:
@@ -116,9 +116,9 @@ async def get_skill_confidences(
 async def get_lessons_learned(
     tenant_id: str = Query(..., description="ID Tenant"),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("learning.lesson.view", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     target_tenant = tenant_id or x_tenant_id
     if not target_tenant:
@@ -146,9 +146,9 @@ async def get_growth_logs(
     tenant_id: str = Query(..., description="ID Tenant"),
     limit: int = Query(50, ge=1, le=100),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("learning.confidence.view", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     target_tenant = tenant_id or x_tenant_id
     if not target_tenant:
@@ -176,8 +176,8 @@ async def submit_human_feedback(
     payload: FeedbackIn,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("TENANT_ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("learning.feedback.submit", alias="X-User-Capabilities"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
 ):
     target_tenant = payload.tenant_id or x_tenant_id
     if not target_tenant:

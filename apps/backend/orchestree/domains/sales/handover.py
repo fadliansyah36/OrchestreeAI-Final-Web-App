@@ -142,8 +142,8 @@ def build_handover_summary(
     cust_data = {
         "id": customer_id or str(uuid.uuid4()),
         "name": "Pelanggan Terdaftar",
-        "phone": "+6281234567890",
-        "email": "customer@tenant.com",
+        "phone": None,
+        "email": None,
         "tier": "REGULAR",
         "total_spent": 0.0,
         "total_orders": 0,

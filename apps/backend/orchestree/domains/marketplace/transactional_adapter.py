@@ -7,10 +7,13 @@ Kemampuan Dua Arah (Bi-Directional):
 - TULIS (Write): Mengirimkan pembaruan status pengiriman (nomor resi/AWB) dan membalas chat pelanggan ke marketplace.
 """
 
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from enum import Enum
 import uuid
+
+logger = logging.getLogger(__name__)
 
 try:
     import httpx
@@ -125,7 +128,7 @@ class BaseMarketplaceTransactionalAdapter:
                 )
                 db_session.commit()
             except Exception as sync_err:
-                print(f"[MarketplaceSync] Gagal menyimpan sinkronisasi pesanan {external_id}: {sync_err}")
+                logger.warning(f"[MarketplaceSync] Gagal menyimpan sinkronisasi pesanan {external_id}: {sync_err}")
 
         return {
             "channel": self.channel.value,

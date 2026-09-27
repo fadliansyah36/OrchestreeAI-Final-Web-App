@@ -7,7 +7,7 @@ Endpoints:
 """
 
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Header, Query, Path
+from fastapi import APIRouter, HTTPException, Header, Query, Path, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.domains.memory.engine import (
@@ -15,7 +15,7 @@ from app.domains.memory.engine import (
     MemoryDocumentCreate,
     MemorySearchResult,
 )
-from app.authz.pdp import SubjectContext, authorize, ResourceContext
+from app.authz.pdp import SubjectContext, authorize, ResourceContext, require_capability
 
 router = APIRouter(prefix="/api/v1", tags=["Memory & Hybrid Search"])
 
@@ -41,28 +41,35 @@ class SearchMemoryPostRequest(BaseModel):
     execution_context: str = Field("internal_dashboard", description="omnichannel, proactive, atau internal_dashboard")
 
 
-@router.get("/tenants/{tenant_id}/memory/search", response_model=List[MemorySearchResult])
+@router.get("/tenants/{tenant_id}/memory/search", response_model=List[MemorySearchResult], dependencies=[Depends(require_capability("memory.search"))])
 async def search_tenant_memory(
+    request: Request,
     tenant_id: str = Path(..., description="ID Tenant"),
     q: str = Query(..., min_length=1, description="Kata kunci atau pertanyaan semantik"),
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     top_k: int = Query(5, ge=1, le=20, description="Batas hasil yang dikembalikan"),
     execution_context: str = Query("internal_dashboard", description="Konteks eksekusi pemanggil (omnichannel/proactive/internal_dashboard)"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("memory.search,data.read", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Pencarian hybrid multi-modal teks & vektor memori Company Brain.
     Tervalidasi secara ketat oleh isolasi RLS dan filter ABAC/PDP per entitas data.
     """
-    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+    state_roles = getattr(request.state, "roles", []) or []
+    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    roles = list(set(state_roles + header_roles)) or ["STAFF_AI", "EMPLOYEE"]
+
+    state_caps = getattr(request.state, "capabilities", []) or []
+    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
+    capabilities = list(set(state_caps + header_caps + ["memory.search", "data.read"]))
+
+    is_mfa = getattr(request.state, "is_mfa_verified", False) or ((x_mfa_verified or "false").lower() in ("true", "1"))
 
     subject = SubjectContext(
-        user_id=x_user_id,
+        user_id=x_user_id or getattr(request.state, "user_id", None),
         tenant_id=tenant_id,
         roles=roles,
         capabilities=capabilities,
@@ -97,24 +104,31 @@ async def search_tenant_memory(
     return results
 
 
-@router.post("/tenants/{tenant_id}/memory/search")
+@router.post("/tenants/{tenant_id}/memory/search", dependencies=[Depends(require_capability("memory.search"))])
 async def search_tenant_memory_post(
     payload: SearchMemoryPostRequest,
+    request: Request,
     tenant_id: str = Path(..., description="ID Tenant"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("memory.search,data.read", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Pencarian hybrid Company Brain melalui HTTP POST (JSON Payload).
     """
-    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+    state_roles = getattr(request.state, "roles", []) or []
+    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
+    roles = list(set(state_roles + header_roles)) or ["STAFF_AI", "EMPLOYEE"]
+
+    state_caps = getattr(request.state, "capabilities", []) or []
+    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
+    capabilities = list(set(state_caps + header_caps + ["memory.search", "data.read"]))
+
+    is_mfa = getattr(request.state, "is_mfa_verified", False) or ((x_mfa_verified or "false").lower() in ("true", "1"))
 
     subject = SubjectContext(
-        user_id=x_user_id,
+        user_id=x_user_id or getattr(request.state, "user_id", None),
         tenant_id=tenant_id,
         roles=roles,
         capabilities=capabilities,

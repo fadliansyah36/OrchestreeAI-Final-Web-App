@@ -91,7 +91,7 @@ export const EnterpriseWorkforceHubScreen: React.FC<EnterpriseWorkforceHubScreen
   onBack,
   isEnterpriseTier = true,
 }) => {
-  const tenantId = tenant?.tenant_id || propTenantId || 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const tenantId = tenant?.tenant_id || propTenantId || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
   const tenantDisplayName = tenant?.display_name || tenant?.legal_name || propTenantDisplayName || 'Organisasi Enterprise';
   const [briefings, setBriefings] = useState<BriefingRecord[]>([]);
   const [selectedBriefing, setSelectedBriefing] = useState<BriefingRecord | null>(null);

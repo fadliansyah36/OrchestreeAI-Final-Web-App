@@ -247,6 +247,11 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
 
   // 4. Trigger Real Live Workflow Execution Test (Membuat aktivitas live nyata)
   const handleTriggerRealWorkflowTest = async () => {
+    const activeTenantId = liveStates[0]?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
+    if (!activeTenantId) {
+      setTriggerSuccessMsg('Pilih organisasi/tenant aktif terlebih dahulu untuk memicu alur kerja nyata.');
+      return;
+    }
     setTriggeringDemo(true);
     setTriggerSuccessMsg(null);
     try {
@@ -254,7 +259,7 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenant_id: liveStates[0]?.tenant_id || '10e75d63-15f8-42e8-a6ce-24fece12cd04',
+          tenant_id: activeTenantId,
           intent_text: 'Audit intelijen performa staf dan evaluasi sentimen saluran operasional',
           actor_type: 'ai_agent',
           roles: ['STAFF_AI'],

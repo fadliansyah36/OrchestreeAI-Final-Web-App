@@ -263,17 +263,22 @@ async def get_admin_blueprint_detail(blueprint_id: str):
     "/api/v1/admin/agent-blueprints/{blueprint_id}/rollout",
     summary="Promosikan atau Ubah Tahap Rilis Blueprint"
 )
-async def transition_blueprint_rollout(blueprint_id: str, payload: RolloutStageTransitionRequest):
+async def transition_blueprint_rollout(
+    blueprint_id: str,
+    payload: RolloutStageTransitionRequest,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
     """
     Mentransisikan tahap rollout (internal_review -> beta_tenant -> general_availability / deprecated).
     Wajib menyertakan alasan perubahan untuk pencatatan audit log.
     """
     try:
+        actor_id = payload.changed_by or context.user_id
         updated = await promote_blueprint_stage(
             blueprint_id=blueprint_id,
             to_stage=payload.to_stage.lower().strip(),
             reason=payload.reason,
-            changed_by=payload.changed_by or "00000000-0000-0000-0000-000000000001",
+            changed_by=actor_id,
         )
         return updated
     except ValueError as e:

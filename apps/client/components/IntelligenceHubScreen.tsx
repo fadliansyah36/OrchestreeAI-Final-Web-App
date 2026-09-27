@@ -131,7 +131,12 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   defaultTab = 'competitor',
 }) => {
   const isValidUuid = (id?: string) => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-  const tenantId = isValidUuid(tenant?.tenant_id) ? tenant!.tenant_id : 'd1159d6d-0044-42ea-8007-d549a0011402';
+  const activeLocalTenant = typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '';
+  const tenantId = isValidUuid(tenant?.tenant_id)
+    ? tenant!.tenant_id
+    : isValidUuid(activeLocalTenant)
+      ? activeLocalTenant
+      : '';
 
   const [topTab, setTopTab] = useState<'competitor' | 'world' | 'prospecting' | 'brain' | 'data_quality'>(defaultTab);
 
