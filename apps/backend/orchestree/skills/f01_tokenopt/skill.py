@@ -45,7 +45,7 @@ TIER_PRICING: Dict[ModelTier, Dict[str, Decimal]] = {
     ModelTier.TIER_1_LIGHTWEIGHT: {
         "prompt_per_1k": Decimal("0.000080"),
         "completion_per_1k": Decimal("0.000150"),
-        "default_model": "meta/llama-3.2-3b-instruct",
+        "default_model": "meta/llama-3.2-11b-vision-instruct",
         "description": "Model gesit untuk klasifikasi, ekstraksi intent, dan kueri ringkas",
     },
     ModelTier.TIER_2_BALANCED: {
@@ -57,7 +57,7 @@ TIER_PRICING: Dict[ModelTier, Dict[str, Decimal]] = {
     ModelTier.TIER_3_REASONING: {
         "prompt_per_1k": Decimal("0.001250"),
         "completion_per_1k": Decimal("0.005000"),
-        "default_model": "meta/llama-3.3-70b-instruct",
+        "default_model": "nvidia/llama-3.1-nemotron-70b-instruct",
         "description": "Model penalaran mendalam untuk perencanaan strategi, analisis multi-langkah, dan kode",
     },
 }
@@ -192,11 +192,11 @@ class SemanticCacheEngine:
                 response_content,
                 total_tokens,
                 hit_count,
-                1 - (prompt_embedding <=> :embedding::vector) AS similarity
+                1 - (prompt_embedding <=> CAST(:embedding AS vector)) AS similarity
             FROM semantic_prompt_cache
             WHERE tenant_id = :tenant_id
               AND task_type = :task_type
-              AND (1 - (prompt_embedding <=> :embedding::vector)) >= :threshold
+              AND (1 - (prompt_embedding <=> CAST(:embedding AS vector))) >= :threshold
             ORDER BY similarity DESC
             LIMIT 1;
         """)
@@ -266,7 +266,7 @@ class SemanticCacheEngine:
                 :tenant_id,
                 :task_type,
                 :prompt_text,
-                :embedding::vector,
+                CAST(:embedding AS vector),
                 :model_tier,
                 :provider_id,
                 :model_id,

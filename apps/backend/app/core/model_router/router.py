@@ -202,6 +202,8 @@ class OpenRouterAdapter(LLMProviderAdapter):
     async def generate(self, request: ModelRouterRequest) -> ModelRouterResponse:
         start_time = time.perf_counter()
         model = request.preferred_model or self.default_model
+        if model.startswith("meta/"):
+            model = model.replace("meta/", "meta-llama/")
 
         if not self.api_key:
             return ModelRouterResponse(
@@ -712,6 +714,13 @@ class ModelRouter:
 
     async def _log_usage(self, request: ModelRouterRequest, response: ModelRouterResponse):
         """Catat penggunaan token, latensi, dan status ke tabel llm_usage_logs di database."""
+        wf_exec_id = None
+        if request.workflow_execution_id:
+            try:
+                wf_exec_id = str(uuid.UUID(str(request.workflow_execution_id)))
+            except Exception:
+                wf_exec_id = None
+
         try:
             engine = get_engine()
             async with engine.begin() as conn:
@@ -748,7 +757,7 @@ class ModelRouter:
                     """),
                     {
                         "tenant_id": request.tenant_id,
-                        "workflow_execution_id": request.workflow_execution_id,
+                        "workflow_execution_id": wf_exec_id,
                         "provider_id": response.provider_id,
                         "model_id": response.model_id,
                         "prompt_tokens": response.prompt_tokens,

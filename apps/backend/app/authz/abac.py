@@ -99,6 +99,14 @@ def log_abac_decision_to_audit(
                     "matched_policy": decision.matched_policy,
                 }
 
+                raw_actor = str(subject.actor_type or "").lower()
+                if raw_actor in ("user", "human", "human_user", "tenant_owner", "tenant_member", "client"):
+                    norm_actor_type = "human_user"
+                elif "agent" in raw_actor or raw_actor == "staff_ai":
+                    norm_actor_type = "ai_agent"
+                else:
+                    norm_actor_type = "system"
+
                 conn.execute(
                     sa.text("""
                         INSERT INTO audit_logs (
@@ -123,7 +131,7 @@ def log_abac_decision_to_audit(
                     """),
                     {
                         "tenant_id": tenant_id_val,
-                        "actor_type": subject.actor_type,
+                        "actor_type": norm_actor_type,
                         "actor_id": actor_id_val,
                         "action": f"abac:{action}",
                         "resource_type": resource.resource_type,

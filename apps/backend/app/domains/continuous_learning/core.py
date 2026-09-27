@@ -431,12 +431,12 @@ class ContinuousLearningEngine:
             conn.execute(
                 sa.text("""
                     INSERT INTO agent_lesson_learned (
-                        id, tenant_id, agent_id, skill_name, skill_key, context_pattern,
+                        id, tenant_id, skill_name, skill_key, context_pattern,
                         lesson_summary, lesson_type, sample_size, min_sample_threshold,
                         is_validated, success_rate, confidence_score, last_applied_at,
                         created_at, updated_at
                     ) VALUES (
-                        gen_random_uuid(), :tenant_id, :agent_id, :skill_name, :skill_key,
+                        gen_random_uuid(), :tenant_id, :skill_name, :skill_key,
                         :context_pattern, :lesson_summary, :lesson_type, :sample_size,
                         :min_sample_threshold, :is_validated, :success_rate, :conf,
                         :now, :now, :now
@@ -453,7 +453,6 @@ class ContinuousLearningEngine:
                 """),
                 {
                     "tenant_id": tenant_id,
-                    "agent_id": agent_id,
                     "skill_name": skill_key,
                     "skill_key": skill_key,
                     "context_pattern": "*",

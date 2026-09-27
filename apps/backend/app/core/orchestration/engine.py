@@ -453,7 +453,7 @@ class OrchestrationEngine:
 
             try:
                 if node.type == "CLASSIFY":
-                    node_output = await self._execute_classify(req, context)
+                    node_output = await self._execute_classify(req, context, execution_id)
                     context["classification"] = node_output
                 elif node.type == "PLAN":
                     node_output = await self._execute_plan(req, context)
@@ -622,7 +622,7 @@ class OrchestrationEngine:
 
     # --- Node Handlers ---
 
-    async def _execute_classify(self, req: WorkflowDispatchRequest, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_classify(self, req: WorkflowDispatchRequest, context: Dict[str, Any], execution_id: Optional[str] = None) -> Dict[str, Any]:
         """Klasifikasi intent menggunakan Model Router."""
         prompt = (
             f"Klasifikasikan intent bisnis berikut ke dalam kategori aksi yang tepat:\n"
@@ -639,6 +639,7 @@ class OrchestrationEngine:
                 prompt=prompt,
                 system_prompt="Anda adalah parser intent kognitif bisnis berkecepatan tinggi. Jawab HANYA dalam JSON valid.",
                 temperature=0.2,
+                workflow_execution_id=execution_id,
             )
         )
 
@@ -733,6 +734,7 @@ class OrchestrationEngine:
                             prompt=prompt,
                             temperature=0.3,
                             max_tokens=100,
+                            workflow_execution_id=execution_id,
                         )
                     )
                     return {
