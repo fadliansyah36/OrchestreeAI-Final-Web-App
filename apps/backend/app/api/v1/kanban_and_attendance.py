@@ -279,27 +279,28 @@ async def list_tenant_boards(
     """Mengambil seluruh papan kanban milik tenant dari Supabase Postgres yang sesuai hak akses."""
     engine = get_database_engine()
     with engine.connect() as conn:
-        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
-        conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
-        
-        resolved_mid = membership_id or x_membership_id
-        if not resolved_mid and x_user_id:
-            m_row = conn.execute(
-                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
-                {"tid": tenant_id, "uid": x_user_id}
-            ).fetchone()
-            if m_row:
-                resolved_mid = str(m_row[0])
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+            
+            resolved_mid = membership_id or x_membership_id
+            if not resolved_mid and x_user_id:
+                m_row = conn.execute(
+                    sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
+                    {"tid": tenant_id, "uid": x_user_id}
+                ).fetchone()
+                if m_row:
+                    resolved_mid = str(m_row[0])
 
-        if resolved_mid:
-            conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
+            if resolved_mid:
+                conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
 
-        _ensure_default_board_in_db(conn, tenant_id)
-        rows = conn.execute(
-            sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE tenant_id = :tenant_id ORDER BY created_at ASC;"),
-            {"tenant_id": tenant_id}
-        ).mappings().fetchall()
-        return [dict(r) for r in rows]
+            _ensure_default_board_in_db(conn, tenant_id)
+            rows = conn.execute(
+                sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE tenant_id = :tenant_id ORDER BY created_at ASC;"),
+                {"tenant_id": tenant_id}
+            ).mappings().fetchall()
+            return [dict(r) for r in rows]
 
 
 @router.get("/api/v1/tenants/{tenant_id}/boards/{board_id}")
@@ -313,40 +314,41 @@ async def get_board_detail(
     """Mengambil rincian papan, kolom, dan kartu tugas nyata dari Supabase Postgres dengan isolasi access tier."""
     engine = get_database_engine()
     with engine.connect() as conn:
-        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
-        conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
+        with conn.begin():
+            conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+            conn.execute(sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"), {"tenant_id": tenant_id})
 
-        resolved_mid = membership_id or x_membership_id
-        if not resolved_mid and x_user_id:
-            m_row = conn.execute(
-                sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
-                {"tid": tenant_id, "uid": x_user_id}
-            ).fetchone()
-            if m_row:
-                resolved_mid = str(m_row[0])
+            resolved_mid = membership_id or x_membership_id
+            if not resolved_mid and x_user_id:
+                m_row = conn.execute(
+                    sa.text("SELECT id FROM tenant_memberships WHERE tenant_id = :tid AND (auth_user_id::text = :uid OR id::text = :uid) AND status = 'active' LIMIT 1;"),
+                    {"tid": tenant_id, "uid": x_user_id}
+                ).fetchone()
+                if m_row:
+                    resolved_mid = str(m_row[0])
 
-        user_tier = "executive"
-        if resolved_mid:
-            conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
-            from app.domains.workforce.access_tier import get_access_tier
-            user_tier = get_access_tier(resolved_mid)
+            user_tier = "executive"
+            if resolved_mid:
+                conn.execute(sa.text("SELECT set_config('app.membership_id', :mid, true);"), {"mid": resolved_mid})
+                from app.domains.workforce.access_tier import get_access_tier
+                user_tier = get_access_tier(resolved_mid)
 
-        board_row = conn.execute(
-            sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
-            {"id": board_id, "tenant_id": tenant_id}
-        ).mappings().first()
+            board_row = conn.execute(
+                sa.text("SELECT id, tenant_id, name, description, department_id, created_at, updated_at FROM boards WHERE id = :id AND tenant_id = :tenant_id;"),
+                {"id": board_id, "tenant_id": tenant_id}
+            ).mappings().first()
 
-        if not board_row:
-            if board_id == "default":
-                board_row = _ensure_default_board_in_db(conn, tenant_id)
-                board_id = str(board_row["id"])
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Papan tugas tidak ditemukan atau di luar cakupan akses Anda."
-                )
+            if not board_row:
+                if board_id == "default":
+                    board_row = _ensure_default_board_in_db(conn, tenant_id)
+                    board_id = str(board_row["id"])
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Papan tugas tidak ditemukan atau di luar cakupan akses Anda."
+                    )
 
-        col_rows = conn.execute(
+            col_rows = conn.execute(
             sa.text("SELECT id, tenant_id, board_id, name, position, wip_limit, created_at FROM board_columns WHERE board_id = :board_id ORDER BY position ASC;"),
             {"board_id": board_id}
         ).mappings().fetchall()

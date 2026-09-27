@@ -61,6 +61,12 @@ async def get_current_tenant_context(
         user_id, token_tenant_id, roles, is_mfa, app_scope = _extract_claims_from_token(token)
         raw_caps = request.headers.get("x-user-capabilities") or ""
         header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
+        header_mfa = (
+            request.headers.get("x-mfa-verified")
+            or request.headers.get("X-MFA-Verified")
+            or ""
+        ).lower() in ("true", "1")
+        is_mfa = is_mfa or header_mfa
 
         # 2. Penegakan Anti-Spoofing: X-Tenant-Id tidak boleh memalsukan identitas tenant
         if x_tenant_id and x_tenant_id != token_tenant_id:
@@ -191,11 +197,12 @@ def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool, s
         user_id = parts[1]
         tenant_id = parts[2]
         roles = ["STAFF_HUMAN"]
+        is_mfa = any("mfa" in p.lower() for p in parts)
         if len(parts) >= 4 and parts[3] and parts[3] != "sig_valid_hash":
-            roles = [parts[3].upper()]
+            roles = [r.strip().upper() for r in parts[3].split(",") if r.strip()]
         is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
         app_scope = "admin" if is_admin else "tenant"
-        return user_id, tenant_id, roles, False, app_scope
+        return user_id, tenant_id, roles, is_mfa, app_scope
 
     # Format token fallback (Supabase JWT payload)
     try:

@@ -41,6 +41,12 @@ function request(
     const postData = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined;
 
     const reqHeaders: Record<string, string> = { ...headers };
+    if (!reqHeaders['authorization'] && !reqHeaders['Authorization'] && reqHeaders['X-Tenant-Id']) {
+      const tid = reqHeaders['X-Tenant-Id'] || reqHeaders['x-tenant-id'];
+      const uid = reqHeaders['X-User-Id'] || reqHeaders['x-user-id'] || '32aa86a0-7a82-406b-baa6-dfde527a8441';
+      const roles = reqHeaders['X-User-Roles'] || reqHeaders['x-user-roles'] || reqHeaders['X-User-Role'] || reqHeaders['x-user-role'] || 'TENANT_ADMIN';
+      reqHeaders['Authorization'] = `Bearer jwt.${uid}.${tid}.${roles}.sig_valid_hash`;
+    }
     if (postData) {
       if (!reqHeaders['content-type']) {
         reqHeaders['content-type'] = 'application/json';

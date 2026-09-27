@@ -210,7 +210,7 @@ export async function run19DomainParityAndWorkflowVerification() {
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 4] Kanban Boards & Task Execution ---');
     let d4Boards = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/boards`, AUTH_HEADERS);
-    let boardId = d4Boards.body?.[0]?.id;
+    let boardId = Array.isArray(d4Boards.body) ? d4Boards.body[0]?.id : d4Boards.body?.id;
     if (!boardId) {
       const bRes = await client.query('SELECT id FROM boards WHERE tenant_id = $1 LIMIT 1;', [TENANT_ID]);
       boardId = bRes.rows[0]?.id;
@@ -221,6 +221,17 @@ export async function run19DomainParityAndWorkflowVerification() {
         description: 'Papan Kanban Utama Tenant',
       });
       boardId = createBoardRes.body?.id || createBoardRes.body?.data?.id;
+    }
+
+    // Pastikan board columns ada
+    if (boardId) {
+      const colCheck = await client.query('SELECT id FROM board_columns WHERE board_id = $1 LIMIT 1;', [boardId]);
+      if (colCheck.rows.length === 0) {
+        await client.query(`
+          INSERT INTO board_columns (id, tenant_id, board_id, name, position, created_at)
+          VALUES (gen_random_uuid(), $1, $2, 'Antrean Tugas', 0, now());
+        `, [TENANT_ID, boardId]);
+      }
     }
 
     // Create task
@@ -285,13 +296,15 @@ export async function run19DomainParityAndWorkflowVerification() {
     console.log('\n--- [DOMAIN 6] Billing & Credit Wallet Engine ---');
     const d6Wallet = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/credit-wallet/summary`, AUTH_HEADERS);
     const d6Estimate = await apiRequest('POST', '/api/v1/billing/estimate', AUTH_HEADERS, {
-      tenant_id: TENANT_ID,
-      complexity: 'medium',
-      model_alias: 'gemini-2.5-flash',
-      tools: ['crm.search_contacts'],
+      activity_code: 'agent_execution',
+      complexity_code: 'medium',
+      llm_model_id: 'default',
+      tool_risk_tier: 'low',
+      execution_mode: 'single_step',
     });
     const d6DbWallet = await client.query('SELECT balance, reserved_balance FROM tenant_credit_wallet WHERE tenant_id = $1;', [TENANT_ID]);
-    const d6Passed = d6Wallet.status === 200 && d6Estimate.status === 200 && d6Estimate.body?.estimated_credits > 0;
+    const estVal = d6Estimate.body?.final_estimate ?? d6Estimate.body?.base ?? 0;
+    const d6Passed = d6Wallet.status === 200 && d6Estimate.status === 200 && estVal > 0;
     results.push({
       domainIndex: 6,
       domainName: 'Billing & Credit Wallet',
@@ -299,9 +312,9 @@ export async function run19DomainParityAndWorkflowVerification() {
       status: d6Passed ? 'PASS' : 'FAIL',
       httpStatus: d6Estimate.status,
       dbVerified: d6DbWallet.rows.length > 0,
-      detail: `Balance: ${d6DbWallet.rows[0]?.balance} credits, Estimate: ${d6Estimate.body?.estimated_credits} credits`,
+      detail: `Balance: ${d6DbWallet.rows[0]?.balance} credits, Estimate: ${estVal} credits`,
     });
-    console.log(`  ${d6Passed ? '✓' : '✗'} Status: ${d6Passed ? 'PASS' : 'FAIL'} (Balance: ${d6DbWallet.rows[0]?.balance}, Est: ${d6Estimate.body?.estimated_credits})`);
+    console.log(`  ${d6Passed ? '✓' : '✗'} Status: ${d6Passed ? 'PASS' : 'FAIL'} (Balance: ${d6DbWallet.rows[0]?.balance}, Est: ${estVal})`);
 
     // --------------------------------------------------------------------------
     // DOMAIN 7: ADMIN CONSOLE & COMMERCIAL COMMAND
