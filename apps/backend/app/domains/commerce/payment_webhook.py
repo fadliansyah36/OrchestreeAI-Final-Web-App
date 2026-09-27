@@ -58,6 +58,43 @@ def verify_xendit_webhook_token(
     return hmac.compare_digest(callback_token, server_token)
 
 
+def sanitize_webhook_payload(raw_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Menyaring dan menyamarkan (redact) data sensitif (PII & kredensial) sebelum
+    disimpan ke dalam tabel log kepatuhan (PRD v2.2 Bagian 10.4 & 14.3).
+    """
+    if not isinstance(raw_payload, dict):
+        return raw_payload
+
+    sanitized = {}
+    sensitive_keys = {
+        "card_number", "token_id", "saved_token_id", "cvv", "cvc",
+        "pin", "password", "secret", "server_key", "client_key"
+    }
+
+    for k, v in raw_payload.items():
+        k_lower = str(k).lower()
+        if any(s in k_lower for s in sensitive_keys):
+            sanitized[k] = "[REDACTED]"
+        elif k_lower in ("email", "customer_email", "payer_email") and isinstance(v, str):
+            if "@" in v:
+                parts = v.split("@", 1)
+                user, dom = parts[0], parts[1]
+                sanitized[k] = f"{user[:1]}***@{dom}" if len(user) > 1 else f"***@{dom}"
+            else:
+                sanitized[k] = "[REDACTED_EMAIL]"
+        elif k_lower in ("phone", "phone_number", "primary_phone", "mobile") and isinstance(v, str):
+            sanitized[k] = f"{v[:5]}****{v[-3:]}" if len(v) > 8 else "[REDACTED_PHONE]"
+        elif isinstance(v, dict):
+            sanitized[k] = sanitize_webhook_payload(v)
+        elif isinstance(v, list):
+            sanitized[k] = [sanitize_webhook_payload(elem) if isinstance(elem, dict) else elem for elem in v]
+        else:
+            sanitized[k] = v
+
+    return sanitized
+
+
 async def handle_payment_webhook(
     db_session: Optional[Session] = None,
     gateway_provider: str = "midtrans",
@@ -196,7 +233,7 @@ async def _execute_payment_webhook_pipeline(
                 "external_tx_id": external_tx_id,
                 "order_number": order_number,
                 "event_type": payload.get("transaction_status") or payload.get("status", "unknown"),
-                "payload": json.dumps(payload),
+                "payload": json.dumps(sanitize_webhook_payload(payload)),
                 "received_sig": received_sig,
                 "is_valid_sig": is_valid_sig,
                 "processing_status": processing_status,

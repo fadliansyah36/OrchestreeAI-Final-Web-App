@@ -163,15 +163,18 @@ async def search_tenant_memory_post(
     return {"results": [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in results]}
 
 
-@router.get("/tenants/{tenant_id}/memory/documents")
+@router.get(
+    "/tenants/{tenant_id}/memory/documents",
+    dependencies=[Depends(require_capability("memory.documents.read"))],
+)
 async def list_tenant_memory_documents(
     tenant_id: str = Path(..., description="ID Tenant"),
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     limit: int = Query(50, ge=1, le=200),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("EMPLOYEE,ADMIN,MANAGER", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("memory.documents.read,data.read", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Mengambil daftar dokumen pengetahuan yang tersimpan di Company Brain milik tenant.
@@ -246,14 +249,17 @@ async def list_tenant_memory_documents(
         ]
 
 
-@router.post("/tenants/{tenant_id}/memory/documents")
+@router.post(
+    "/tenants/{tenant_id}/memory/documents",
+    dependencies=[Depends(require_capability("memory.documents.create"))],
+)
 async def create_tenant_memory_document(
     payload: DocumentCreateRequest,
     tenant_id: str = Path(..., description="ID Tenant"),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("ADMIN,MANAGER", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("memory.documents.create", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Menyimpan dokumen pengetahuan baru dan menghasilkan representasi vektor embedding 1536.
@@ -309,12 +315,15 @@ async def create_tenant_memory_document(
         raise HTTPException(status_code=500, detail=f"Gagal memproses dokumen memori: {str(e)}")
 
 
-@router.post("/tenants/{tenant_id}/memory/consolidate")
+@router.post(
+    "/tenants/{tenant_id}/memory/consolidate",
+    dependencies=[Depends(require_capability("memory.decay.consolidate"))],
+)
 async def consolidate_tenant_memory(
     tenant_id: str = Path(..., description="ID Tenant"),
-    x_user_roles: Optional[str] = Header("SUPER_ADMIN,ADMIN", alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header("memory.decay.consolidate", alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
     Memicu evaluasi peluruhan (decay) confidence memori organisasi.

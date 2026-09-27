@@ -441,22 +441,42 @@ export function OnboardingWizard({
     }
   };
 
-  // Callback konfirmasi pembayaran berhasil untuk lingkungan sandbox / demo
-  const handleSandboxPaymentSettlement = () => {
-    if (!activeTenant) return;
-    const updatedTenant: TenantRegistrationResponse = {
-      ...activeTenant,
-      status: 'active',
-    };
-    setActiveTenant(updatedTenant);
-    localStorage.setItem('orchestree_active_tenant', JSON.stringify(updatedTenant));
-    setCheckoutPending(null);
-    setCurrentStep('tenant_active');
-    fetchTenantData(activeTenant.tenant_id);
-    setFeedbackMessage({
-      type: 'success',
-      text: 'Pembayaran langganan berhasil dikonfirmasi. Layanan organisasi Anda kini aktif sepenuhnya!',
-    });
+  // Periksa status pembayaran faktur nyata ke backend
+  const handleCheckPaymentStatus = async () => {
+    if (!activeTenant || !checkoutPending) return;
+    setCheckoutLoading(true);
+    setFeedbackMessage(null);
+    try {
+      const res = await fetch(`/api/v1/billing/invoices?tenant_id=${activeTenant.tenant_id}`, {
+        headers: { 'X-Tenant-Id': activeTenant.tenant_id },
+      });
+      if (res.ok) {
+        const invoices = await res.json();
+        const currentInv = Array.isArray(invoices)
+          ? invoices.find((inv: any) => inv.id === checkoutPending.invoice_id || inv.invoice_number === checkoutPending.invoice_number)
+          : null;
+        if (currentInv && (currentInv.status === 'paid' || currentInv.status === 'settled')) {
+          await fetchTenantData(activeTenant.tenant_id);
+          setCheckoutPending(null);
+          setCurrentStep('tenant_active');
+          setFeedbackMessage({
+            type: 'success',
+            text: 'Pembayaran langganan terkonfirmasi oleh sistem! Layanan organisasi Anda kini aktif sepenuhnya.',
+          });
+        } else {
+          setFeedbackMessage({
+            type: 'info',
+            text: 'Status pembayaran belum terkonfirmasi oleh gateway. Silakan selesaikan transaksi pada portal pembayaran atau periksa kembali sesaat lagi.',
+          });
+        }
+      } else {
+        setFeedbackMessage({ type: 'error', text: 'Gagal memverifikasi status pembayaran ke server.' });
+      }
+    } catch (err: any) {
+      setFeedbackMessage({ type: 'error', text: err.message || 'Gagal memeriksa status pembayaran terkini.' });
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   // Gabung Perusahaan via Kode (Staf)
@@ -1099,11 +1119,12 @@ export function OnboardingWizard({
 
                 <button
                   type="button"
-                  onClick={handleSandboxPaymentSettlement}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-950/40"
+                  onClick={handleCheckPaymentStatus}
+                  disabled={checkoutLoading}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-950/40 disabled:opacity-50"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Konfirmasi Pembayaran Selesai (Sandbox)</span>
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkoutLoading ? 'animate-spin' : ''}`} />
+                  <span>{checkoutLoading ? 'Memeriksa...' : 'Periksa Status Pembayaran'}</span>
                 </button>
               </div>
             </div>

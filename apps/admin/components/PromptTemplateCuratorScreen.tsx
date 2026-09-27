@@ -157,7 +157,11 @@ const STYLE_ICON_MAP: Record<string, React.ElementType> = {
   'palette': Palette,
 };
 
-export function PromptTemplateCuratorScreen() {
+export interface PromptTemplateCuratorScreenProps {
+  tenantId?: string;
+}
+
+export function PromptTemplateCuratorScreen({ tenantId: propTenantId }: PromptTemplateCuratorScreenProps = {}) {
   const [activeTab, setActiveTab] = useState<'templates' | 'styles' | 'categories' | 'batches'>('templates');
   const [categories, setCategories] = useState<AdminPromptCategory[]>([]);
   const [styles, setStyles] = useState<AdminPromptStyle[]>([]);
@@ -166,6 +170,7 @@ export function PromptTemplateCuratorScreen() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [activeTenantId, setActiveTenantId] = useState<string>(propTenantId || '');
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -233,35 +238,64 @@ export function PromptTemplateCuratorScreen() {
   const [inspectingTemplate, setInspectingTemplate] = useState<AdminPromptTemplate | null>(null);
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
-  const adminTenantId = '10e75d63-15f8-42e8-a6ce-24fece12cd04';
+  useEffect(() => {
+    if (propTenantId) {
+      setActiveTenantId(propTenantId);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem('orchestree_active_tenant') || localStorage.getItem('orchestree_current_tenant');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.tenant_id || parsed?.id) {
+          setActiveTenantId(parsed.tenant_id || parsed.id);
+          return;
+        }
+      }
+    } catch {}
+
+    fetch('/api/v1/admin/tenants')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.tenants || [];
+        if (list.length > 0 && (list[0].id || list[0].tenant_id)) {
+          setActiveTenantId(list[0].id || list[0].tenant_id);
+        }
+      })
+      .catch(() => {});
+  }, [propTenantId]);
 
   const fetchData = async () => {
+    if (!activeTenantId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setErrorMsg(null);
     try {
       // 1. Fetch categories
-      const catRes = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-categories`);
+      const catRes = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-categories`);
       if (catRes.ok) {
         const catData = await catRes.json();
         setCategories(catData.data || []);
       }
 
       // 2. Fetch style families (Sumbu 2)
-      const styleRes = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles`);
+      const styleRes = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-styles`);
       if (styleRes.ok) {
         const styleData = await styleRes.json();
         setStyles(styleData.data || []);
       }
 
       // 3. Fetch seeding batches
-      const batchRes = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches`);
+      const batchRes = await fetch(`/api/v1/tenants/${activeTenantId}/generative/seeding-batches`);
       if (batchRes.ok) {
         const batchData = await batchRes.json();
         setBatches(batchData.data || []);
       }
 
       // 4. Fetch templates
-      let tplUrl = `/api/v1/tenants/${adminTenantId}/generative/prompt-templates?scope=global`;
+      let tplUrl = `/api/v1/tenants/${activeTenantId}/generative/prompt-templates?scope=global`;
       if (selectedCategory !== 'all') {
         tplUrl += `&category_code=${encodeURIComponent(selectedCategory)}`;
       }
@@ -284,8 +318,10 @@ export function PromptTemplateCuratorScreen() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, [selectedCategory, selectedStyle, searchQuery]);
+    if (activeTenantId) {
+      fetchData();
+    }
+  }, [activeTenantId, selectedCategory, selectedStyle, searchQuery]);
 
   const handleOpenCreateCategory = () => {
     setEditingCategory(null);
@@ -318,7 +354,7 @@ export function PromptTemplateCuratorScreen() {
     setActionLoading(true);
     try {
       if (editingCategory) {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-categories/${editingCategory.id}`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-categories/${editingCategory.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -331,7 +367,7 @@ export function PromptTemplateCuratorScreen() {
         if (!res.ok) throw new Error('Gagal memperbarui kategori.');
         setSuccessMsg(`Kategori "${categoryForm.display_name}" berhasil diperbarui.`);
       } else {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-categories`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-categories`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -358,7 +394,7 @@ export function PromptTemplateCuratorScreen() {
   const handleDeleteCategory = async (catId: string, name: string) => {
     if (!confirm(`Hapus kategori "${name}"? Seluruh template terkait akan terpengaruh.`)) return;
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-categories/${catId}`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-categories/${catId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Gagal menghapus kategori.');
@@ -403,7 +439,7 @@ export function PromptTemplateCuratorScreen() {
     setActionLoading(true);
     try {
       if (editingStyle) {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles/${editingStyle.id}`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-styles/${editingStyle.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -416,7 +452,7 @@ export function PromptTemplateCuratorScreen() {
         if (!res.ok) throw new Error('Gagal memperbarui gaya visual.');
         setSuccessMsg(`Gaya visual "${styleForm.display_name}" berhasil diperbarui.`);
       } else {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-styles`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -443,7 +479,7 @@ export function PromptTemplateCuratorScreen() {
   const handleDeleteStyle = async (styleId: string, name: string) => {
     if (!confirm(`Hapus gaya visual "${name}"? Seluruh template terkait akan terpengaruh.`)) return;
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-styles/${styleId}`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-styles/${styleId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Gagal menghapus gaya visual.');
@@ -496,7 +532,7 @@ export function PromptTemplateCuratorScreen() {
         });
       }
 
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/seeding-batches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -522,12 +558,12 @@ export function PromptTemplateCuratorScreen() {
   const handleApproveBatch = async (batchId: string, label: string) => {
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batchId}/status`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/seeding-batches/${batchId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'approved',
-          approved_by: adminTenantId,
+          approved_by: activeTenantId,
         }),
       });
       if (!res.ok) throw new Error('Gagal menyetujui batch seeding.');
@@ -545,7 +581,7 @@ export function PromptTemplateCuratorScreen() {
     if (!confirm(`Tolak rencana batch "${label}"?`)) return;
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batchId}/status`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/seeding-batches/${batchId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -569,7 +605,7 @@ export function PromptTemplateCuratorScreen() {
 
     setBatchExecutingId(batch.id);
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/seeding-batches/${batch.id}/execute`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/seeding-batches/${batch.id}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -646,7 +682,7 @@ export function PromptTemplateCuratorScreen() {
       const platformList = templateForm.recommended_platform_raw.split(',').map((s) => s.trim()).filter(Boolean);
 
       if (editingTemplate) {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-templates/${editingTemplate.id}`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-templates/${editingTemplate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -670,7 +706,7 @@ export function PromptTemplateCuratorScreen() {
         if (!res.ok) throw new Error('Gagal memperbarui template.');
         setSuccessMsg(`Template "${templateForm.template_name}" berhasil diperbarui.`);
       } else {
-        const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-templates`, {
+        const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-templates`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -709,7 +745,7 @@ export function PromptTemplateCuratorScreen() {
   const handleDeleteTemplate = async (tplId: string, name: string) => {
     if (!confirm(`Hapus template global "${name}"? Tindakan ini permanen.`)) return;
     try {
-      const res = await fetch(`/api/v1/tenants/${adminTenantId}/generative/prompt-templates/${tplId}`, {
+      const res = await fetch(`/api/v1/tenants/${activeTenantId}/generative/prompt-templates/${tplId}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Gagal menghapus template.');

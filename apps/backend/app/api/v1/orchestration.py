@@ -172,7 +172,7 @@ class ExecuteInferenceIn(BaseModel):
     prompt: str
 
 
-@router.post("/orchestration/execute")
+@router.post("/orchestration/execute", dependencies=[Depends(require_capability("model_router.infer"))])
 async def execute_inference_endpoint(
     payload: ExecuteInferenceIn,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
@@ -221,7 +221,7 @@ class TenantChatIn(BaseModel):
     context: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-@router.post("/tenants/{tenant_id}/orchestration/chat")
+@router.post("/tenants/{tenant_id}/orchestration/chat", dependencies=[Depends(require_capability("orchestration.chat"))])
 async def tenant_orchestration_chat(
     tenant_id: str,
     payload: TenantChatIn,
@@ -257,7 +257,7 @@ async def tenant_orchestration_chat(
     }
 
 
-@router.get("/orchestration/executions")
+@router.get("/orchestration/executions", dependencies=[Depends(require_capability("orchestration.executions.read"))])
 async def list_orchestration_executions(
     tenant_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),

@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.authz.pdp import authorize, SubjectContext, ResourceContext
+from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 from app.core.model_router.router import get_model_router, ModelRouterRequest
 from app.core.security import wrap_untrusted_external_content, sanitize_ai_output
 from app.domains.billing.credits import reserve_credit, consume_credit, refund_credit
@@ -40,7 +40,7 @@ class ChatMessageRequest(BaseModel):
     preferred_model: Optional[str] = Field(None, max_length=100, description="Model LLM spesifik")
 
 
-@router.post("/messages")
+@router.post("/messages", dependencies=[Depends(require_capability("chat.message.create"))])
 async def stream_chat_message(
     payload: ChatMessageRequest,
     x_user_id: Optional[str] = Header(None, alias="x-user-id"),
