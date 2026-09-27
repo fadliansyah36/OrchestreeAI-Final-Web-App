@@ -53,7 +53,7 @@ function request(
       {
         method,
         headers: reqHeaders,
-        timeout: 10000,
+        timeout: 30000,
       },
       (res) => {
         let data = '';

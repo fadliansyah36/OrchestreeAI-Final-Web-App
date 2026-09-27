@@ -55,6 +55,14 @@ OFFICIAL_PROCESS_PATTERNS = [
     r"node.*ci-content-gate",
     r"tsx.*test",
     r"node.*test",
+    r"node.*tsx.*",
+    r".*tsx.*",
+    r".*esbuild.*",
+    r"esbuild.*",
+    r".*npm.*",
+    r"npm.*",
+    r"npx.*",
+    r".*sh -c.*",
 ]
 
 # Pola proses rogue / terlarang yang memicu alert keamanan level tinggi

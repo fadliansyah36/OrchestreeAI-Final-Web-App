@@ -1791,6 +1791,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orchestration/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispatch Workflow
+         * @description Memicu eksekusi alur kerja kognitif otonom dari intent.
+         *     Titik Evaluasi PDP ke-1: Endpoint REST.
+         */
+        post: operations["dispatch_workflow_api_v1_orchestration_dispatch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orchestration/workflows/dispatch": {
         parameters: {
             query?: never;
@@ -17436,6 +17457,45 @@ export interface operations {
             };
         };
     };
+    dispatch_workflow_api_v1_orchestration_dispatch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Tenant-Id"?: string | null;
+                "X-User-Id"?: string | null;
+                "X-User-Roles"?: string | null;
+                "X-User-Capabilities"?: string | null;
+                "X-MFA-Verified"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowDispatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowDispatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     dispatch_workflow_api_v1_orchestration_workflows_dispatch_post: {
         parameters: {
             query?: never;
@@ -22602,8 +22662,8 @@ export interface operations {
                 search?: string | null;
             };
             header?: {
-                authorization?: string | null;
                 "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -22675,8 +22735,8 @@ export interface operations {
                 search?: string | null;
             };
             header?: {
-                authorization?: string | null;
                 "X-Tenant-Id"?: string | null;
+                authorization?: string | null;
             };
             path: {
                 tenant_id: string | null;
