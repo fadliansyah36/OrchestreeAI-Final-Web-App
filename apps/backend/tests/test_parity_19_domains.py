@@ -10,6 +10,7 @@ from app.main import app
 client = TestClient(app)
 TENANT_ID = "10e75d63-15f8-42e8-a6ce-24fece12cd04"
 AUTH_HEADERS = {
+    "Authorization": f"Bearer jwt.usr_admin_01.{TENANT_ID}.TENANT_OWNER.sig_valid_hash",
     "X-Tenant-Id": TENANT_ID,
     "X-User-Role": "TENANT_OWNER",
 }

@@ -87,8 +87,8 @@ class NvidiaNimAdapter(LLMProviderAdapter):
         return "meta/llama-3.2-11b-vision-instruct"
 
     def __init__(self):
-        self.api_key = os.getenv("NVIDIA_API_KEY") or os.getenv("NVIDIA_NIM_API_KEY") or ""
-        self.base_url = os.getenv("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        self.api_key = getattr(settings, "NVIDIA_API_KEY", "") or getattr(settings, "NVIDIA_NIM_API_KEY", "") or os.getenv("NVIDIA_API_KEY") or os.getenv("NVIDIA_NIM_API_KEY") or ""
+        self.base_url = getattr(settings, "NVIDIA_NIM_BASE_URL", "") or os.getenv("NVIDIA_NIM_BASE_URL") or "https://integrate.api.nvidia.com/v1"
 
     async def generate(self, request: ModelRouterRequest) -> ModelRouterResponse:
         start_time = time.perf_counter()
@@ -196,8 +196,8 @@ class OpenRouterAdapter(LLMProviderAdapter):
         return "liquid/lfm-2.5-2.6b:free"
 
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY", "")
-        self.base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        self.api_key = getattr(settings, "OPENROUTER_API_KEY", "") or os.getenv("OPENROUTER_API_KEY") or ""
+        self.base_url = getattr(settings, "OPENROUTER_BASE_URL", "") or os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1"
 
     async def generate(self, request: ModelRouterRequest) -> ModelRouterResponse:
         start_time = time.perf_counter()
@@ -306,8 +306,8 @@ class GptImage2Adapter(LLMProviderAdapter):
         return "gpt-image-2"
 
     def __init__(self):
-        self.api_key = os.getenv("GPT_IMAGE_2_API_KEY") or os.getenv("OPENAI_API_KEY", "")
-        self.endpoint_url = os.getenv("GPT_IMAGE_2_API_URL", "https://api.apimart.ai/v1/images/generations")
+        self.api_key = getattr(settings, "GPT_IMAGE_2_API_KEY", "") or getattr(settings, "OPENAI_API_KEY", "") or os.getenv("GPT_IMAGE_2_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+        self.endpoint_url = getattr(settings, "GPT_IMAGE_2_API_URL", "") or os.getenv("GPT_IMAGE_2_API_URL", "https://api.apimart.ai/v1/images/generations")
 
     async def generate(self, request: ModelRouterRequest) -> ModelRouterResponse:
         start_time = time.perf_counter()

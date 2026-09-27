@@ -56,11 +56,11 @@ is_production = (
 
 app = FastAPI(
     title="OrchestreeAI API",
-    version="2.2.0" if not is_production else "hidden",
+    version="2.2.0",
     description="Autonomous AI Workforce Operating System API",
-    openapi_url=None if is_production else "/openapi.json",
-    docs_url=None if is_production else "/docs",
-    redoc_url=None if is_production else "/redoc",
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 logger = logging.getLogger("uvicorn.error")

@@ -1452,6 +1452,11 @@ async def activate_trial_plan(
     response_model=PaidPlanCheckoutResponse,
     summary="Checkout Paket Langganan Berbayar Resmi (Midtrans)"
 )
+@router.post(
+    "/checkout/paid-plan",
+    response_model=PaidPlanCheckoutResponse,
+    include_in_schema=False
+)
 async def checkout_paid_plan(
     req: PaidPlanCheckoutRequest,
     context: AuthenticatedTenantContext = Depends(get_current_tenant_context)

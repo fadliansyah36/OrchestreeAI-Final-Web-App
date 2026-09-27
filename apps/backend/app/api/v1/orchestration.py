@@ -31,6 +31,7 @@ class WorkflowDispatchIn(BaseModel):
 
 
 @router.post("/orchestration/workflows/dispatch", response_model=WorkflowDispatchResult)
+@router.post("/orchestration/dispatch", response_model=WorkflowDispatchResult)
 async def dispatch_workflow(
     payload: WorkflowDispatchIn,
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),

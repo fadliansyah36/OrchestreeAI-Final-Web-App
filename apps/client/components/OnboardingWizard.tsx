@@ -411,7 +411,7 @@ export function OnboardingWizard({
     setFeedbackMessage(null);
 
     try {
-      const res = await fetch('/api/v1/onboarding/checkout/paid-plan', {
+      const res = await fetch('/api/v1/onboarding/checkout/paid', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

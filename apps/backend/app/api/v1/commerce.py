@@ -124,17 +124,25 @@ class UpdateSalesStageRequest(BaseModel):
 @router.get("/commerce/products")
 async def get_products(
     tenant_id: Optional[str] = None,
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
 ):
     """Mengambil katalog produk resmi bertenant dari database nyata."""
-    tid = tenant_id or "default"
+    tid = tenant_id or x_tenant_id
+    if not tid or tid == "default":
+        return []
+    try:
+        uuid.UUID(str(tid))
+    except (ValueError, TypeError):
+        return []
+
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tid}
+            {"tenant_id": str(tid)}
         )
         sql = """
             SELECT p.id, p.tenant_id, p.sku, p.name, p.description, p.category,
@@ -146,7 +154,7 @@ async def get_products(
             LEFT JOIN inventory_stock s ON s.product_id = p.id AND s.tenant_id = p.tenant_id
             WHERE p.tenant_id = :tenant_id
         """
-        params = {"tenant_id": tid}
+        params = {"tenant_id": str(tid)}
         if status:
             sql += " AND p.status = :status"
             params["status"] = status
