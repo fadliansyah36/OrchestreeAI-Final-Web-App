@@ -250,7 +250,7 @@ export async function run19DomainParityAndWorkflowVerification() {
     const taskId = d4CreateTask.body?.id || d4CreateTask.body?.data?.id;
     let d4DbTaskFound = false;
     if (taskId) {
-      const tRes = await client.query('SELECT id, title, status FROM tasks WHERE id = $1;', [taskId]);
+      const tRes = await client.query('SELECT id, title, column_id FROM tasks WHERE id = $1;', [taskId]);
       d4DbTaskFound = tRes.rows.length > 0;
     }
     const d4Passed = (d4CreateTask.status === 200 || d4CreateTask.status === 201) && d4DbTaskFound;

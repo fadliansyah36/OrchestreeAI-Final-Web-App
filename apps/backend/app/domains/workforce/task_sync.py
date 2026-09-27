@@ -11,6 +11,7 @@ import logging
 from typing import Any, Dict, Optional
 import urllib.request
 import urllib.error
+from app.core.config import settings
 try:
     from pydantic import BaseModel, Field
 
