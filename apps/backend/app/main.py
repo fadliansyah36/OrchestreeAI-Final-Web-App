@@ -109,6 +109,14 @@ async def startup_event():
     except Exception as mtproto_err:
         logger.warning(f"Gagal menginisialisasi listener MTProto: {mtproto_err}")
 
+    # Bagian C.2: Job Pemeriksaan Integritas Proses & Anti-Shadow-Stack Periodik
+    try:
+        import asyncio
+        from app.core.security.process_integrity import periodic_process_integrity_job
+        asyncio.create_task(periodic_process_integrity_job(interval_seconds=86400))
+    except Exception as integrity_err:
+        logger.warning(f"Gagal menginisialisasi periodic_process_integrity_job: {integrity_err}")
+
 @app.on_event("shutdown")
 async def shutdown_event():
     try:

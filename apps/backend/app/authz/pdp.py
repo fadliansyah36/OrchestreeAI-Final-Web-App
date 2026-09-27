@@ -13,6 +13,7 @@ Setiap keputusan authorize() (ALLOW / DENIED_NO_POLICY / DENY_*) tercatat nyata 
 from decimal import Decimal
 import json
 import logging
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator
@@ -27,6 +28,22 @@ from app.authz.abac import (
 from app.authz.credit_guard import check_department_cap
 
 logger = logging.getLogger("orchestree.authz.pdp")
+
+# Sampling Rate untuk pencatatan keputusan ALLOW (PRD v2.2 Bagian C.1)
+# 100% keputusan DENY selalu dicatat. Keputusan ALLOW dicatat dengan sampling (1 dari N)
+# untuk membangun baseline pola normal guna deteksi anomali.
+ALLOW_SAMPLE_RATE = int(os.getenv("AUDIT_ALLOW_SAMPLE_RATE", "5"))
+_allow_counter = 0
+
+
+def should_log_decision(decision: "AuthorizationDecision") -> bool:
+    global _allow_counter
+    if not decision.is_authorized:
+        return True
+    if ALLOW_SAMPLE_RATE <= 1:
+        return True
+    _allow_counter += 1
+    return (_allow_counter % ALLOW_SAMPLE_RATE) == 0
 
 
 class SubjectContext(BaseModel):
@@ -523,7 +540,7 @@ def authorize(
             "pipeline": ["rbac", "tier", "abac", "department_budget"],
         },
     )
-    if log_audit:
+    if log_audit and should_log_decision(decision):
         log_decision_to_audit(subject, action, resource, decision, context.get("request_id"))
     return decision
 
@@ -544,11 +561,38 @@ def require_capability(
     """
     FastAPI Dependency resmi untuk penegakan Unified PDP authorize() (PRD v2.2 Bagian 3.5).
     Menjamin setiap endpoint REST terhubung ke PDP dengan capability key eksplisit.
+    Sekaligus menegakkan Isolasi Perimeter Independen antara apps/client dan apps/admin (Bagian B.2 & B.3).
     """
     async def dependency(
         request: Request,
         context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
     ) -> AuthorizationDecision:
+        # Penegakan Perimeter Independen:
+        # Sesi client/tenant tidak dapat mengakses endpoint konsol admin
+        is_admin_action = (
+            action.startswith("admin.")
+            or action.startswith("platform.")
+            or "admin" in resource_type.lower()
+            or "/admin/" in request.url.path
+        )
+        if is_admin_action and context.app_scope != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Perimeter Violation: Sesi tenant/client dilarang mengakses konsol admin platform.",
+            )
+
+        # Sesi Super Admin murni tidak dapat digunakan langsung untuk operasi internal tenant client
+        client_only_actions = {
+            "attendance.clock",
+            "orders.create",
+            "commerce.cart",
+        }
+        if action in client_only_actions and context.app_scope == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Perimeter Violation: Sesi Super Admin tidak dapat mengeksekusi operasi transaksi operasional client.",
+            )
+
         # Ekstraksi tenant_id target dari path parameter jika ada (misal /tenants/{tenant_id}/...)
         target_tenant_id = request.path_params.get("tenant_id") or context.tenant_id
 

@@ -200,6 +200,40 @@ function runContentGate() {
         });
       }
 
+      // CI Perimeter Guard (Bagian B.4): Isolasi perimeter independen apps/client vs apps/admin
+      if (relPath.startsWith('apps/client/')) {
+        // Dilarang mengimpor dari apps/admin
+        if (/(?:import|require|from)\s+['"][^'"]*apps\/admin/.test(line) || /from\s+['"][^'"]*\/admin(?:\/|['"])/.test(line)) {
+          violations.push({
+            file: relPath,
+            line: index + 1,
+            term: 'perimeter violation: apps/client importing apps/admin',
+            snippet: line.trim()
+          });
+        }
+        // Dilarang memanggil endpoint yang mengandung /admin/ (mis. /api/v1/admin/*)
+        if (/(?:fetch|axios|\.get|\.post|\.put|\.delete)\s*\(\s*[`'"][^`'"]*\/admin\//.test(line) || /[`'"]\/api\/v1\/admin\//.test(line)) {
+          violations.push({
+            file: relPath,
+            line: index + 1,
+            term: 'perimeter violation: apps/client calling admin endpoint',
+            snippet: line.trim()
+          });
+        }
+      }
+
+      if (relPath.startsWith('apps/admin/')) {
+        // Dilarang mengimpor dari apps/client
+        if (/(?:import|require|from)\s+['"][^'"]*apps\/client/.test(line)) {
+          violations.push({
+            file: relPath,
+            line: index + 1,
+            term: 'perimeter violation: apps/admin importing apps/client',
+            snippet: line.trim()
+          });
+        }
+      }
+
       // CI Guard (Bagian E.3): Dilarang persist middleware Zustand pada store data domain bisnis
       if (isFrontend && /persist\s*\(/.test(line)) {
         if (!relPath.toLowerCase().includes('theme') && !relPath.toLowerCase().includes('locale') && !relPath.toLowerCase().includes('ui') && !relPath.toLowerCase().includes('pref')) {

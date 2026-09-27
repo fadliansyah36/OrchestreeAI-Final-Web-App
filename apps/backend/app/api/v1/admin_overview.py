@@ -105,9 +105,22 @@ async def get_admin_hub_overview(
     Mengembalikan statistik ringkasan operasional platform global untuk Konsol Super Admin.
     Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
+    roles = [r.strip().upper() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
     capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
     is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    # Penegakan perimeter Super Admin: Hanya peran Super Admin yang diizinkan
+    is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Perimeter Violation: Sesi tenant/client dilarang mengakses konsol admin platform.",
+        )
+    if not is_mfa:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operasi administratif Super Admin memerlukan verifikasi MFA aktif.",
+        )
 
     subject = SubjectContext(
         roles=roles,
@@ -375,3 +388,104 @@ async def list_admin_tenants(
     except Exception as exc:
         logger.warning(f"Gagal mengambil daftar tenant super admin: {exc}")
         return {"tenants": [], "total": 0}
+
+
+@router.get(
+    "/process-integrity",
+    summary="Pemeriksaan Integritas Proses Sistem (PRD v2.2 Bagian C.2)",
+)
+async def get_process_integrity(
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+):
+    """
+    Memeriksa kepatuhan seluruh proses sistem yang berjalan terhadap whitelist deployment.
+    Memverifikasi Uvicorn aktif dan zero rogue runner tidak sah.
+    """
+    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
+    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    subject = SubjectContext(
+        roles=roles,
+        capabilities=capabilities,
+        tenant_id="global",
+        actor_type="user",
+        is_mfa_verified=is_mfa,
+    )
+    resource = ResourceContext(
+        resource_type="process_integrity_monitor",
+        owner_tenant_id="global",
+    )
+
+    decision = authorize(subject=subject, action="platform.admin.manage", resource=resource)
+    if not decision.is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Akses ditolak: {decision.reason}",
+        )
+
+    from app.core.security.process_integrity import evaluate_process_integrity
+    report = evaluate_process_integrity(trigger_alert=False)
+    return report
+
+
+@router.post(
+    "/process-integrity/test-alert",
+    summary="Uji Coba Pemicuan Alert Integritas Proses (DoD C.2)",
+)
+async def test_process_integrity_alert(
+    simulate_scenario: str = "rogue_process",  # "rogue_process" | "missing_service"
+    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
+    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
+    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
+):
+    """
+    Mensimulasikan deteksi proses terlarang atau servis resmi terhenti
+    untuk membuktikan alert audit_logs & notifikasi terpicu (DoD Bagian C.2).
+    """
+    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
+    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
+    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    subject = SubjectContext(
+        roles=roles,
+        capabilities=capabilities,
+        tenant_id="global",
+        actor_type="user",
+        is_mfa_verified=is_mfa,
+    )
+    resource = ResourceContext(
+        resource_type="process_integrity_monitor",
+        owner_tenant_id="global",
+    )
+
+    decision = authorize(subject=subject, action="platform.admin.manage", resource=resource)
+    if not decision.is_authorized:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Akses ditolak: {decision.reason}",
+        )
+
+    from app.core.security.process_integrity import evaluate_process_integrity, scan_system_processes
+    real_procs = scan_system_processes()
+    simulated_procs = list(real_procs)
+
+    if simulate_scenario == "rogue_process":
+        # Simulasikan proses tak dikenal / rogue server
+        simulated_procs.append({
+            "pid": 99999,
+            "command": "node server.js --unauthorized-shadow-stack",
+        })
+    elif simulate_scenario == "missing_service":
+        # Hilangkan servis uvicorn resmi dari daftar proses
+        simulated_procs = [p for p in simulated_procs if "uvicorn" not in p.get("command", "")]
+
+    report = evaluate_process_integrity(processes_override=simulated_procs, trigger_alert=True)
+    return {
+        "simulation_scenario": simulate_scenario,
+        "result": report,
+        "alert_triggered": report["alert_dispatched"],
+    }
+

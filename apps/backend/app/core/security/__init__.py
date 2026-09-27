@@ -170,9 +170,9 @@ def is_token_revoked(token: str) -> bool:
     return False
 
 
-def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool]:
+def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool, str]:
     """
-    Mengekstrak klaim user_id, tenant_id, roles, dan mfa_verified dari token.
+    Mengekstrak klaim user_id, tenant_id, roles, mfa_verified, dan app_scope dari token.
     Mendukung format token uji harness 'jwt.<user_id>.<tenant_id>.<sig>'
     serta format JWT standar (Supabase).
     Memverifikasi masa berlaku (exp) dan status pencabutan (revocation).
@@ -193,7 +193,9 @@ def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool]:
         roles = ["STAFF_HUMAN"]
         if len(parts) >= 4 and parts[3] and parts[3] != "sig_valid_hash":
             roles = [parts[3].upper()]
-        return user_id, tenant_id, roles, False
+        is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
+        app_scope = "admin" if is_admin else "tenant"
+        return user_id, tenant_id, roles, False, app_scope
 
     # Format token fallback (Supabase JWT payload)
     try:
@@ -212,11 +214,13 @@ def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool]:
         tenant_id = payload.get("app_metadata", {}).get("tenant_id") or payload.get("user_metadata", {}).get("tenant_id", "tenant_default_anon")
         roles = payload.get("app_metadata", {}).get("roles", ["STAFF_HUMAN"])
         is_mfa = payload.get("aal") == "aal2"
-        return user_id, tenant_id, roles, is_mfa
+        is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
+        app_scope = payload.get("app_scope") or payload.get("app_metadata", {}).get("app_scope") or ("admin" if is_admin else "tenant")
+        return user_id, tenant_id, roles, is_mfa, app_scope
     except HTTPException:
         raise
     except Exception:
-        return "usr_default_anon", "tenant_default_anon", ["STAFF_HUMAN"], False
+        return "usr_default_anon", "tenant_default_anon", ["STAFF_HUMAN"], False, "tenant"
 
 
 # ============================================================================

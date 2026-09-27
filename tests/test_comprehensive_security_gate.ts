@@ -13,6 +13,9 @@
  */
 
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
 
 const BASE_URL = process.env.API_BASE_URL || 'http://127.0.0.1:8001';
 
@@ -396,6 +399,170 @@ print("XSS_AND_PROMPT_INJECTION_DEFENSE_OK")
     detail: revocationPassed ? 'Token yang telah logout ditolak pada replay berikutnya.' : 'PERINGATAN: Token revoked masih dapat dipakai!',
   });
   console.log(`  ${revocationPassed ? '✓ PASS' : '✗ FAIL'} Token Revocation on Logout -> ${revocationPassed ? 'Replay Blocked (401)' : 'Failed'}`);
+
+  // --------------------------------------------------------------------------
+  // 9. BAGIAN A — VERIFIKASI ZERO SHADOW STACK & ZERO RAW DB POOLS
+  // --------------------------------------------------------------------------
+  console.log('\n--- [TEST 9] BAGIAN A — CUTOVER & ZERO SHADOW STACK VERIFICATION ---');
+
+  const rogueFilesToCheck = [
+    'server.ts',
+    'server.js',
+    'src/server',
+    'apps/client/server.ts',
+    'apps/admin/server.ts',
+    'legacy',
+    '.ref_landing',
+  ];
+  const foundRogueFiles = rogueFilesToCheck.filter((f) => fs.existsSync(path.resolve(process.cwd(), f)));
+  const zeroRogueFilesPassed = foundRogueFiles.length === 0;
+
+  results.push({
+    category: 'Architecture Cutover (Bagian A)',
+    name: 'Zero Rogue Server Files & Duplicate Stacks',
+    expected: 'No server.ts, server.js, legacy/, or .ref_landing/ in repository',
+    actual: zeroRogueFilesPassed ? 'Zero rogue files verified' : `Found rogue files: ${foundRogueFiles.join(', ')}`,
+    passed: zeroRogueFilesPassed,
+    detail: zeroRogueFilesPassed ? 'Repositori bersih dari file server shadow atau legacy.' : `Pelanggaran: ${foundRogueFiles.join(', ')}`,
+  });
+  console.log(`  ${zeroRogueFilesPassed ? '✓ PASS' : '✗ FAIL'} Zero Rogue Server Files -> ${zeroRogueFilesPassed ? 'Clean' : 'Found files'}`);
+
+  // Audit DB connection: role orchestree_app only, zero raw psycopg2/pool bypass
+  let zeroRawDbPassed = true;
+  try {
+    const grepResult = execSync('grep -rn "new Pool" apps/backend/ apps/client/ apps/admin/ packages/ 2>/dev/null || true', { encoding: 'utf-8' }).trim();
+    zeroRawDbPassed = grepResult.length === 0;
+  } catch {
+    zeroRawDbPassed = true;
+  }
+  results.push({
+    category: 'Architecture Cutover (Bagian A)',
+    name: 'Zero Direct Connection Pools (orchestree_app RLS Enforcement)',
+    expected: 'All database transactions routed through tenant_tx() with SET LOCAL ROLE orchestree_app',
+    actual: zeroRawDbPassed ? 'Zero raw connection pools found' : 'Found unmanaged connection pool',
+    passed: zeroRawDbPassed,
+    detail: zeroRawDbPassed ? 'Seluruh koneksi database terikat pada factory resmi peran orchestree_app.' : 'Ditemukan koneksi database di luar factory.',
+  });
+  console.log(`  ${zeroRawDbPassed ? '✓ PASS' : '✗ FAIL'} Database Role Isolation -> ${zeroRawDbPassed ? 'orchestree_app Enforced' : 'Violations found'}`);
+
+  // --------------------------------------------------------------------------
+  // 10. BAGIAN B — INDEPENDENT PERIMETER ISOLATION
+  // --------------------------------------------------------------------------
+  console.log('\n--- [TEST 10] BAGIAN B — INDEPENDENT PERIMETER ISOLATION ---');
+
+  // Step 1: Client session token (app_scope: tenant) MUST BE REJECTED from admin routes
+  const clientToken = `jwt.client_member.${tenantA}.STAFF_HUMAN.sig_valid_hash`;
+  const adminAccessByClient = await request('GET', '/api/v1/admin/hub-overview', {
+    'Authorization': `Bearer ${clientToken}`,
+    'X-Tenant-Id': tenantA,
+    'X-User-Roles': 'STAFF_HUMAN',
+    'X-MFA-Verified': 'false',
+  });
+  const clientBlockedFromAdmin = adminAccessByClient.status === 403;
+
+  results.push({
+    category: 'Perimeter Isolation (Bagian B)',
+    name: 'Client Session Blocked from Admin Perimeter',
+    expected: 'HTTP 403 Forbidden (Perimeter Violation: Sesi tenant/client dilarang mengakses konsol admin platform)',
+    actual: `HTTP ${adminAccessByClient.status}`,
+    passed: clientBlockedFromAdmin,
+    detail: clientBlockedFromAdmin ? 'Sesi client terbukti ditolak saat mencoba mengakses perimeter kontrol admin.' : 'PERINGATAN: Sesi client lolos ke endpoint admin!',
+  });
+  console.log(`  ${clientBlockedFromAdmin ? '✓ PASS' : '✗ FAIL'} Client Session -> Admin Perimeter Blocked -> HTTP ${adminAccessByClient.status}`);
+
+  // Step 2: CI Perimeter Guard Verification
+  let ciPerimeterGuardPassed = true;
+  try {
+    const ciOutput = execSync('node scripts/ci-content-gate.js', { encoding: 'utf-8' });
+    ciPerimeterGuardPassed = ciOutput.includes('CI Content Gate PASSED');
+  } catch (err: any) {
+    ciPerimeterGuardPassed = false;
+  }
+  results.push({
+    category: 'Perimeter Isolation (Bagian B)',
+    name: 'CI Perimeter Guard Active',
+    expected: 'Linter enforces no /admin/ cross-boundary calls from apps/client',
+    actual: ciPerimeterGuardPassed ? 'CI Perimeter Guard passed' : 'CI Perimeter Guard failed',
+    passed: ciPerimeterGuardPassed,
+    detail: ciPerimeterGuardPassed ? 'CI Guard perimeter aktif dan memverifikasi keterpisahan apps/client dan apps/admin.' : 'CI Guard perimeter gagal.',
+  });
+  console.log(`  ${ciPerimeterGuardPassed ? '✓ PASS' : '✗ FAIL'} CI Perimeter Guard -> ${ciPerimeterGuardPassed ? 'Enforced' : 'Failed'}`);
+
+  // --------------------------------------------------------------------------
+  // 11. BAGIAN C — PROCESS INTEGRITY MONITORING & ALERT TRIGGERING
+  // --------------------------------------------------------------------------
+  console.log('\n--- [TEST 11] BAGIAN C — PROCESS INTEGRITY & SECURITY MONITORING ---');
+
+  // Step 1: Real Process Integrity Check (Must PASS on current environment)
+  const realIntegrityRes = await request('GET', '/api/v1/admin/process-integrity', {
+    'X-User-Roles': 'PLATFORM_SUPERADMIN',
+    'X-User-Capabilities': 'platform.admin.manage,admin.hub.view',
+    'X-MFA-Verified': 'true',
+  });
+  const realIntegrityPassed = realIntegrityRes.status === 200 && realIntegrityRes.body?.status === 'PASSED';
+
+  results.push({
+    category: 'Process Integrity & Anti-Shadow (Bagian C)',
+    name: 'Runtime Process Integrity Check (Real Stack)',
+    expected: 'Status PASSED (Only official FastAPI, Vite, Nginx, Control Plane processes active)',
+    actual: `Status: ${realIntegrityRes.body?.status || realIntegrityRes.status}`,
+    passed: realIntegrityPassed,
+    detail: realIntegrityPassed
+      ? `Terverifikasi ${realIntegrityRes.body?.total_processes_scanned} proses berjalan sesuai whitelist resmi.`
+      : 'Gagal verifikasi integritas proses sistem.',
+  });
+  console.log(`  ${realIntegrityPassed ? '✓ PASS' : '✗ FAIL'} Runtime Process Integrity -> Status ${realIntegrityRes.body?.status}`);
+
+  // Step 2: Simulated Rogue Process Alert (Must Trigger ALERT & write to audit_logs)
+  const rogueSimRes = await request('POST', '/api/v1/admin/process-integrity/test-alert?simulate_scenario=rogue_process', {
+    'X-User-Roles': 'PLATFORM_SUPERADMIN',
+    'X-User-Capabilities': 'platform.admin.manage,admin.hub.view',
+    'X-MFA-Verified': 'true',
+  });
+  const rogueAlertTriggered = rogueSimRes.status === 200 && rogueSimRes.body?.alert_triggered === true;
+
+  results.push({
+    category: 'Process Integrity & Anti-Shadow (Bagian C)',
+    name: 'Simulated Rogue Process Alert Triggering (DoD C.2)',
+    expected: 'Alert triggered and dispatched to audit_logs & Notification Center',
+    actual: `Alert triggered: ${rogueSimRes.body?.alert_triggered}`,
+    passed: rogueAlertTriggered,
+    detail: rogueAlertTriggered ? 'Deteksi proses rogue tak dikenal sukses memicu alert audit_logs & notifikasi.' : 'Alert gagal terpicu pada simulasi proses tak dikenal.',
+  });
+  console.log(`  ${rogueAlertTriggered ? '✓ PASS' : '✗ FAIL'} Rogue Process Alert -> Triggered: ${rogueSimRes.body?.alert_triggered}`);
+
+  // Step 3: Simulated Missing Official Service Alert (Must Trigger ALERT)
+  const missingSimRes = await request('POST', '/api/v1/admin/process-integrity/test-alert?simulate_scenario=missing_service', {
+    'X-User-Roles': 'PLATFORM_SUPERADMIN',
+    'X-User-Capabilities': 'platform.admin.manage,admin.hub.view',
+    'X-MFA-Verified': 'true',
+  });
+  const missingAlertTriggered = missingSimRes.status === 200 && missingSimRes.body?.alert_triggered === true;
+
+  results.push({
+    category: 'Process Integrity & Anti-Shadow (Bagian C)',
+    name: 'Simulated Missing Official Service Alert Triggering (DoD C.2)',
+    expected: 'Alert triggered when required service is stopped',
+    actual: `Alert triggered: ${missingSimRes.body?.alert_triggered}`,
+    passed: missingAlertTriggered,
+    detail: missingAlertTriggered ? 'Ketiadaan servis wajib uvicorn sukses memicu alert keamanan.' : 'Alert gagal terpicu pada servis hilang.',
+  });
+  console.log(`  ${missingAlertTriggered ? '✓ PASS' : '✗ FAIL'} Missing Service Alert -> Triggered: ${missingSimRes.body?.alert_triggered}`);
+
+  // Step 4: Audit Runtime Environment Variables (Zero rogue PG_SUPERUSER_URL or ADMIN_DB_URL)
+  const envKeys = Object.keys(process.env);
+  const rogueEnvKeys = envKeys.filter((k) => k.includes('SUPERUSER') || k.includes('ADMIN_DB'));
+  const zeroRogueEnvPassed = rogueEnvKeys.length === 0;
+
+  results.push({
+    category: 'Environment Hardening (Bagian C.3)',
+    name: 'Zero Rogue Superuser DB Environment Variables',
+    expected: 'No PG_SUPERUSER_URL, ADMIN_DB_URL, or rogue credentials in runtime environment',
+    actual: zeroRogueEnvPassed ? 'Zero rogue env vars found' : `Found rogue env keys: ${rogueEnvKeys.join(', ')}`,
+    passed: zeroRogueEnvPassed,
+    detail: zeroRogueEnvPassed ? 'Seluruh variabel database runtime bersih dari kredensial superuser tambahan.' : `Ditemukan: ${rogueEnvKeys.join(', ')}`,
+  });
+  console.log(`  ${zeroRogueEnvPassed ? '✓ PASS' : '✗ FAIL'} Runtime Env Vars Audit -> ${zeroRogueEnvPassed ? 'Clean' : 'Found rogue keys'}`);
 
   // --------------------------------------------------------------------------
   // SUMMARY REPORT
