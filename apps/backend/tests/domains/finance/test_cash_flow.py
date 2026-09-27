@@ -28,7 +28,7 @@ class TestFinanceCashFlowEngine(unittest.IsolatedAsyncioTestCase):
         """
         Pengujian tier STARTER / GROW / PRO menggunakan data transaksi native internal (All-Tier).
         """
-        simulated_internal_records = [
+        internal_records = [
             {
                 "id": str(uuid.uuid4()),
                 "date": "2026-09-05",
@@ -64,7 +64,7 @@ class TestFinanceCashFlowEngine(unittest.IsolatedAsyncioTestCase):
             period_end=self.period_end,
             tier_code="PRO",
             current_cash_balance=10000000.0,
-            simulated_internal_records=simulated_internal_records,
+            internal_records_override=internal_records,
         )
 
         self.assertEqual(summary.data_source, "INTERNAL_NATIVE_ALL_TIER")
@@ -79,7 +79,7 @@ class TestFinanceCashFlowEngine(unittest.IsolatedAsyncioTestCase):
         """
         Pengujian tier ENTERPRISE yang tersambung dengan ERP eksternal (SAP / NetSuite).
         """
-        simulated_erp_records = [
+        erp_records = [
             {
                 "id": str(uuid.uuid4()),
                 "date": "2026-09-02",
@@ -108,7 +108,7 @@ class TestFinanceCashFlowEngine(unittest.IsolatedAsyncioTestCase):
             period_end=self.period_end,
             tier_code="ENTERPRISE",
             current_cash_balance=500000000.0,
-            simulated_erp_records=simulated_erp_records,
+            erp_records_override=erp_records,
         )
 
         self.assertEqual(summary.data_source, "EXTERNAL_ERP_ENTERPRISE")
@@ -128,8 +128,8 @@ class TestFinanceCashFlowEngine(unittest.IsolatedAsyncioTestCase):
             period_start=self.period_start,
             period_end=self.period_end,
             tier_code="STARTER",
-            simulated_erp_records=[{"amount": 1000}],
-            simulated_internal_records=[{"amount": 500, "direction": "INFLOW"}],
+            erp_records_override=[{"amount": 1000}],
+            internal_records_override=[{"amount": 500, "direction": "INFLOW"}],
         )
 
         self.assertEqual(summary.data_source, "INTERNAL_NATIVE_ALL_TIER")

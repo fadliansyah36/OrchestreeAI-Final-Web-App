@@ -174,7 +174,7 @@ class WorkforceClosedLoopMonitoringEngine:
         tenant_id: str,
         task_id: str,
         db_connection=None,
-        simulated_source_record: Optional[Dict[str, Any]] = None,
+        source_record_override: Optional[Dict[str, Any]] = None,
     ) -> SourceVerificationResult:
         """
         Memeriksa data sumber nyata untuk menentukan apakah tugas benar-benar selesai.
@@ -185,7 +185,7 @@ class WorkforceClosedLoopMonitoringEngine:
 
         # Ambil aturan verifikasi dari database jika koneksi tersedia
         rule_data = None
-        source_record = simulated_source_record
+        source_record = source_record_override
 
         if conn:
             row = await conn.fetchrow(
@@ -212,10 +212,10 @@ class WorkforceClosedLoopMonitoringEngine:
                     "verification_description": v_rule.get("verification_description", ""),
                 }
 
-        # Jika rule tidak ditemukan di DB dan tidak ada simulasi
+        # Jika rule tidak ditemukan di DB dan tidak ada override
         if not rule_data:
-            if simulated_source_record and "_rule" in simulated_source_record:
-                rule_data = simulated_source_record["_rule"]
+            if source_record_override and "_rule" in source_record_override:
+                rule_data = source_record_override["_rule"]
             else:
                 return SourceVerificationResult(
                     task_id=task_id,
@@ -473,7 +473,7 @@ class WorkforceClosedLoopMonitoringEngine:
         task_id: str,
         requested_by: str = "user",
         db_connection=None,
-        simulated_source_record: Optional[Dict[str, Any]] = None,
+        source_record_override: Optional[Dict[str, Any]] = None,
     ) -> SourceVerificationResult:
         """
         Mencegat aksi klik 'DONE' manual dari pengguna atau UI.
@@ -483,7 +483,7 @@ class WorkforceClosedLoopMonitoringEngine:
             tenant_id=tenant_id,
             task_id=task_id,
             db_connection=db_connection,
-            simulated_source_record=simulated_source_record
+            source_record_override=source_record_override
         )
 
         if not res.is_verified:

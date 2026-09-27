@@ -18,6 +18,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "ci:content-gate": "node scripts/ci-content-gate.js",
+    "ci:perimeter": "node scripts/ci-perimeter-isolation.js",
     "ci:security-ast": "python3 scripts/security_ast_scanner.py",
     "ci:openapi": "PYTHONPATH=apps/backend python3 apps/backend/scripts/check_openapi_diff.py",
     "ci:import-linter": "PYTHONPATH=apps/backend lint-imports --config apps/backend/.importlinter",
@@ -27,7 +28,7 @@
     "db:migrate": "cd apps/backend && (../../.venv/bin/alembic upgrade head || alembic upgrade head)",
     "test:security": "npx tsx tests/test_comprehensive_security_gate.ts",
     "test:connectivity": "npx tsx tests/test_frontend_connectivity_gate.ts",
-    "lint": "tsc --noEmit && node scripts/ci-content-gate.js && python3 scripts/security_ast_scanner.py"
+    "lint": "tsc --noEmit && node scripts/ci-content-gate.js && node scripts/ci-perimeter-isolation.js && python3 scripts/security_ast_scanner.py"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

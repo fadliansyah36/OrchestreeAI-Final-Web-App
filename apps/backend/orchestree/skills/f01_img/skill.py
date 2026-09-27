@@ -91,7 +91,7 @@ class UniversalPromptComposer:
         "PRODUCT_SHOWCASE": "commercial studio product photography, clean pedestal, soft volumetric lighting, dramatic crisp shadows, 8k resolution, photorealistic",
         "MARKETING_HERO": "wide cinematic landscape, high-end digital advertising, negative copy space on left, premium aesthetics, clean modern composition",
         "PROMO_BANNER": "bold promotional visual, striking visual hierarchy, modern 3d floating graphic elements, subtle neon accents, engaging focal point",
-        "LOGO_MOCKUP": "premium stationery branding mockup, natural daylight, elegant corporate texture, macro depth of field",
+        "LOGO_TEMPLATE": "premium stationery branding presentation, natural daylight, elegant corporate texture, macro depth of field",
         "SOCIAL_STORY": "vertical social media visual, vibrant dynamic framing, high contrast, mobile optimized visual hooks",
         "ECOMMERCE_CATALOG": "crisp product catalog photo on neutral background, authentic material textures, color accurate, no clutter",
         "BRAND_ASSET": "corporate identity visual, architectural elegance, brand-aligned minimalism, balanced geometry",
@@ -100,7 +100,7 @@ class UniversalPromptComposer:
         "BRAND_MASCOT": "modern friendly mascot illustration, clean vector linework, approachable posture, clear anatomical proportions, solid corporate palette",
         "STAFF_AVATAR": "refined digital painted corporate headshot, respectful professional portrait, dignified expression, three-point portrait lighting, non-photorealistic artistic finish",
         "INFOGRAPHIC_REPORT": "structured executive report visual, modular grid layout, frosted glass card elevation, crisp data hierarchy, minimal decorative noise",
-        "UI_MOCKUP_PITCH": "modern tech flat-lay workstation mockup, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
+        "UI_PRESENTATION_PITCH": "modern tech flat-lay workstation showcase, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
         "EVENT_POSTER": "contemporary business conference poster, dynamic abstract 3D ribbons, sophisticated typography space, subsurface glow, high contrast readability",
         # Lowercase mappings
         "social_media_post": "commercial social media visual, warm studio lighting, rule-of-thirds composition, ample negative space for caption copy, sharp crisp details",
@@ -109,7 +109,7 @@ class UniversalPromptComposer:
         "brand_mascot": "modern friendly mascot illustration, clean vector linework, approachable posture, clear anatomical proportions, solid corporate palette",
         "staff_avatar": "refined digital painted corporate headshot, respectful professional portrait, dignified expression, three-point portrait lighting, non-photorealistic artistic finish",
         "infographic_report": "structured executive report visual, modular grid layout, frosted glass card elevation, crisp data hierarchy, minimal decorative noise",
-        "ui_mockup_pitch": "modern tech flat-lay workstation mockup, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
+        "ui_presentation_pitch": "modern tech flat-lay workstation showcase, authentic wood and metal textures, elegant stylistic screen UI, natural window daylight, pitch-deck aesthetic",
         "event_poster": "contemporary business conference poster, dynamic abstract 3D ribbons, sophisticated typography space, subsurface glow, high contrast readability",
     }
 

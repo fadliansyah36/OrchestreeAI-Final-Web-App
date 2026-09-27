@@ -1424,7 +1424,7 @@ async def generate_automated_report_endpoint(
     tokens_consumed = int(tokens_row["tok_consumed"]) if tokens_row else 0
 
     agents_row = await db.fetchrow(
-        "SELECT COUNT(*) as agent_count FROM ai_agents WHERE tenant_id = $1 AND status = 'ACTIVE'",
+        "SELECT COUNT(*) as agent_count FROM ai_agents WHERE tenant_id = $1 AND status = 'active'",
         t_uuid
     )
     agent_count = int(agents_row["agent_count"]) if agents_row else 0
@@ -1587,7 +1587,7 @@ async def generate_automated_report_endpoint(
             period_start=period_start.isoformat(),
             period_end=period_end.isoformat(),
             source_table="ai_agents",
-            source_query="SELECT COUNT(*) FROM ai_agents WHERE tenant_id = $1 AND status = 'ACTIVE'",
+            source_query="SELECT COUNT(*) FROM ai_agents WHERE tenant_id = $1 AND status = 'active'",
             source_dimension="ORGANIZATIONAL_STRUCTURE",
             sensitivity_level="INTERNAL",
         ),

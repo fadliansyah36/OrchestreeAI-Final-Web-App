@@ -63,7 +63,7 @@ class TestKnowledgeFusionEngine(unittest.IsolatedAsyncioTestCase):
         result: KnowledgeFusionResult = await self.engine.fuse_knowledge(
             tenant_id=self.tenant_id,
             tier_code="PRO",
-            simulated_knowledge_nodes=simulated_nodes,
+            knowledge_nodes_override=simulated_nodes,
         )
 
         # DoD: Rule AI yang belum disetujui TIDAK BOLEH aktif
@@ -111,7 +111,7 @@ class TestKnowledgeFusionEngine(unittest.IsolatedAsyncioTestCase):
         result: KnowledgeFusionResult = await self.engine.fuse_knowledge(
             tenant_id=self.tenant_id,
             tier_code="PRO",
-            simulated_knowledge_nodes=simulated_nodes,
+            knowledge_nodes_override=simulated_nodes,
         )
 
         self.assertEqual(result.active_fused_count, 1)
@@ -142,7 +142,7 @@ class TestKnowledgeFusionEngine(unittest.IsolatedAsyncioTestCase):
         starter_res = await self.engine.fuse_knowledge(
             tenant_id=self.tenant_id,
             tier_code="STARTER",
-            simulated_knowledge_nodes=nodes,
+            knowledge_nodes_override=nodes,
         )
         self.assertEqual(starter_res.active_fused_count, 0)
         self.assertFalse(starter_res.has_external_erp_dimension)
@@ -151,7 +151,7 @@ class TestKnowledgeFusionEngine(unittest.IsolatedAsyncioTestCase):
         enterprise_res = await self.engine.fuse_knowledge(
             tenant_id=self.tenant_id,
             tier_code="ENTERPRISE",
-            simulated_knowledge_nodes=nodes,
+            knowledge_nodes_override=nodes,
         )
         self.assertEqual(enterprise_res.active_fused_count, 1)
         self.assertTrue(enterprise_res.has_external_erp_dimension)

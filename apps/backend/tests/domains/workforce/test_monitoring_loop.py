@@ -49,7 +49,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
             tenant_id=self.tenant_id,
             task_id=task_id,
             requested_by="operator_human",
-            simulated_source_record=simulated_record
+            source_record_override=simulated_record
         )
 
         # DoD: Wajib ditolak
@@ -85,7 +85,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
         result: SourceVerificationResult = await self.monitoring_engine.verify_task_against_source(
             tenant_id=self.tenant_id,
             task_id=task_id,
-            simulated_source_record=simulated_record
+            source_record_override=simulated_record
         )
 
         # DoD: Wajib terverifikasi selesai dengan bukti sumber
@@ -117,7 +117,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
         unverified_res = await self.monitoring_engine.verify_task_against_source(
             tenant_id=self.tenant_id,
             task_id=task_id,
-            simulated_source_record={
+            source_record_override={
                 "_rule": rule,
                 "product_id": product_id,
                 "quantity_available": 45,
@@ -130,7 +130,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
         verified_res = await self.monitoring_engine.verify_task_against_source(
             tenant_id=self.tenant_id,
             task_id=task_id,
-            simulated_source_record={
+            source_record_override={
                 "_rule": rule,
                 "product_id": product_id,
                 "quantity_available": 120,
@@ -173,7 +173,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
             tenant_id=self.tenant_id,
             task_id=task_plan.id,
             requested_by="human_manager",
-            simulated_source_record={
+            source_record_override={
                 "_rule": rule_dict,
                 "id": lead_id,
                 "status": "DISCUSSING",  # Belum QUALIFIED/CLOSED_WON
@@ -186,7 +186,7 @@ class TestWorkforceMonitoringLoop(unittest.IsolatedAsyncioTestCase):
         legitimate_completion = await self.monitoring_engine.verify_task_against_source(
             tenant_id=self.tenant_id,
             task_id=task_plan.id,
-            simulated_source_record={
+            source_record_override={
                 "_rule": rule_dict,
                 "id": lead_id,
                 "status": "CLOSED_WON",  # Terbukti selesai di SSOT

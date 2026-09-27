@@ -479,8 +479,11 @@ print("XSS_AND_PROMPT_INJECTION_DEFENSE_OK")
   // Step 2: CI Perimeter Guard Verification
   let ciPerimeterGuardPassed = true;
   try {
-    const ciOutput = execSync('node scripts/ci-content-gate.js', { encoding: 'utf-8' });
-    ciPerimeterGuardPassed = ciOutput.includes('CI Content Gate PASSED');
+    const perimeterOutput = execSync('node scripts/ci-perimeter-isolation.js', { encoding: 'utf-8' });
+    const contentOutput = execSync('node scripts/ci-content-gate.js', { encoding: 'utf-8' });
+    ciPerimeterGuardPassed =
+      perimeterOutput.includes('CI Perimeter Isolation PASSED') &&
+      contentOutput.includes('CI Content Gate PASSED');
   } catch (err: any) {
     ciPerimeterGuardPassed = false;
   }

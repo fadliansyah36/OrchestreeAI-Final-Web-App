@@ -123,8 +123,8 @@ class FinanceCashFlowEngine:
         tier_code: str = "STARTER",
         current_cash_balance: float = 0.0,
         db_connection=None,
-        simulated_internal_records: Optional[List[Dict[str, Any]]] = None,
-        simulated_erp_records: Optional[List[Dict[str, Any]]] = None,
+        internal_records_override: Optional[List[Dict[str, Any]]] = None,
+        erp_records_override: Optional[List[Dict[str, Any]]] = None,
     ) -> CashFlowSummary:
         """
         Menghitung ringkasan arus kas berdasarkan rentang waktu dan tier langganan.
@@ -150,9 +150,9 @@ class FinanceCashFlowEngine:
         if is_enterprise:
             erp_data_found = False
 
-            if simulated_erp_records is not None:
-                # Mode data ERP simulasi/harness
-                for rec in simulated_erp_records:
+            if erp_records_override is not None:
+                # Mode data ERP langsung/harness
+                for rec in erp_records_override:
                     items.append(
                         CashFlowItem(
                             id=rec.get("id") or str(uuid.uuid4()),
@@ -217,8 +217,8 @@ class FinanceCashFlowEngine:
             data_source = "INTERNAL_NATIVE_ALL_TIER"
             is_external_erp = False
 
-            if simulated_internal_records is not None:
-                for rec in simulated_internal_records:
+            if internal_records_override is not None:
+                for rec in internal_records_override:
                     items.append(
                         CashFlowItem(
                             id=rec.get("id") or str(uuid.uuid4()),

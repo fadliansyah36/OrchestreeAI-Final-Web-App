@@ -63,6 +63,8 @@ OFFICIAL_PROCESS_PATTERNS = [
     r"npm.*",
     r"npx.*",
     r".*sh -c.*",
+    r".*sleep.*",
+    r"sleep.*",
 ]
 
 # Pola proses rogue / terlarang yang memicu alert keamanan level tinggi

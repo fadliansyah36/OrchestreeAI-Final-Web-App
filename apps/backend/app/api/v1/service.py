@@ -254,11 +254,15 @@ async def list_abandoned_carts_endpoint(
             {"tenant_id": tenant_id}
         )
         sql = """
-            SELECT c.id, c.tenant_id, c.customer_id, c.status, c.total_amount, c.updated_at, c.created_at,
+            SELECT c.id, c.tenant_id, c.customer_id, c.status,
+                   COALESCE(SUM(ci.quantity * ci.unit_price), 0.0) as total_amount,
+                   c.updated_at, c.created_at,
                    cust.primary_name as customer_name, cust.primary_phone as customer_phone
             FROM carts c
             LEFT JOIN customers cust ON c.customer_id = cust.id
+            LEFT JOIN cart_items ci ON c.id = ci.cart_id
             WHERE c.tenant_id = :tenant_id AND c.status = 'ACTIVE' AND c.updated_at < now() - interval '30 minutes'
+            GROUP BY c.id, cust.primary_name, cust.primary_phone
             ORDER BY c.updated_at DESC LIMIT 50;
         """
         try:

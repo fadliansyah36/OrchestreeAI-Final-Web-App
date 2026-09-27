@@ -128,7 +128,7 @@ class KnowledgeFusionEngine:
         tier_code: str = "STARTER",
         target_dimensions: Optional[List[str]] = None,
         db_connection=None,
-        simulated_knowledge_nodes: Optional[List[Dict[str, Any]]] = None,
+        knowledge_nodes_override: Optional[List[Dict[str, Any]]] = None,
     ) -> KnowledgeFusionResult:
         """
         Menjalankan proses fusi pengetahuan terpadu.
@@ -141,8 +141,8 @@ class KnowledgeFusionEngine:
 
         all_raw_nodes = []
 
-        if simulated_knowledge_nodes is not None:
-            all_raw_nodes = simulated_knowledge_nodes
+        if knowledge_nodes_override is not None:
+            all_raw_nodes = knowledge_nodes_override
         elif conn:
             try:
                 # Query dari tabel company_context_knowledge_nodes

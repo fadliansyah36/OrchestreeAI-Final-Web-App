@@ -188,7 +188,7 @@ def create_sample_data_points(tenant_id: str, report_id: str):
             period_start=p_start,
             period_end=p_end,
             source_table="ai_agents",
-            source_query="SELECT COUNT(*) FROM ai_agents WHERE tenant_id = $1 AND status = 'ACTIVE'",
+            source_query="SELECT COUNT(*) FROM ai_agents WHERE tenant_id = $1 AND status = 'active'",
             source_dimension="ORGANIZATIONAL_STRUCTURE",
             sensitivity_level="INTERNAL",
         ),
