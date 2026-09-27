@@ -5,6 +5,7 @@ Langkah yang belum dibangun di fase inisiasi mengembalikan status 'not_implement
 secara jujur dan transparan, bukan 'true' palsu.
 """
 
+import time
 from typing import List, Literal, Optional
 from pydantic import BaseModel
 from app.core.config import settings
@@ -42,7 +43,15 @@ class StartupGate:
         "YOUR_API_KEY", "YOUR_TOKEN", "example", "secret"
     }
 
-    def evaluate_all(self) -> StartupGateReport:
+    _cached_report: Optional[StartupGateReport] = None
+    _last_eval_time: float = 0.0
+    _cache_ttl_seconds: float = 10.0
+
+    def evaluate_all(self, force_refresh: bool = False) -> StartupGateReport:
+        now = time.time()
+        if not force_refresh and self._cached_report is not None and (now - self._last_eval_time < self._cache_ttl_seconds):
+            return self._cached_report
+
         checks: List[StartupCheckResult] = [
             self.check_step_1_env_schema(),
             self.check_step_2_db_connection(),
@@ -72,7 +81,7 @@ class StartupGate:
         # dan step wajib lingkungan (step 1) passed.
         overall_passed = (failed == 0 and checks[0].status == "passed")
 
-        return StartupGateReport(
+        report = StartupGateReport(
             overall_passed=overall_passed,
             total_steps=len(checks),
             passed_steps=passed,
@@ -80,6 +89,9 @@ class StartupGate:
             not_implemented_steps=not_impl,
             checks=checks
         )
+        self._cached_report = report
+        self._last_eval_time = time.time()
+        return report
 
     def check_step_1_env_schema(self) -> StartupCheckResult:
         """Langkah 1: Skema Env (wajib ada, format valid, bukan nilai asal)."""

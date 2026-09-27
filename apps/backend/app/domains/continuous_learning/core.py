@@ -200,6 +200,12 @@ class ContinuousLearningEngine:
 
         outcome_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
+        valid_agent_id = None
+        if agent_id:
+            try:
+                valid_agent_id = str(uuid.UUID(str(agent_id)))
+            except (ValueError, AttributeError):
+                valid_agent_id = None
 
         with self.engine.begin() as conn:
             # Set session tenant_id untuk RLS
@@ -225,7 +231,7 @@ class ContinuousLearningEngine:
                 {
                     "id": outcome_id,
                     "tenant_id": tenant_id,
-                    "agent_id": agent_id,
+                    "agent_id": valid_agent_id,
                     "wf_exec_id": workflow_execution_id,
                     "node_run_id": node_run_id,
                     "node_key": node_key,
@@ -257,7 +263,7 @@ class ContinuousLearningEngine:
                       AND (skill_name = :skill_key OR skill_key = :skill_key)
                     FOR UPDATE
                 """),
-                {"tenant_id": tenant_id, "agent_id": agent_id, "skill_key": skill_key}
+                {"tenant_id": tenant_id, "agent_id": valid_agent_id, "skill_key": skill_key}
             ).fetchone()
 
             if row:
@@ -291,7 +297,7 @@ class ContinuousLearningEngine:
                             {
                                 "id": str(uuid.uuid4()),
                                 "tenant_id": tenant_id,
-                                "agent_id": agent_id,
+                                "agent_id": valid_agent_id,
                                 "skill_name": skill_key,
                                 "skill_key": skill_key,
                                 "prev_conf": current_conf,
@@ -344,7 +350,7 @@ class ContinuousLearningEngine:
                 """),
                 {
                     "tenant_id": tenant_id,
-                    "agent_id": agent_id,
+                    "agent_id": valid_agent_id,
                     "skill_name": skill_key,
                     "skill_key": skill_key,
                     "conf": new_conf,
@@ -370,7 +376,7 @@ class ContinuousLearningEngine:
                 """),
                 {
                     "tenant_id": tenant_id,
-                    "agent_id": agent_id,
+                    "agent_id": valid_agent_id,
                     "skill_name": skill_key,
                     "skill_key": skill_key,
                     "prev_conf": prev_conf,

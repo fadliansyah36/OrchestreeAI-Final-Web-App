@@ -2,6 +2,7 @@
 Health & Startup Gate Endpoints (PRD v2.2 Bagian 15.3 & Bagian 18.2.10)
 """
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Response, status
@@ -25,7 +26,7 @@ async def health_live():
 @router.get("/health/ready", dependencies=[Depends(public_endpoint("health.ready"))])
 async def health_ready(response: Response):
     """Kesiapan layanan menerima beban trafik (readiness probe - Fail-Closed)."""
-    report = startup_gate.evaluate_all()
+    report = await asyncio.to_thread(startup_gate.evaluate_all)
     db_check = next((c for c in report.checks if c.step_number == 2), None)
     db_status = db_check.status if db_check else "failed"
     is_ready = report.overall_passed and db_status == "passed"
@@ -46,5 +47,5 @@ async def health_ready(response: Response):
 @router.get("/health/startup", response_model=StartupGateReport, dependencies=[Depends(public_endpoint("health.startup"))])
 async def health_startup():
     """Hasil pemeriksaan komprehensif 18 langkah Fail-Closed Startup Gate."""
-    return startup_gate.evaluate_all()
+    return await asyncio.to_thread(startup_gate.evaluate_all)
 
