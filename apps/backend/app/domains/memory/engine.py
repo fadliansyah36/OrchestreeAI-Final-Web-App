@@ -77,7 +77,7 @@ class HybridMemoryEngine:
         """
         # Evaluasi otorisasi PDP
         if subject:
-            pdp_decision = await authorize(
+            pdp_decision = authorize(
                 subject=subject,
                 resource=ResourceContext(
                     tenant_id=tenant_id,
@@ -348,7 +348,7 @@ class HybridMemoryEngine:
         verified_results: List[MemorySearchResult] = []
         for cand in sorted_candidates:
             if subject:
-                pdp_eval = await authorize(
+                pdp_eval = authorize(
                     subject=subject,
                     resource=ResourceContext(
                         tenant_id=tenant_id,

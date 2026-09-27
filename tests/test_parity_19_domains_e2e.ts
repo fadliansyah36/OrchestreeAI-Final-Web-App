@@ -32,7 +32,7 @@ const AUTH_HEADERS: Record<string, string> = {
   'X-User-Role': 'TENANT_OWNER',
   'X-User-Roles': 'TENANT_OWNER,TENANT_ADMIN',
   'X-User-Capabilities':
-    'workflow.dispatch,workflow.node.execute,mcp.tool.invoke,tasks.board.manage,tasks.assigned.view,attendance.clock,proactive.messages.manage,proactive.collaboration.manage,tenant.context.view,crm.leads.manage,onboarding.persona.participate',
+    'workflow.dispatch,workflow.node.execute,mcp.tool.invoke,tasks.board.manage,tasks.assigned.view,attendance.clock,proactive.messages.manage,proactive.collaboration.manage,tenant.context.view,crm.leads.manage,onboarding.persona.participate,learning.reflections.manage,learning.outcome.view,learning.confidence.view,learning.lesson.view,memory.search,memory.documents.read,memory.documents.create,enterprise.capabilities.access,intelligence.competitor.view,intelligence.data_quality.view,commerce.catalog.view,marketing.campaigns.manage,service.requests.manage,generative.studio.manage,selection.hub.manage,integrations.connections.manage,abac.policies.manage,omnichannel.channels.manage,omnichannel.inbox.manage,data.read',
   'X-MFA-Verified': 'true',
 };
 
@@ -375,20 +375,20 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 9: CONTINUOUS LEARNING & VECTOR MEMORY
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 9] Continuous Learning & Episodic Memory ---');
-    const d9Modules = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/learning/modules`, AUTH_HEADERS);
-    const d9Skills = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/learning/skills`, AUTH_HEADERS);
-    const d9Memory = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/memory/stats`, AUTH_HEADERS);
-    const d9Passed = d9Modules.status === 200 && d9Skills.status === 200 && d9Memory.status === 200;
+    const d9Confidence = await apiRequest('GET', `/api/v1/learning/confidence?tenant_id=${TENANT_ID}`, AUTH_HEADERS);
+    const d9Outcomes = await apiRequest('GET', `/api/v1/learning/outcomes?tenant_id=${TENANT_ID}`, AUTH_HEADERS);
+    const d9Memory = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/memory/documents`, AUTH_HEADERS);
+    const d9Passed = d9Confidence.status === 200 && d9Outcomes.status === 200 && d9Memory.status === 200;
     results.push({
       domainIndex: 9,
       domainName: 'Continuous Learning & Memory',
       workflowName: 'Cognitive growth inspection & Vector memory statistics',
       status: d9Passed ? 'PASS' : 'FAIL',
-      httpStatus: d9Modules.status,
+      httpStatus: d9Confidence.status,
       dbVerified: true,
-      detail: `Learning modules: ${d9Modules.body?.modules?.length || d9Modules.body?.data?.length || 0}`,
+      detail: `Outcomes: ${d9Outcomes.body?.length || 0}, Confidences: ${d9Confidence.body?.length || 0}, Memory docs: ${d9Memory.body?.length || 0}`,
     });
-    console.log(`  ${d9Passed ? '✓' : '✗'} Status: ${d9Passed ? 'PASS' : 'FAIL'}`);
+    console.log(`  ${d9Passed ? '✓' : '✗'} Status: ${d9Passed ? 'PASS' : 'FAIL'} (Outcomes: ${d9Outcomes.body?.length || 0}, Docs: ${d9Memory.body?.length || 0})`);
 
     // --------------------------------------------------------------------------
     // DOMAIN 10: CRM & CUSTOMER PIPELINE
@@ -396,15 +396,15 @@ export async function run19DomainParityAndWorkflowVerification() {
     console.log('\n--- [DOMAIN 10] CRM & Customer Pipeline ---');
     const leadEmail = `lead_${Date.now().toString().slice(-4)}@customer.com`;
     const d10CreateLead = await apiRequest('POST', `/api/v1/tenants/${TENANT_ID}/crm/leads`, AUTH_HEADERS, {
-      full_name: 'Lead Uji E2E',
-      email: leadEmail,
-      phone: '+6281234567890',
+      title: 'Lead Uji E2E',
+      contact_name: 'Lead Uji E2E',
+      contact_email: leadEmail,
+      contact_phone: '+6281234567890',
       company_name: 'PT Mitra Sukses',
-      estimated_value: 25000000,
-      stage: 'QUALIFICATION',
+      deal_value: 25000000,
     });
     const d10Leads = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/crm/leads`, AUTH_HEADERS);
-    const d10DbLead = await client.query('SELECT id, full_name, email FROM leads WHERE tenant_id = $1 AND email = $2;', [TENANT_ID, leadEmail]);
+    const d10DbLead = await client.query('SELECT id, contact_name, contact_email FROM leads WHERE tenant_id = $1 AND contact_email = $2;', [TENANT_ID, leadEmail]);
     const d10DbFound = d10DbLead.rows.length > 0;
     const d10Passed = (d10CreateLead.status === 200 || d10CreateLead.status === 201) && d10DbFound;
     results.push({
@@ -416,7 +416,7 @@ export async function run19DomainParityAndWorkflowVerification() {
       dbVerified: d10DbFound,
       detail: `Created Lead ID: ${d10DbLead.rows[0]?.id}, email: ${leadEmail}`,
     });
-    console.log(`  ${d10Passed ? '✓' : '✗'} Status: ${d10Passed ? 'PASS' : 'FAIL'} (DB Lead: ${d10DbLead.rows[0]?.full_name})`);
+    console.log(`  ${d10Passed ? '✓' : '✗'} Status: ${d10Passed ? 'PASS' : 'FAIL'} (DB Lead: ${d10DbLead.rows[0]?.contact_name})`);
 
     // Clean up created lead
     if (d10DbFound) {
@@ -445,7 +445,7 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 12: INTELLIGENCE & DATA QUALITY
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 12] Competitive Intelligence & Data Quality Center ---');
-    const d12Competitors = await apiRequest('GET', '/api/v1/intelligence/competitors', AUTH_HEADERS);
+    const d12Competitors = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/competitor/targets`, AUTH_HEADERS);
     const d12Issues = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/intelligence/data-quality/issues`, AUTH_HEADERS);
     const d12Passed = d12Competitors.status === 200 && d12Issues.status === 200;
     results.push({
@@ -455,7 +455,7 @@ export async function run19DomainParityAndWorkflowVerification() {
       status: d12Passed ? 'PASS' : 'FAIL',
       httpStatus: d12Competitors.status,
       dbVerified: true,
-      detail: `Competitors: ${d12Competitors.body?.competitors?.length || d12Competitors.body?.data?.length || 0}`,
+      detail: `Targets: ${d12Competitors.body?.length || 0}, Issues: ${d12Issues.body?.issues?.length || 0}`,
     });
     console.log(`  ${d12Passed ? '✓' : '✗'} Status: ${d12Passed ? 'PASS' : 'FAIL'}`);
 
@@ -463,8 +463,8 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 13: COMMERCE & CATALOG
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 13] Commerce Catalog & Order Management ---');
-    const d13Products = await apiRequest('GET', '/api/v1/commerce/products', AUTH_HEADERS);
-    const d13Orders = await apiRequest('GET', '/api/v1/commerce/orders', AUTH_HEADERS);
+    const d13Products = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/commerce/products`, AUTH_HEADERS);
+    const d13Orders = await apiRequest('GET', `/api/v1/commerce/orders?tenant_id=${TENANT_ID}`, AUTH_HEADERS);
     const d13Passed = d13Products.status === 200 && d13Orders.status === 200;
     results.push({
       domainIndex: 13,
@@ -473,7 +473,7 @@ export async function run19DomainParityAndWorkflowVerification() {
       status: d13Passed ? 'PASS' : 'FAIL',
       httpStatus: d13Products.status,
       dbVerified: true,
-      detail: `Products count: ${d13Products.body?.products?.length || d13Products.body?.data?.length || 0}`,
+      detail: `Products count: ${d13Products.body?.products?.length || d13Products.body?.length || 0}`,
     });
     console.log(`  ${d13Passed ? '✓' : '✗'} Status: ${d13Passed ? 'PASS' : 'FAIL'}`);
 
@@ -481,7 +481,7 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 14: MARKETING & CAMPAIGNS
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 14] Marketing Campaigns & Calendar ---');
-    const d14Campaigns = await apiRequest('GET', '/api/v1/marketing/campaigns', AUTH_HEADERS);
+    const d14Campaigns = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/marketing/campaigns`, AUTH_HEADERS);
     const d14Calendar = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/marketing/calendar`, AUTH_HEADERS);
     const d14Passed = d14Campaigns.status === 200 && d14Calendar.status === 200;
     results.push({
@@ -535,10 +535,10 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 17: GENERATIVE STUDIO & TEMPLATE LIBRARY
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 17] Generative Studio & Template Curator ---');
-    const d17Assets = await apiRequest('GET', '/api/v1/generative/assets', AUTH_HEADERS);
+    const d17Artifacts = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/generative/artifacts`, AUTH_HEADERS);
     const d17Templates = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/generative/prompt-templates`, AUTH_HEADERS);
     const d17Styles = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/generative/prompt-styles`, AUTH_HEADERS);
-    const d17Passed = d17Assets.status === 200 && d17Templates.status === 200 && d17Styles.status === 200;
+    const d17Passed = d17Artifacts.status === 200 && d17Templates.status === 200 && d17Styles.status === 200;
     results.push({
       domainIndex: 17,
       domainName: 'Generative Studio',
@@ -593,9 +593,19 @@ export async function run19DomainParityAndWorkflowVerification() {
     // DOMAIN 19: INTEGRATIONS FABRIC & ABAC DATA PERMISSION MATRIX
     // --------------------------------------------------------------------------
     console.log('\n--- [DOMAIN 19] Integrations Fabric & ABAC Data Permissions ---');
-    const d19Integrations = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/integrations`, AUTH_HEADERS);
+    const d19Integrations = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/integrations/connections`, AUTH_HEADERS);
     const d19Permissions = await apiRequest('GET', `/api/v1/tenants/${TENANT_ID}/permissions/matrix`, AUTH_HEADERS);
     const d19Passed = d19Integrations.status === 200 && d19Permissions.status === 200;
+    results.push({
+      domainIndex: 19,
+      domainName: 'Integrations & ABAC',
+      workflowName: '3P connectors configuration & ABAC data permission matrix',
+      status: d19Passed ? 'PASS' : 'FAIL',
+      httpStatus: d19Permissions.status,
+      dbVerified: true,
+      detail: `Connections: ${d19Integrations.body?.connections?.length || 0}, Matrix rows: ${d19Permissions.body?.personas?.length || 0}`,
+    });
+    console.log(`  ${d19Passed ? '✓' : '✗'} Status: ${d19Passed ? 'PASS' : 'FAIL'}`);
     results.push({
       domainIndex: 19,
       domainName: 'Integrations & ABAC',

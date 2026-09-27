@@ -70,7 +70,7 @@ async def search_tenant_memory(
     )
 
     # Validasi awal kapabilitas memori
-    pdp_decision = await authorize(
+    pdp_decision = authorize(
         subject=subject,
         resource=ResourceContext(
             tenant_id=tenant_id,
@@ -121,7 +121,7 @@ async def search_tenant_memory_post(
         is_mfa_verified=is_mfa,
     )
 
-    pdp_decision = await authorize(
+    pdp_decision = authorize(
         subject=subject,
         resource=ResourceContext(
             tenant_id=tenant_id,
@@ -155,7 +155,7 @@ async def list_tenant_memory_documents(
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     limit: int = Query(50, ge=1, le=200),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header("STAFF_AI,EMPLOYEE,ADMIN,MANAGER", alias="X-User-Roles"),
+    x_user_roles: Optional[str] = Header("EMPLOYEE,ADMIN,MANAGER", alias="X-User-Roles"),
     x_user_capabilities: Optional[str] = Header("memory.documents.read,data.read", alias="X-User-Capabilities"),
     x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
 ):
@@ -174,7 +174,7 @@ async def list_tenant_memory_documents(
         is_mfa_verified=is_mfa,
     )
 
-    pdp_decision = await authorize(
+    pdp_decision = authorize(
         subject=subject,
         resource=ResourceContext(
             tenant_id=tenant_id,
@@ -316,7 +316,7 @@ async def consolidate_tenant_memory(
         is_mfa_verified=is_mfa,
     )
 
-    pdp_decision = await authorize(
+    pdp_decision = authorize(
         subject=subject,
         resource=ResourceContext(tenant_id=tenant_id, resource_type="memory", resource_id="consolidate"),
         action="memory.decay.consolidate",
