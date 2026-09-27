@@ -82,14 +82,15 @@ export const CollaborationSetupScreen: React.FC<CollaborationSetupScreenProps> =
     setLoading(true);
     setErrorMsg(null);
     try {
-      const q = membershipId ? `?membership_id=${membershipId}` : '';
+      const queryStr = membershipId ? `?membership_id=${encodeURIComponent(membershipId)}` : '';
       const headers: Record<string, string> = {};
       if (membershipId) {
         headers['x-membership-id'] = membershipId;
       }
 
       // 1. Fetch eligible agents
-      const agentRes = await fetch(`/api/v1/tenants/${tenantId}/proactive/eligible-agents${q}`, { headers });
+      const agentUrl = `/api/v1/tenants/${tenantId}/proactive/eligible-agents` + queryStr;
+      const agentRes = await fetch(agentUrl, { headers });
       if (agentRes.status === 400) {
         const errData = await agentRes.json();
         if (errData.detail && errData.detail.includes('Eksekutif')) {
@@ -106,7 +107,8 @@ export const CollaborationSetupScreen: React.FC<CollaborationSetupScreenProps> =
       setEligibleAgents(agentJson.data || []);
 
       // 2. Fetch active collaborations
-      const collabRes = await fetch(`/api/v1/tenants/${tenantId}/proactive/collaborations${q}`, { headers });
+      const collabUrl = `/api/v1/tenants/${tenantId}/proactive/collaborations` + queryStr;
+      const collabRes = await fetch(collabUrl, { headers });
       if (collabRes.ok) {
         const collabJson = await collabRes.json();
         setActiveCollabs(collabJson.data || []);
