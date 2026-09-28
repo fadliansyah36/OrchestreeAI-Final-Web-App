@@ -17,11 +17,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SUPABASE_URL || process.env?.VITE_SUPABASE_URL)) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : '') || '';
-const SUPABASE_ANON_KEY = (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY)) || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_ANON_KEY : '') || '';
-const supabase = createClient(SUPABASE_URL || 'https://supabase.co', SUPABASE_ANON_KEY || 'public-anon-key');
 
 export type AuthModalMode = 'login' | 'register_tenant' | 'join_staff';
 
@@ -73,6 +68,8 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
   const [displayName, setDisplayName] = useState('');
   const [ownerFullName, setOwnerFullName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [ownerPasswordConfirmation, setOwnerPasswordConfirmation] = useState('');
   const [selectedPlanCode, setSelectedPlanCode] = useState(initialPlanCode);
   const [plans, setPlans] = useState<SubscriptionPlanOption[]>([]);
 
@@ -162,37 +159,37 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
         throw new Error('Email dan kata sandi wajib diisi.');
       }
 
-      // Otentikasi langsung menggunakan Supabase Auth Client
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const loginResponse = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
       });
-
-      if (error) {
-        throw new Error(error.message || 'Kredensial login tidak valid.');
+      const loginData = await loginResponse.json();
+      if (!loginResponse.ok) {
+        throw new Error(loginData.detail || 'Kredensial login tidak valid.');
       }
 
-      if (!data.user) {
-        throw new Error('Pengguna tidak ditemukan dalam sistem otentikasi.');
+      const sessionResponse = await fetch('/api/v1/auth/session', {
+        credentials: 'include',
+      });
+      const sessionData = await sessionResponse.json();
+      if (!sessionResponse.ok) {
+        throw new Error(sessionData.detail || 'Akun belum memiliki membership tenant aktif.');
       }
 
-      const userMeta = data.user.user_metadata || {};
       const tenantPayload: TenantRegistrationResponse = {
-        tenant_id: userMeta.tenant_id || data.user.id,
-        legal_name: userMeta.legal_name || 'Organisasi Terdaftar',
-        display_name: userMeta.display_name || userMeta.full_name || email.split('@')[0],
+        tenant_id: sessionData.tenant_id,
+        legal_name: 'Organisasi Terdaftar',
+        display_name: sessionData.tenant_id,
         status: 'active',
-        membership_id: crypto.randomUUID(),
-        role: userMeta.role || (loginSubRole === 'owner' ? 'TENANT_OWNER' : 'TENANT_MEMBER'),
-        owner_full_name: userMeta.full_name || email,
+        membership_id: sessionData.user_id,
+        role: sessionData.roles?.[0] || 'STAFF_HUMAN',
+        owner_full_name: email,
         created_at: new Date().toISOString(),
       };
 
-      localStorage.setItem('orchestree_active_tenant', JSON.stringify(tenantPayload));
-      if (data.session?.access_token) {
-        localStorage.setItem('orchestree_auth_token', data.session.access_token);
-      }
-      setSuccessMessage(`Selamat datang kembali, ${tenantPayload.owner_full_name}!`);
+      setSuccessMessage(`Selamat datang kembali, ${email}!`);
 
       setTimeout(() => {
         onSuccess(tenantPayload);
@@ -208,8 +205,8 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
   // 2. Submit Register Tenant Handler
   const handleRegisterTenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!legalName.trim() || !displayName.trim() || !ownerFullName.trim()) {
-      setErrorMessage('Nama legal perusahaan, nama tampilan, dan nama pimpinan wajib diisi.');
+    if (!legalName.trim() || !displayName.trim() || !ownerFullName.trim() || !ownerEmail.trim() || !ownerPassword) {
+      setErrorMessage('Nama legal perusahaan, nama tampilan, email, dan kata sandi wajib diisi.');
       return;
     }
 
@@ -217,16 +214,33 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const generatedOwnerId = crypto.randomUUID();
+        try {
+      if (ownerPassword !== ownerPasswordConfirmation) {
+        throw new Error('Konfirmasi kata sandi tidak cocok.');
+      }
 
-    try {
+      const signupResponse = await fetch('/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: ownerEmail.trim(), password: ownerPassword }),
+      });
+      const signupData = await signupResponse.json();
+      if (!signupResponse.ok) {
+        throw new Error(signupData.detail || 'Pembuatan akun gagal.');
+      }
+      if (!signupData.authenticated) {
+        setSuccessMessage(signupData.message || 'Akun dibuat. Verifikasi email terlebih dahulu, lalu masuk untuk melanjutkan registrasi perusahaan.');
+        return;
+      }
+
       const res = await fetch('/api/v1/onboarding/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           legal_name: legalName.trim(),
           display_name: displayName.trim(),
-          owner_auth_user_id: generatedOwnerId,
           owner_full_name: ownerFullName.trim(),
           plan_code: selectedPlanCode || 'FREE_TRIAL',
         }),
@@ -237,7 +251,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
         throw new Error(data.error || 'Pendaftaran perusahaan gagal diproses.');
       }
 
-      localStorage.setItem('orchestree_active_tenant', JSON.stringify(data));
       setSuccessMessage(`Perusahaan ${data.display_name} berhasil didaftarkan di Supabase!`);
 
       setTimeout(() => {
@@ -263,8 +276,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const generatedUserId = crypto.randomUUID();
-
     try {
       const res = await fetch('/api/v1/onboarding/join', {
         method: 'POST',
@@ -273,7 +284,6 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
           company_code: staffCompanyCode.trim().toUpperCase(),
           full_name: staffFullName.trim(),
           email: staffEmail.trim(),
-          auth_user_id: generatedUserId,
         }),
       });
 
@@ -293,13 +303,11 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
           legal_name: codeVerification.companyName || 'Organisasi Terdaftar',
           display_name: codeVerification.companyName || 'Organisasi',
           status: 'pending_approval',
-          membership_id: data.queue_id || generatedUserId,
+          membership_id: data.queue_id || crypto.randomUUID(),
           role: 'TENANT_MEMBER',
           owner_full_name: staffFullName.trim(),
           created_at: new Date().toISOString(),
         };
-
-        localStorage.setItem('orchestree_active_tenant', JSON.stringify(staffPayload));
 
         setTimeout(() => {
           onSuccess(staffPayload);
