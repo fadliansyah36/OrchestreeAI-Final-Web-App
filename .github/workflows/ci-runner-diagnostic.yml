@@ -1,4 +1,5 @@
 name: CI Runner Diagnostic
+run-name: Runner Diagnostic — Public Repo
 
 on:
   workflow_dispatch:
