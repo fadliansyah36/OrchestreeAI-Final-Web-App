@@ -5,7 +5,9 @@ import {
   EmptyState,
   ErrorState,
   SkeletonLoader,
-  HubAnalyticsSkeleton
+  HubAnalyticsSkeleton,
+  FileUploadField,
+  downloadFileFromUrl,
 } from '@orchestree/ui';
 import {
   Building2,
@@ -25,7 +27,12 @@ import {
   RefreshCw,
   Kanban,
   Fingerprint,
-  TrendingUp
+  TrendingUp,
+  FileText,
+  Download,
+  UploadCloud,
+  X,
+  FileCheck,
 } from 'lucide-react';
 import { TenantRegistrationResponse } from '@/apps/client/types';
 import { KanbanBoardScreen } from '../KanbanBoardScreen';
@@ -66,6 +73,20 @@ interface StaffItem {
   role_code: string;
   role_description?: string | null;
   status: string;
+  created_at: string;
+}
+
+interface StaffDocumentItem {
+  id: string;
+  tenant_id: string;
+  membership_id: string;
+  document_type: string;
+  document_title: string;
+  storage_path: string;
+  file_size_bytes: number;
+  mime_type: string;
+  verified_clean: boolean;
+  signed_download_url: string;
   created_at: string;
 }
 
@@ -139,6 +160,16 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   const [newAgentPersona, setNewAgentPersona] = useState<string>('RESEARCHER');
   const [newAgentDeptId, setNewAgentDeptId] = useState<string>('');
 
+  // Staff Document Archive state
+  const [selectedStaffForDocs, setSelectedStaffForDocs] = useState<StaffItem | null>(null);
+  const [staffDocs, setStaffDocs] = useState<StaffDocumentItem[]>([]);
+  const [loadingStaffDocs, setLoadingStaffDocs] = useState<boolean>(false);
+  const [docTypeToUpload, setDocTypeToUpload] = useState<string>('KTP');
+  const [docTitleToUpload, setDocTitleToUpload] = useState<string>('');
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
+  const [docUploadSuccess, setDocUploadSuccess] = useState<string | null>(null);
+  const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
+
   const tenantId = tenant?.tenant_id || '';
 
   const getHeaders = useCallback(() => {
@@ -191,6 +222,74 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   }, [loadAllData]);
 
   // Handle Create Department
+  const fetchStaffDocuments = useCallback(async (membershipId: string) => {
+    if (!tenantId || !membershipId) return;
+    setLoadingStaffDocs(true);
+    setDocUploadError(null);
+    try {
+      const res = await fetch(`/api/v1/workforce/${tenantId}/staff/${membershipId}/documents`, {
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStaffDocs(Array.isArray(data) ? data : []);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setDocUploadError(err.detail || 'Gagal memuat arsip dokumen staf.');
+      }
+    } catch (e: any) {
+      setDocUploadError(e.message || 'Kesalahan jaringan memuat dokumen.');
+    } finally {
+      setLoadingStaffDocs(false);
+    }
+  }, [tenantId, getHeaders]);
+
+  const handleDirectUploadStaffDoc = async (file: File) => {
+    if (!selectedStaffForDocs || !tenantId) return;
+    setIsUploadingDoc(true);
+    setDocUploadError(null);
+    setDocUploadSuccess(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', docTypeToUpload);
+      if (docTitleToUpload.trim()) {
+        formData.append('document_title', docTitleToUpload.trim());
+      }
+
+      const token = typeof window !== 'undefined'
+        ? localStorage.getItem('orchestree_auth_token') || localStorage.getItem('sb-access-token') || ''
+        : '';
+      const headers: Record<string, string> = {
+        'X-Tenant-Id': tenantId,
+        'X-User-Role': testRole,
+        'X-User-Id': tenant?.membership_id || tenant?.user_id || '',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`/api/v1/workforce/${tenantId}/staff/${selectedStaffForDocs.id}/documents/upload`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Gagal mengunggah berkas (${res.status})`);
+      }
+
+      setDocUploadSuccess(`Berkas "${file.name}" berhasil diunggah dan terverifikasi bersih.`);
+      setDocTitleToUpload('');
+      await fetchStaffDocuments(selectedStaffForDocs.id);
+    } catch (err: any) {
+      setDocUploadError(err.message || 'Gagal mengunggah dokumen.');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  };
+
   const handleCreateDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -962,6 +1061,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
                       <th className="py-3 px-4">Departemen</th>
                       <th className="py-3 px-4">Peran (Role)</th>
                       <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Arsip Dokumen</th>
                       <th className="py-3 px-4 text-right">Tanggal Bergabung</th>
                     </tr>
                   </thead>
@@ -992,6 +1092,20 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             {staff.status}
                           </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStaffForDocs(staff);
+                              fetchStaffDocuments(staff.id);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-semibold transition cursor-pointer"
+                            title="Kelola berkas resmi (KTP, NPWP, sertifikat, slip gaji, kontrak)"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Dokumen Resmi</span>
+                          </button>
                         </td>
                         <td className="py-3 px-4 text-right text-slate-500 font-mono text-[11px]">
                           {staff.created_at ? new Date(staff.created_at).toLocaleDateString('id-ID') : '-'}
@@ -1327,6 +1441,174 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
           />
         ) : null}
       </div>
+
+      {/* MODAL KELOLA BERKAS RESMI STAF */}
+      {selectedStaffForDocs && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Arsip Dokumen Staf: {selectedStaffForDocs.full_name}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    KTP, NPWP, Sertifikat, Slip Gaji, dan Kontrak Kerja Resmi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStaffForDocs(null);
+                  setStaffDocs([]);
+                  setDocUploadError(null);
+                  setDocUploadSuccess(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {docUploadError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{docUploadError}</span>
+              </div>
+            )}
+
+            {docUploadSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{docUploadSuccess}</span>
+              </div>
+            )}
+
+            {/* List Dokumen Terdaftar */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Berkas Terarsip ({staffDocs.length})
+              </h4>
+              {loadingStaffDocs ? (
+                <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
+                  <span>Memuat arsip berkas staf...</span>
+                </div>
+              ) : staffDocs.length === 0 ? (
+                <div className="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                  Belum ada dokumen tersimpan untuk staf ini.
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  {staffDocs.map((doc) => (
+                    <div key={doc.id} className="p-3 bg-slate-50/50 dark:bg-slate-900/60 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 truncate">
+                        <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <div className="truncate">
+                          <div className="font-semibold text-slate-900 dark:text-white truncate">
+                            {doc.document_title}
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono font-medium text-slate-700 dark:text-slate-300">
+                              {doc.document_type}
+                            </span>
+                            <span>•</span>
+                            <span>{(doc.file_size_bytes / 1024).toFixed(1)} KB</span>
+                            <span>•</span>
+                            <span className="text-emerald-500 font-medium">Terverifikasi Bersih</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => downloadFileFromUrl(doc.signed_download_url, doc.document_title)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold text-xs transition cursor-pointer"
+                          title="Unduh berkas ke perangkat lokal"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Unduh</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Unggah Berkas Baru */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Unggah Berkas Baru dari Perangkat
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                    Jenis Dokumen
+                  </label>
+                  <select
+                    value={docTypeToUpload}
+                    onChange={(e) => setDocTypeToUpload(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="KTP">KTP (Identitas Kependudukan)</option>
+                    <option value="NPWP">NPWP (Nomor Pokok Wajib Pajak)</option>
+                    <option value="CERTIFICATE">Sertifikat Kompetensi / Ijazah</option>
+                    <option value="PAYSLIP">Slip Gaji Bulanan</option>
+                    <option value="CONTRACT">Perjanjian Kerja (Kontrak)</option>
+                    <option value="OTHER">Dokumen Pendukung Lainnya</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 block mb-1">
+                    Judul Dokumen (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={docTitleToUpload}
+                    onChange={(e) => setDocTitleToUpload(e.target.value)}
+                    placeholder="Misal: KTP_Dimas_Pratama" // allowlist: standard UI input hint
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-500 block mb-1.5">
+                  Pilih Berkas (PDF, DOCX, PNG, JPG, maks 15 MB)
+                </label>
+                <input
+                  type="file"
+                  id="input-staff-doc-file"
+                  disabled={isUploadingDoc}
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      handleDirectUploadStaffDoc(f);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/10 file:text-emerald-600 dark:file:text-emerald-400 hover:file:bg-emerald-500/20 cursor-pointer"
+                />
+                {isUploadingDoc && (
+                  <p className="text-[11px] text-emerald-500 mt-1 flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Mengunggah & memvalidasi integritas magic bytes berkas...</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -617,6 +617,140 @@ async def list_invoices(
     return await get_invoices(effective_tenant)
 
 
+@router.get("/invoices/{invoice_number}/download", dependencies=[Depends(require_capability("billing.invoices.view"))])
+async def download_invoice(
+    invoice_number: str,
+    tenant_id: Optional[str] = Query(None),
+    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
+):
+    """
+    Mengunduh berkas faktur / kuitansi resmi dengan header
+    Content-Disposition: attachment untuk pengunduhan file nyata ke perangkat.
+    """
+    effective_tenant = tenant_id or x_tenant_id
+    if not effective_tenant:
+        raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
+
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        inv = conn.execute(
+            sa.text("""
+                SELECT id, invoice_number, amount, currency, status, payment_gateway,
+                       payment_reference, items, created_at, paid_at
+                FROM invoices
+                WHERE invoice_number = :inv AND tenant_id = :t
+            """),
+            {"inv": invoice_number, "t": effective_tenant}
+        ).mappings().first()
+
+        if not inv:
+            raise HTTPException(status_code=404, detail="Faktur tagihan tidak ditemukan.")
+
+        # Catat audit log unduhan
+        try:
+            conn.execute(
+                sa.text("""
+                    INSERT INTO audit_logs (tenant_id, actor_type, action, resource_type, resource_id, payload_after)
+                    VALUES (:t, 'system', 'invoice.downloaded', 'invoices', :id, :payload)
+                """),
+                {
+                    "t": effective_tenant,
+                    "id": str(inv["id"]),
+                    "payload": json.dumps({"invoice_number": invoice_number, "amount": inv["amount"]})
+                }
+            )
+            conn.commit()
+        except Exception:
+            pass
+
+        items_html = ""
+        items_data = inv.get("items") or [{"name": f"Kredit AI Topup ({invoice_number})", "price": inv["amount"], "quantity": 1}]
+        if isinstance(items_data, str):
+            try:
+                items_data = json.loads(items_data)
+            except Exception:
+                items_data = [{"name": "Topup AI Credits", "price": inv["amount"], "quantity": 1}]
+
+        for item in items_data:
+            price_val = item.get("price", 0)
+            items_html += f"<tr><td style='padding:8px;border-bottom:1px solid #e2e8f0;'>{item.get('name', 'Item')}</td><td style='padding:8px;border-bottom:1px solid #e2e8f0;text-align:center;'>{item.get('quantity', 1)}</td><td style='padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;'>Rp {price_val:,}</td></tr>"
+
+        status_style = 'background: #dcfce7; color: #15803d;' if inv['status'] == 'paid' else 'background: #fef3c7; color: #b45309;'
+        doc_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FAKTUR PEMBAYARAN RESMI - {inv['invoice_number']}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; margin: 40px; }}
+.header {{ display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 20px; }}
+.title {{ font-size: 24px; font-weight: bold; color: #0f172a; }}
+.badge {{ display: inline-block; padding: 4px 12px; border-radius: 9999px; font-weight: bold; text-transform: uppercase; font-size: 12px; {status_style} }}
+.details {{ margin: 30px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px; }}
+table {{ width: 100%; border-collapse: collapse; margin: 30px 0; font-size: 14px; }}
+th {{ background: #f8fafc; padding: 10px; text-align: left; border-bottom: 2px solid #cbd5e1; }}
+.total {{ text-align: right; font-size: 18px; font-weight: bold; margin-top: 20px; }}
+.footer {{ margin-top: 60px; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15px; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="title">ORCHESTREE AI PLATFORM</div>
+    <div style="color: #64748b; font-size: 13px;">Faktur & Kuitansi Transaksi Sah</div>
+  </div>
+  <div style="text-align: right;">
+    <div class="badge">{inv['status']}</div>
+    <div style="font-family: monospace; font-size: 14px; margin-top: 5px;">{inv['invoice_number']}</div>
+  </div>
+</div>
+
+<div class="details">
+  <div>
+    <strong>Organisasi / Tenant:</strong> {effective_tenant}<br>
+    <strong>Metode Pembayaran:</strong> {inv['payment_gateway'].upper()}<br>
+    <strong>Referensi Gateway:</strong> {inv.get('payment_reference') or '-'}<br>
+  </div>
+  <div style="text-align: right;">
+    <strong>Tanggal Terbit:</strong> {str(inv['created_at'])[:19]}<br>
+    <strong>Tanggal Lunas:</strong> {str(inv.get('paid_at') or '-')[:19]}<br>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Deskripsi Layanan</th>
+      <th style="text-align:center;">Kuantitas</th>
+      <th style="text-align:right;">Total Nominal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {items_html}
+  </tbody>
+</table>
+
+<div class="total">
+  Total Pembayaran: Rp {inv['amount']:,} {inv['currency']}
+</div>
+
+<div class="footer">
+  Dokumen ini diterbitkan secara otomatis dan sah oleh sistem OrchestreeAI Autonomous Enterprise. Simpan dokumen ini sebagai bukti transaksi resmi.
+</div>
+</body>
+</html>"""
+
+        clean_fn = f"Faktur_{invoice_number}.html"
+        return Response(
+            content=doc_html,
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="{clean_fn}"',
+                "Content-Type": "text/html; charset=utf-8",
+            }
+        )
+
+
 @router.post("/topup", response_model=TopUpResponse, dependencies=[Depends(require_capability("billing.invoices.manage"))])
 async def create_topup_invoice(
     payload: TopUpRequest,

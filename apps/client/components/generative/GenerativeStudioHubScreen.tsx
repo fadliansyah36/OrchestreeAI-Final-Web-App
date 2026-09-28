@@ -24,7 +24,9 @@ import {
   Copy,
   ExternalLink,
   BookOpen,
+  UploadCloud,
 } from 'lucide-react';
+import { FileUploadField, downloadFileFromUrl, UploadedFileArtifact } from '@orchestree/ui';
 import { CreditEstimateConfirm } from '../billing/CreditEstimateConfirm';
 import { PromptTemplateLibraryScreen, AtomicPromptTemplate } from './PromptTemplateLibraryScreen';
 
@@ -137,6 +139,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
   const [selectedBrandLockId, setSelectedBrandLockId] = useState<string>('');
   const [forceFailForTest, setForceFailForTest] = useState<boolean>(false);
   const [showEstimateConfirm, setShowEstimateConfirm] = useState<boolean>(false);
+  const [uploadedReferenceImage, setUploadedReferenceImage] = useState<UploadedFileArtifact | null>(null);
 
   // Selected job modal / detail
   const [selectedJob, setSelectedJob] = useState<GenerativeJob | null>(null);
@@ -527,6 +530,41 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   onChange={(e) => setNegativePrompt(e.target.value)}
                   placeholder="blurry, distorted, artifacts, bad lighting..." // allowlist: standard UI input hint
                   className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
+                />
+              </div>
+
+              {/* Referensi Citra / Aset Acuan dari Perangkat */}
+              <div className="p-4 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    Referensi Gambar / Brand Asset Acuan (File Picker Lokal)
+                  </span>
+                  {uploadedReferenceImage && (
+                    <button
+                      type="button"
+                      onClick={() => setUploadedReferenceImage(null)}
+                      className="text-[11px] text-rose-400 hover:text-rose-300"
+                    >
+                      Hapus Acuan
+                    </button>
+                  )}
+                </div>
+                <FileUploadField
+                  tenantId={tenantId}
+                  category="brand_references"
+                  bucket="artifacts"
+                  accept=".png,.jpg,.jpeg,.webp"
+                  maxSizeMB={10}
+                  label="Pilih Berkas Acuan dari Perangkat"
+                  description="Seret atau pilih gambar acuan gaya / aset logo produk (PNG, JPG, maks 10 MB)"
+                  onUploadComplete={(artifacts) => {
+                    if (artifacts.length > 0) {
+                      setUploadedReferenceImage(artifacts[0]);
+                      setSuccessMsg(`Aset acuan "${artifacts[0].file_name}" berhasil diunggah.`);
+                    }
+                  }}
+                  onError={(err) => setErrorMsg(err)}
                 />
               </div>
 
@@ -1012,15 +1050,15 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                     </div>
 
                     <div className="p-4 bg-slate-900/60 border-t border-slate-800/80 flex items-center gap-2">
-                      <a
-                        href={art.public_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                      <button
+                        type="button"
+                        onClick={() => downloadFileFromUrl(art.public_url, art.file_name || 'karya_generatif.png')}
+                        className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                        title="Unduh berkas gambar langsung ke perangkat lokal"
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Unduh Berkas</span>
-                      </a>
+                      </button>
                       <button
                         onClick={() => {
                           setSuccessMsg(`Berkas "${art.file_name}" dijadwalkan ke Kalender Konten Pemasaran.`);

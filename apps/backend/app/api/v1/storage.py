@@ -173,12 +173,72 @@ async def generate_signed_download_url(
     }
 
 
+@router.get("/download-artifact/{artifact_id}", dependencies=[Depends(require_capability("storage.download"))])
+async def get_artifact_download_url(
+    artifact_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+    expires_seconds: int = Query(300, ge=60, le=1800),
+):
+    """
+    Menghasilkan Signed Download URL berumur pendek untuk file artifact terdaftar.
+    Terikat PDP authorization & isolasi tenant RLS.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("""
+                SELECT id, tenant_id, file_name, storage_path, mime_type
+                FROM file_artifacts
+                WHERE id = :id
+            """),
+            {"id": artifact_id}
+        ).mappings().first()
+
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Artifact {artifact_id} tidak ditemukan.",
+            )
+
+        if str(row["tenant_id"]) != context.tenant_id and context.app_scope != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akses ditolak: File artifact milik organisasi lain.",
+            )
+
+        storage_path = row["storage_path"]
+        bucket = "documents" if "documents" in storage_path else "artifacts"
+        # Hilangkan awalan bucket jika sudah ada di storage_path
+        clean_path = storage_path
+        if clean_path.startswith(f"{bucket}/"):
+            clean_path = clean_path[len(f"{bucket}/"):]
+
+        expires_ts = int(time.time() + expires_seconds)
+        token = generate_signed_storage_token(bucket, clean_path, expires_ts)
+        file_name = row["file_name"] or Path(clean_path).name
+        import urllib.parse
+        encoded_fn = urllib.parse.quote(file_name)
+        signed_download_url = (
+            f"/api/v1/storage/signed-download/{bucket}/{clean_path}?token={token}&expires={expires_ts}&filename={encoded_fn}"
+        )
+
+        return {
+            "status": "success",
+            "artifact_id": artifact_id,
+            "file_name": file_name,
+            "signed_download_url": signed_download_url,
+            "expires_at": expires_ts,
+            "expires_in_seconds": expires_seconds,
+        }
+
+
 @router.get("/signed-download/{bucket}/{file_path:path}", dependencies=[Depends(public_endpoint("storage.signed_download"))])
 async def signed_download_file(
     bucket: str,
     file_path: str,
     token: Optional[str] = Query(None),
     expires: Optional[float] = Query(None),
+    filename: Optional[str] = Query(None),
     authorization: Optional[str] = None,
 ):
     """
@@ -206,9 +266,10 @@ async def signed_download_file(
             detail=f"Berkas '{file_path}' pada bucket '{bucket}' tidak ditemukan.",
         )
 
+    download_name = filename or target_path.name
     return FileResponse(
         path=str(target_path),
-        filename=target_path.name,
+        filename=download_name,
         content_disposition_type="attachment",
     )
 

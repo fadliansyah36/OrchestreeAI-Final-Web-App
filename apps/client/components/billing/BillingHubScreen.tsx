@@ -15,7 +15,9 @@ import {
   Clock,
   Layers,
   Search,
+  Download,
 } from 'lucide-react';
+import { downloadFileFromUrl } from '@orchestree/ui';
 import { CreditWalletScreen, WalletSummary } from './CreditWalletScreen';
 import { TopUpScreen, TopUpPackage } from './TopUpScreen';
 import { PlanFacilitiesScreen, SubscriptionPlan } from './PlanFacilitiesScreen';
@@ -669,6 +671,24 @@ export function BillingHubScreen({
                           {new Date(inv.created_at).toLocaleString('id-ID')}
                         </td>
                         <td className="py-3 px-4 text-right space-x-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await downloadFileFromUrl(
+                                  `/api/v1/billing/invoices/${inv.invoice_number}/download?tenant_id=${tenantId}`,
+                                  `Faktur_${inv.invoice_number}.html`
+                                );
+                              } catch (e: any) {
+                                alert('Gagal mengunduh faktur: ' + (e.message || 'Kesalahan jaringan'));
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-semibold transition cursor-pointer"
+                            title="Unduh Berkas Faktur Resmi"
+                          >
+                            <Download className="w-3 h-3 text-emerald-400" />
+                            <span>Unduh Faktur</span>
+                          </button>
                           {inv.payment_url && (
                             <a
                               href={inv.payment_url}

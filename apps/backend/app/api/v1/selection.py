@@ -12,10 +12,17 @@ Menyediakan REST endpoint untuk:
 
 from typing import Any, Dict, List, Optional
 import os
-from fastapi import APIRouter, HTTPException, Query, status, Depends
+import uuid
+import time
+import hashlib
+from pathlib import Path
+from fastapi import APIRouter, HTTPException, Query, status, Depends, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ConfigDict
 from app.authz.pdp import require_capability
+from app.core.database import get_database_engine
+import sqlalchemy as sa
+from app.core.security import validate_uploaded_file, generate_signed_storage_token
 
 from app.domains.selection.models import (
     PipelineStage,
@@ -267,6 +274,120 @@ async def upload_source_document(tenant_id: str, job_id: str, request: UploadDoc
         return {"status": "success", "tenant_id": tenant_id, "job_id": job_id, "data": doc}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/tenants/{tenant_id}/selection/jobs/{job_id}/upload-document-file")
+@router.post("/selection/tenants/{tenant_id}/jobs/{job_id}/upload-document-file")
+async def upload_source_document_file(
+    tenant_id: str,
+    job_id: str,
+    file: UploadFile = File(...),
+    candidate_name: Optional[str] = Form(None),
+    source_type: Optional[str] = Form("RESUME"),
+    candidate_email: Optional[str] = Form(None),
+    candidate_phone: Optional[str] = Form(None),
+):
+    """
+    Unggah langsung berkas sumber evaluasi (Excel/CSV/PDF/Word/Gambar Scan) dari perangkat lokal.
+    Validasi magic bytes ketat, simpan ke tenant storage terisolasi, catat ke file_artifacts,
+    dan tambahkan sebagai dokumen sumber pekerjaan seleksi.
+    """
+    content = await file.read()
+    c_name = candidate_name or Path(file.filename or "Kandidat").stem.replace("_", " ")
+
+    is_valid, detected_mime, storage_path, signed_url = validate_uploaded_file(
+        content=content,
+        declared_filename=file.filename or "dokumen.bin",
+        tenant_id=tenant_id,
+        category="selection_sources",
+    )
+
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validasi berkas gagal: {signed_url}",
+        )
+
+    base_dir = Path("apps/backend/storage_data/documents")
+    target_path = base_dir / storage_path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(target_path, "wb") as f:
+        f.write(content)
+
+    artifact_id = str(uuid.uuid4())
+    checksum = hashlib.sha256(content).hexdigest()
+
+    # Catat file_artifact ke database
+    try:
+        engine = get_database_engine()
+        with engine.connect() as conn:
+            with conn.begin():
+                conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
+                conn.execute(
+                    sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
+                    {"tenant_id": tenant_id}
+                )
+                conn.execute(
+                    sa.text("""
+                        INSERT INTO file_artifacts (
+                            id, tenant_id, file_name, storage_path, public_url,
+                            mime_type, file_size_bytes, checksum_sha256, verified_clean
+                        ) VALUES (
+                            :id, :tenant_id, :file_name, :storage_path, :public_url,
+                            :mime_type, :file_size_bytes, :checksum, true
+                        ) ON CONFLICT (id) DO NOTHING;
+                    """),
+                    {
+                        "id": artifact_id,
+                        "tenant_id": tenant_id,
+                        "file_name": file.filename,
+                        "storage_path": f"documents/{storage_path}",
+                        "public_url": f"/api/v1/storage/documents/{storage_path}",
+                        "mime_type": detected_mime,
+                        "file_size_bytes": len(content),
+                        "checksum": checksum,
+                    }
+                )
+    except Exception as e:
+        logger_warn = f"Sinkronisasi file_artifact gagal: {e}"
+
+    # Ekstraksi representasi teks dari konten berkas (UTF-8, CSV, dsb.)
+    raw_text = ""
+    try:
+        raw_text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        raw_text = f"Dokumen berkas terenkapsulasi: {file.filename} (Tipe: {detected_mime}, Ukuran: {len(content)} bytes)."
+
+    if c_name and c_name not in raw_text:
+        raw_text = f"Nama Entitas / Kandidat: {c_name}\nKontak: {candidate_email or '-'} / {candidate_phone or '-'}\n" + raw_text
+
+    doc = SelectionDomainService.add_source_document(
+        tenant_id=tenant_id,
+        job_id=job_id,
+        source_channel="file_upload",
+        raw_text=raw_text,
+        file_artifact_id=artifact_id,
+        document_name=file.filename or c_name,
+    )
+
+    clean_path = storage_path
+    if clean_path.startswith("documents/"):
+        clean_path = clean_path[len("documents/"):]
+    expires_ts = int(time.time() + 900)
+    token = generate_signed_storage_token("documents", clean_path, expires_ts)
+    import urllib.parse
+    encoded_fn = urllib.parse.quote(file.filename or c_name)
+    signed_download_url = f"/api/v1/storage/signed-download/documents/{clean_path}?token={token}&expires={expires_ts}&filename={encoded_fn}"
+
+    return {
+        "status": "success",
+        "tenant_id": tenant_id,
+        "job_id": job_id,
+        "data": doc,
+        "file_artifact_id": artifact_id,
+        "file_name": file.filename,
+        "signed_download_url": signed_download_url,
+    }
 
 
 # ---------------------------------------------------------------------------

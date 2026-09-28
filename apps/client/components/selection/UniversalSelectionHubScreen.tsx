@@ -32,7 +32,10 @@ import {
   ArrowLeft,
   History,
   Zap,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { downloadFileFromUrl } from '@orchestree/ui';
 import { SelectionAnalyticsScreen } from './SelectionAnalyticsScreen';
 import { SelectionInsightPanel } from './SelectionInsightPanel';
 import { SelectionResultScreen, SelectionScoringResultItem } from './SelectionResultScreen';
@@ -191,6 +194,7 @@ export function UniversalSelectionHubScreen({
   const [docName, setDocName] = useState('');
   const [docSourceType, setDocSourceType] = useState('RESUME');
   const [docRawContent, setDocRawContent] = useState('');
+  const [docFile, setDocFile] = useState<File | null>(null);
 
   // Continuous Calibration form
   const [calNotes, setCalNotes] = useState('');
@@ -491,41 +495,106 @@ export function UniversalSelectionHubScreen({
 
   const handleUploadDocument = async () => {
     if (!currentJob) return;
-    if (!docCandidateName.trim() || !docName.trim()) {
-      showFeedback('Nama kandidat dan nama berkas wajib diisi.', 'error');
+    if (!docCandidateName.trim()) {
+      showFeedback('Nama kandidat wajib diisi.', 'error');
       return;
     }
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/documents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          document_name: docName,
-          candidate_name: docCandidateName,
-          source_type: docSourceType,
-          candidate_email: docCandidateEmail,
-          candidate_phone: docCandidatePhone,
-          raw_text: docRawContent || `Kandidat ${docCandidateName} memiliki kualifikasi relevan pada ${docName}.`
-        })
-      });
+      if (docFile) {
+        const formData = new FormData();
+        formData.append('file', docFile);
+        formData.append('candidate_name', docCandidateName);
+        formData.append('source_type', docSourceType);
+        if (docCandidateEmail) formData.append('candidate_email', docCandidateEmail);
+        if (docCandidatePhone) formData.append('candidate_phone', docCandidatePhone);
 
-      if (res.ok) {
-        showFeedback(`Berkas ${docName} berhasil diunggah & atribut terstruktur diekstraksi.`);
-        setShowUploadModal(false);
-        setDocCandidateName('');
-        setDocCandidateEmail('');
-        setDocCandidatePhone('');
-        setDocName('');
-        setDocRawContent('');
-        await fetchJobDetail(currentJob.id);
+        const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/upload-document-file`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          showFeedback(`Berkas "${docFile.name}" berhasil diunggah dengan validasi magic bytes.`);
+          setShowUploadModal(false);
+          setDocCandidateName('');
+          setDocCandidateEmail('');
+          setDocCandidatePhone('');
+          setDocName('');
+          setDocRawContent('');
+          setDocFile(null);
+          await fetchJobDetail(currentJob.id);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          showFeedback(err.detail || err.error || 'Gagal mengunggah berkas.', 'error');
+        }
       } else {
-        const err = await res.json();
-        showFeedback(err.error || err.detail || 'Gagal mengunggah berkas.', 'error');
+        if (!docName.trim()) {
+          showFeedback('Nama berkas wajib diisi.', 'error');
+          return;
+        }
+        const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/documents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            document_name: docName,
+            candidate_name: docCandidateName,
+            source_type: docSourceType,
+            candidate_email: docCandidateEmail,
+            candidate_phone: docCandidatePhone,
+            raw_text: docRawContent || `Kandidat ${docCandidateName} memiliki kualifikasi relevan pada ${docName}.`
+          })
+        });
+
+        if (res.ok) {
+          showFeedback(`Berkas ${docName} berhasil dicatat & atribut diekstraksi.`);
+          setShowUploadModal(false);
+          setDocCandidateName('');
+          setDocCandidateEmail('');
+          setDocCandidatePhone('');
+          setDocName('');
+          setDocRawContent('');
+          await fetchJobDetail(currentJob.id);
+        } else {
+          const err = await res.json();
+          showFeedback(err.error || err.detail || 'Gagal mengunggah berkas.', 'error');
+        }
       }
     } catch (err: any) {
       showFeedback(err.message, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleExportReport = async (format: 'pdf' | 'excel' | 'csv') => {
+    if (!currentJob) return;
+    try {
+      setActionLoading(true);
+      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          format,
+          report_type: 'detailed_selection',
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Gagal mengekspor laporan.');
+      }
+
+      const json = await res.json();
+      const fn = json.data?.file_name || `Laporan_Seleksi_${currentJob.id}.${format === 'excel' ? 'xlsx' : format}`;
+      await downloadFileFromUrl(
+        `/api/v1/tenants/${tenantId}/selection/reports/download?filename=${encodeURIComponent(fn)}`,
+        fn
+      );
+      showFeedback(`Laporan format ${format.toUpperCase()} berhasil diunduh ke penyimpanan lokal.`);
+    } catch (err: any) {
+      showFeedback(err.message || 'Gagal mengunduh laporan.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -1122,13 +1191,45 @@ export function UniversalSelectionHubScreen({
                 Dukungan resume, berkas tender, portofolio, dan evaluasi berkas dengan ekstraksi fitur terstruktur LLM.
               </p>
             </div>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold flex items-center gap-2 transition"
-            >
-              <Plus className="w-4 h-4" />
-              Unggah Dokumen Baru
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleExportReport('pdf')}
+                disabled={actionLoading}
+                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Unduh laporan evaluasi seleksi format PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-rose-400" />
+                <span>Unduh PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportReport('excel')}
+                disabled={actionLoading}
+                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Unduh laporan spreadsheet Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Unduh Excel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportReport('csv')}
+                disabled={actionLoading}
+                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Unduh data tabular CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-sky-400" />
+                <span>Unduh CSV</span>
+              </button>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-2 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Unggah Dokumen Baru</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1516,8 +1617,36 @@ export function UniversalSelectionHubScreen({
       {showUploadModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-bold text-white">Unggah Berkas Sumber Kandidat</h3>
+            <h3 className="text-base font-bold text-white">Unggah Berkas Sumber Seleksi</h3>
             <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">
+                  Pilih Berkas dari Perangkat (PDF, DOCX, CSV, Excel, TXT - maks 15 MB)
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.png,.jpg"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setDocFile(f);
+                      if (!docName) setDocName(f.name);
+                      if (!docCandidateName) {
+                        const guessedName = f.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
+                        setDocCandidateName(guessedName);
+                      }
+                    }
+                  }}
+                  className="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                />
+                {docFile && (
+                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>Berkas dipilih: <strong>{docFile.name}</strong> ({(docFile.size / 1024).toFixed(1)} KB). Validasi magic bytes otomatis saat dikirim.</span>
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Nama Kandidat / Vendor</label>
                 <input
@@ -1530,7 +1659,7 @@ export function UniversalSelectionHubScreen({
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Nama Berkas</label>
+                <label className="text-xs text-slate-400 block mb-1">Judul / Keterangan Berkas</label>
                 <input
                   type="text"
                   value={docName}
