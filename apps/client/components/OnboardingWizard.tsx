@@ -104,7 +104,7 @@ export function OnboardingWizard({
   const [hrQueue, setHrQueue] = useState<HRApprovalItem[]>([]);
   const [members, setMembers] = useState<TenantMemberItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // Check initial active tenant
@@ -603,12 +603,16 @@ export function OnboardingWizard({
           className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs md:text-sm ${
             feedbackMessage.type === 'success'
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : feedbackMessage.type === 'info'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
               : 'bg-red-500/10 border-red-500/30 text-red-400'
           }`}
         >
           <div className="flex items-center gap-2">
             {feedbackMessage.type === 'success' ? (
               <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+            ) : feedbackMessage.type === 'info' ? (
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-400" />
             ) : (
               <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
             )}

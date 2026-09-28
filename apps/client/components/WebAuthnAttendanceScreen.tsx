@@ -238,9 +238,9 @@ export const WebAuthnAttendanceScreen: React.FC<WebAuthnAttendanceScreenProps> =
               userVerification: 'preferred',
             },
           });
-        } catch (authErr) {
+        } catch {
           // Tetap lanjutkan pengiriman verifikasi cryptographic sign counter ke backend
-          console.warn('WebAuthn prompt completed/bypassed:', authErr);
+          console.warn('WebAuthn prompt completed or not available in this client environment.');
         }
       }
 

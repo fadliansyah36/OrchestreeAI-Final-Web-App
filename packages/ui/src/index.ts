@@ -9,4 +9,5 @@ export * from './feedback/PWAInstallButton';
 export * from './feedback/AiSafetyNoticeBanner';
 export * from './feedback/BackendUnavailableScreen';
 export * from './feedback/BackendConnectivityGate';
+export * from './feedback/FileUploadField';
 export * from './i18n';

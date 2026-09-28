@@ -47,6 +47,10 @@ from app.skills.f01_scrape.tools import register_scrape_tools
 
 import os
 import sqlalchemy as sa
+from app.core.logging_redactor import setup_redacting_logger
+
+# Initialize centralized redacting logger for security & compliance (PRD v2.2 Bagian 10.4 & 14.3)
+setup_redacting_logger()
 
 is_production = (
     getattr(settings, "APP_ENV", "local").lower() in ("production", "prod")
@@ -58,9 +62,9 @@ app = FastAPI(
     title="OrchestreeAI API",
     version="2.2.0",
     description="Autonomous AI Workforce Operating System API",
-    openapi_url="/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    openapi_url=None if is_production else "/openapi.json",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
 )
 
 logger = logging.getLogger("uvicorn.error")

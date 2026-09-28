@@ -50,6 +50,7 @@ ALLOWED_SPECIFIC_PUBLIC = {
     "/api/v1/billing/activity-types",
     "/api/v1/billing/factors",
     "/api/v1/storage/{bucket}/{file_path}",
+    "/api/v1/storage/signed-download/{bucket}/{file_path}",
 }
 
 def is_allowed_public(path: str) -> bool:

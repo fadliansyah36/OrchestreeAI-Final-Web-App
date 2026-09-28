@@ -375,6 +375,8 @@ def validate_uploaded_file(
     # Deteksi magic bytes yang sah
     mime = "application/octet-stream"
     ext = "bin"
+    decl_lower = declared_filename.lower() if declared_filename else ""
+
     if content.startswith(b"%PDF-"):
         mime = "application/pdf"
         ext = "pdf"
@@ -387,10 +389,24 @@ def validate_uploaded_file(
     elif len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP":
         mime = "image/webp"
         ext = "webp"
+    elif content.startswith(b"PK\x03\x04"):
+        # ZIP container: OpenXML formats (Excel .xlsx, Word .docx) or generic zip
+        if decl_lower.endswith(".xlsx"):
+            mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ext = "xlsx"
+        elif decl_lower.endswith(".docx"):
+            mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ext = "docx"
+        else:
+            mime = "application/zip"
+            ext = "zip"
     else:
         try:
             content.decode("utf-8")
-            if content.strip().startswith(b"{") or content.strip().startswith(b"["):
+            if decl_lower.endswith(".csv"):
+                mime = "text/csv"
+                ext = "csv"
+            elif content.strip().startswith(b"{") or content.strip().startswith(b"["):
                 mime = "application/json"
                 ext = "json"
             else:
