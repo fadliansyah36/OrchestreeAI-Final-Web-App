@@ -149,6 +149,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
   const [showBrandLockModal, setShowBrandLockModal] = useState(false);
   const [brandForm, setBrandForm] = useState({
     brand_name: '',
+    logo_url: '',
     primary_color: '#1FA35A',
     secondary_color: '#0B1220',
     accent_color: '#38BDF8',
@@ -1052,9 +1053,26 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                     <div className="p-4 bg-slate-900/60 border-t border-slate-800/80 flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => downloadFileFromUrl(art.public_url, art.file_name || 'karya_generatif.png')}
+                        onClick={async () => {
+                          try {
+                            let targetUrl = art.public_url;
+                            const token = localStorage.getItem('orchestree_auth_token') || localStorage.getItem('sb-access-token') || '';
+                            const signRes = await fetch(`/api/v1/storage/download-artifact/${art.id}?expires_seconds=300`, {
+                              headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            });
+                            if (signRes.ok) {
+                              const signData = await signRes.json();
+                              if (signData.signed_download_url) {
+                                targetUrl = signData.signed_download_url;
+                              }
+                            }
+                            await downloadFileFromUrl(targetUrl, art.file_name || 'karya_generatif.png');
+                          } catch {
+                            await downloadFileFromUrl(art.public_url, art.file_name || 'karya_generatif.png');
+                          }
+                        }}
                         className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                        title="Unduh berkas gambar langsung ke perangkat lokal"
+                        title="Unduh berkas gambar langsung ke perangkat lokal (Signed URL)"
                       >
                         <Download className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Unduh Berkas</span>
@@ -1322,6 +1340,29 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   placeholder="e.g. Nusantara Digital" // allowlist: standard UI input hint
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+
+              <div>
+                <FileUploadField
+                  tenantId={tenantId}
+                  bucket="avatars"
+                  category="brand_logos"
+                  accept=".png,.svg,.webp"
+                  maxSizeMB={5}
+                  label="Logo Brand Resmi (File Picker Lokal)"
+                  description="Pilih berkas logo transparan (PNG, SVG, maks 5 MB) dari perangkat"
+                  onUploadComplete={(artifacts) => {
+                    if (artifacts.length > 0) {
+                      setBrandForm((prev) => ({ ...prev, logo_url: artifacts[0].public_url }));
+                    }
+                  }}
+                />
+                {brandForm.logo_url && (
+                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Logo berhasil tersimpan di sistem penyimpanan terisolasi.</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-3">

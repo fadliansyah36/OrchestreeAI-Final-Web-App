@@ -33,6 +33,9 @@ export interface FileUploadFieldProps {
   bucket?: 'documents' | 'avatars' | 'artifacts';
   category?: string;
   tenantId?: string;
+  uploadUrl?: string;
+  extraFormData?: Record<string, string>;
+  extraHeaders?: Record<string, string>;
   disabled?: boolean;
   className?: string;
   onUploadComplete?: (artifacts: UploadedFileArtifact[]) => void;
@@ -58,6 +61,9 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
   bucket = 'documents',
   category = 'attachments',
   tenantId,
+  uploadUrl,
+  extraFormData,
+  extraHeaders,
   disabled = false,
   className = '',
   onUploadComplete,
@@ -133,12 +139,17 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
         if (tenantId) {
           formData.append('tenant_id', tenantId);
         }
+        if (extraFormData) {
+          Object.entries(extraFormData).forEach(([key, val]) => {
+            formData.append(key, val);
+          });
+        }
 
         const token = typeof window !== 'undefined'
           ? localStorage.getItem('orchestree_auth_token') || localStorage.getItem('sb-access-token') || ''
           : '';
 
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = { ...(extraHeaders || {}) };
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -148,7 +159,8 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
           prev.map((it) => (it.id === item.id ? { ...it, progress: 40 } : it))
         );
 
-        const response = await fetch('/api/v1/storage/upload', {
+        const targetUrl = uploadUrl || '/api/v1/storage/upload';
+        const response = await fetch(targetUrl, {
           method: 'POST',
           headers,
           body: formData,
@@ -161,13 +173,13 @@ export const FileUploadField: React.FC<FileUploadFieldProps> = ({
 
         const result = await response.json();
         const artifact: UploadedFileArtifact = {
-          file_id: result.file_id || result.id || item.id,
-          file_name: result.filename || item.file.name,
-          storage_path: result.storage_path,
-          public_url: result.public_url,
-          signed_url: result.signed_url || result.public_url,
-          content_type: result.content_type || item.file.type,
-          size_bytes: result.size_bytes || item.file.size,
+          file_id: result.file_id || result.id || result.document_id || item.id,
+          file_name: result.filename || result.file_name || result.document_name || item.file.name,
+          storage_path: result.storage_path || result.file_url || '',
+          public_url: result.public_url || result.file_url || '',
+          signed_url: result.signed_url || result.signed_download_url || result.public_url || '',
+          content_type: result.content_type || result.mime_type || item.file.type,
+          size_bytes: result.size_bytes || result.file_size_bytes || item.file.size,
         };
 
         completedArtifacts.push(artifact);

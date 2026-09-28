@@ -27,7 +27,10 @@ import {
   ShoppingCart,
   Send,
   Sliders,
+  Paperclip,
+  Download,
 } from 'lucide-react';
+import { FileUploadField, downloadFileFromUrl, UploadedFileArtifact } from '@orchestree/ui';
 import { HandoverSummaryPanel, HandoverSummaryData } from './HandoverSummaryPanel';
 import { HonestErrorBanner } from './HonestErrorBanner';
 
@@ -43,6 +46,7 @@ export interface ServiceRequestItem {
   customer_name?: string;
   customer_phone?: string;
   intake_channel: string;
+  attachments?: Array<{ id?: string; file_name: string; file_url: string; storage_path?: string; mime_type?: string }>;
   created_at: string;
   resolution_notes?: string;
   approved_by_user_id?: string;
@@ -96,6 +100,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
   const [intakeCustomerName, setIntakeCustomerName] = useState('');
   const [intakeCustomerPhone, setIntakeCustomerPhone] = useState('+628');
   const [intakeChannel, setIntakeChannel] = useState('WHATSAPP');
+  const [intakeAttachments, setIntakeAttachments] = useState<UploadedFileArtifact[]>([]);
 
   // F.01-HUMANIZE-ID Tester State
   const [rawHumanizeInput, setRawHumanizeInput] = useState(
@@ -182,6 +187,14 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
           category_override: intakeCategory,
           amount: Number(intakeAmount) || 0,
           channel: intakeChannel,
+          attachments: intakeAttachments.map((a) => ({
+            id: a.file_id,
+            file_name: a.file_name,
+            storage_path: a.storage_path,
+            file_url: a.signed_url || a.public_url,
+            mime_type: a.content_type,
+            size_bytes: a.size_bytes,
+          })),
         }),
       });
 
@@ -201,6 +214,12 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
             customer_name: intakeCustomerName || 'Pelanggan Terdaftar',
             customer_phone: intakeCustomerPhone,
             intake_channel: intakeChannel,
+            attachments: intakeAttachments.map((a) => ({
+              id: a.file_id,
+              file_name: a.file_name,
+              file_url: a.signed_url || a.public_url,
+              mime_type: a.content_type,
+            })),
             created_at: newTicket.created_at,
           },
           ...prev,
@@ -209,6 +228,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
         setIntakeSubject('');
         setIntakeDescription('');
         setIntakeAmount(0);
+        setIntakeAttachments([]);
       } else {
         const errJson = await res.json().catch(() => ({}));
         setRequestError(errJson.error || 'Gagal menyimpan tiket permohonan ke basis data.');

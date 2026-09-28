@@ -35,7 +35,7 @@ import {
   Download,
   FileSpreadsheet,
 } from 'lucide-react';
-import { downloadFileFromUrl } from '@orchestree/ui';
+import { downloadFileFromUrl, FileUploadField, UploadedFileArtifact } from '@orchestree/ui';
 import { SelectionAnalyticsScreen } from './SelectionAnalyticsScreen';
 import { SelectionInsightPanel } from './SelectionInsightPanel';
 import { SelectionResultScreen, SelectionScoringResultItem } from './SelectionResultScreen';
@@ -1620,31 +1620,36 @@ export function UniversalSelectionHubScreen({
             <h3 className="text-base font-bold text-white">Unggah Berkas Sumber Seleksi</h3>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">
-                  Pilih Berkas dari Perangkat (PDF, DOCX, CSV, Excel, TXT - maks 15 MB)
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.png,.jpg"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setDocFile(f);
-                      if (!docName) setDocName(f.name);
-                      if (!docCandidateName) {
-                        const guessedName = f.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
-                        setDocCandidateName(guessedName);
+                <FileUploadField
+                  tenantId={tenantId}
+                  uploadUrl={currentJob ? `/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/upload-document-file` : undefined}
+                  extraFormData={{
+                    candidate_name: docCandidateName || 'Kandidat Seleksi',
+                    source_type: docSourceType,
+                    candidate_email: docCandidateEmail || '',
+                    candidate_phone: docCandidatePhone || '',
+                  }}
+                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg"
+                  multiple={true}
+                  maxSizeMB={15}
+                  label="Pilih Berkas Multi-Sumber (File Picker Lokal)"
+                  description="Pilih atau seret berkas resume, proposal, atau evaluasi (PDF, Excel, Word, CSV, Gambar)"
+                  onUploadComplete={async (artifacts: UploadedFileArtifact[]) => {
+                    if (artifacts.length > 0) {
+                      showFeedback(`${artifacts.length} berkas berhasil diunggah dengan validasi magic bytes.`);
+                      setShowUploadModal(false);
+                      setDocCandidateName('');
+                      setDocCandidateEmail('');
+                      setDocCandidatePhone('');
+                      setDocName('');
+                      setDocFile(null);
+                      if (currentJob) {
+                        await fetchJobDetail(currentJob.id);
                       }
                     }
                   }}
-                  className="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg p-1.5"
+                  onError={(err: string) => showFeedback(err, 'error')}
                 />
-                {docFile && (
-                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    <span>Berkas dipilih: <strong>{docFile.name}</strong> ({(docFile.size / 1024).toFixed(1)} KB). Validasi magic bytes otomatis saat dikirim.</span>
-                  </p>
-                )}
               </div>
 
               <div>

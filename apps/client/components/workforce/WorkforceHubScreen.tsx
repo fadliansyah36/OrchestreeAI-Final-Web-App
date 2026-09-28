@@ -1581,29 +1581,26 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-500 block mb-1.5">
-                  Pilih Berkas (PDF, DOCX, PNG, JPG, maks 15 MB)
-                </label>
-                <input
-                  type="file"
-                  id="input-staff-doc-file"
-                  disabled={isUploadingDoc}
+                <FileUploadField
+                  tenantId={tenantId}
+                  uploadUrl={`/api/v1/workforce/${tenantId}/staff/${selectedStaffForDocs.id}/documents/upload`}
+                  extraFormData={{
+                    document_type: docTypeToUpload,
+                    document_title: docTitleToUpload || docTypeToUpload,
+                  }}
                   accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      handleDirectUploadStaffDoc(f);
-                      e.target.value = '';
+                  maxSizeMB={15}
+                  label="Pilih Berkas Dokumen Staf (File Picker Lokal)"
+                  description="Seret atau pilih berkas KTP, NPWP, atau sertifikat langsung dari file manager perangkat"
+                  onUploadComplete={async (artifacts) => {
+                    if (artifacts.length > 0) {
+                      setDocUploadSuccess(`Berkas "${artifacts[0].file_name}" berhasil diunggah dan terverifikasi bersih.`);
+                      setDocTitleToUpload('');
+                      await fetchStaffDocuments(selectedStaffForDocs.id);
                     }
                   }}
-                  className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/10 file:text-emerald-600 dark:file:text-emerald-400 hover:file:bg-emerald-500/20 cursor-pointer"
+                  onError={(err) => setDocUploadError(err)}
                 />
-                {isUploadingDoc && (
-                  <p className="text-[11px] text-emerald-500 mt-1 flex items-center gap-1">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    <span>Mengunggah & memvalidasi integritas magic bytes berkas...</span>
-                  </p>
-                )}
               </div>
             </div>
           </div>

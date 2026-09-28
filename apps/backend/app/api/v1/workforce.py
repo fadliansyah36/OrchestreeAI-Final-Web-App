@@ -13,7 +13,7 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import sqlalchemy as sa

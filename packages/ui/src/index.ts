@@ -11,4 +11,5 @@ export * from './feedback/BackendUnavailableScreen';
 export * from './feedback/BackendConnectivityGate';
 export * from './feedback/FileUploadField';
 export * from './feedback/downloadHelper';
+export * from './feedback/FileDownloadButton';
 export * from './i18n';

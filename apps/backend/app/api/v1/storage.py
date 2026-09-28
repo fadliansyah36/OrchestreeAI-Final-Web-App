@@ -47,23 +47,36 @@ async def upload_file(
     bucket: str = Form("documents"),
     tenant_id: Optional[str] = Form(None),
     category: str = Form("attachments"),
+    domain: Optional[str] = Form(None),
+    entity_id: Optional[str] = Form(None),
 ):
     """
     Unggah file dengan validasi ketat magic bytes (anti-eksekusi biner & skrip).
     Mendukung kategori: documents, avatars, artifacts, attachments, staff, selection, references.
     """
-    valid_buckets = {"documents", "avatars", "artifacts"}
+    valid_buckets = {
+        "documents",
+        "avatars",
+        "artifacts",
+        "brand-assets",
+        "task-attachments",
+        "knowledge-base",
+        "product-images",
+        "tickets",
+        "campaigns",
+    }
     if bucket not in valid_buckets:
         bucket = "documents"
 
     effective_tenant_id = tenant_id or "default"
+    effective_category = f"{domain}/{entity_id}" if (domain and entity_id) else category
     content = await file.read()
 
     is_valid, detected_mime, storage_path, signed_or_err = validate_uploaded_file(
         content=content,
         declared_filename=file.filename or "upload.bin",
         tenant_id=effective_tenant_id,
-        category=category,
+        category=effective_category,
     )
 
     if not is_valid:
@@ -230,6 +243,94 @@ async def get_artifact_download_url(
             "expires_at": expires_ts,
             "expires_in_seconds": expires_seconds,
         }
+
+
+@router.get("/download/{file_id}", dependencies=[Depends(require_capability("storage.download"))])
+async def download_file_by_id(
+    file_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+    expires_seconds: int = Query(900, ge=60, le=1800),
+):
+    """
+    Endpoint terstandarisasi untuk mendapatkan signed download URL berdasarkan file_id / artifact_id.
+    Memverifikasi kepemilikan tenant dan otorisasi PDP.
+    """
+    return await get_artifact_download_url(
+        artifact_id=file_id,
+        context=context,
+        expires_seconds=expires_seconds,
+    )
+
+
+@router.delete("/{file_id}", dependencies=[Depends(require_capability("storage.delete"))])
+async def delete_storage_file(
+    file_id: str,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+):
+    """
+    Menghapus berkas penyimpanan dari database metadata dan filesystem lokal.
+    Hanya pemilik tenant atau Super Admin yang dapat menghapus berkas.
+    """
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        with conn.begin():
+            row = conn.execute(
+                sa.text("""
+                    SELECT id, tenant_id, file_name, storage_path
+                    FROM file_artifacts
+                    WHERE id = :id
+                """),
+                {"id": file_id}
+            ).mappings().first()
+
+            if not row:
+                # Coba cari di storage.objects
+                obj_row = conn.execute(
+                    sa.text("""
+                        SELECT id, bucket_id, name
+                        FROM storage.objects
+                        WHERE id = :id
+                    """),
+                    {"id": file_id}
+                ).mappings().first()
+
+                if not obj_row:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Berkas {file_id} tidak ditemukan.",
+                    )
+
+                conn.execute(
+                    sa.text("DELETE FROM storage.objects WHERE id = :id"),
+                    {"id": file_id}
+                )
+                return {"status": "success", "message": f"Berkas {file_id} berhasil dihapus."}
+
+            if str(row["tenant_id"]) != context.tenant_id and context.app_scope != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Akses ditolak: Tidak dapat menghapus berkas milik organisasi lain.",
+                )
+
+            # Hapus dari file_artifacts dan storage.objects
+            conn.execute(sa.text("DELETE FROM file_artifacts WHERE id = :id"), {"id": file_id})
+            conn.execute(sa.text("DELETE FROM storage.objects WHERE id = :id"), {"id": file_id})
+
+            # Hapus berkas fisik jika ada
+            storage_path = row["storage_path"]
+            for root_dir in [STORAGE_BASE_DIR, Path("storage_data")]:
+                for candidate in root_dir.glob(f"**/{Path(storage_path).name}"):
+                    try:
+                        if candidate.is_file():
+                            candidate.unlink()
+                    except Exception as e:
+                        logger.warning("Gagal menghapus berkas fisik %s: %s", candidate, e)
+
+            return {
+                "status": "success",
+                "file_id": file_id,
+                "message": f"Berkas '{row['file_name']}' berhasil dihapus.",
+            }
 
 
 @router.get("/signed-download/{bucket}/{file_path:path}", dependencies=[Depends(public_endpoint("storage.signed_download"))])

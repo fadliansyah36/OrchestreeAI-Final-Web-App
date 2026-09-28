@@ -37,3 +37,5 @@ export async function downloadFileFromUrl(url: string, filename: string): Promis
     throw err;
   }
 }
+
+export const triggerDownload = downloadFileFromUrl;
