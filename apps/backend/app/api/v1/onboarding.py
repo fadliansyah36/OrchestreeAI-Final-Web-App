@@ -129,7 +129,6 @@ async def logout_endpoint(
 class RegisterTenantRequest(BaseModel):
     legal_name: str = Field(..., min_length=2, description="Nama hukum resmi perusahaan")
     display_name: str = Field(..., min_length=2, description="Nama tampilan tenant")
-    owner_auth_user_id: str = Field(..., description="ID user otentikasi Supabase")
     owner_full_name: str = Field(..., min_length=2, description="Nama lengkap pemilik/owner")
     plan_code: str = Field(default="FREE_TRIAL", description="Kode paket langganan")
 
@@ -151,7 +150,6 @@ class JoinCompanyRequest(BaseModel):
     company_code: str = Field(..., min_length=6, max_length=16, description="Kode registrasi perusahaan")
     full_name: str = Field(..., min_length=2, description="Nama lengkap calon staf")
     email: str = Field(..., min_length=5, description="Email calon staf")
-    auth_user_id: str = Field(..., description="ID user otentikasi Supabase")
     department_id: Optional[str] = Field(default=None, description="ID departemen pilihan (opsional)")
 
 
@@ -185,7 +183,6 @@ class ReviewHRApprovalRequest(BaseModel):
     response_model=RegisterTenantResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Registrasi Tenant Baru (Self-Service Tenant Creation)",
-    dependencies=[Depends(public_endpoint("onboarding.register"))]
 )
 @router.post(
     "/register-tenant",
@@ -194,7 +191,7 @@ class ReviewHRApprovalRequest(BaseModel):
     include_in_schema=False,
     dependencies=[Depends(public_endpoint("onboarding.register"))]
 )
-async def register_tenant(req: RegisterTenantRequest):
+async def register_tenant(req: RegisterTenantRequest, context: AuthenticatedTenantContext = Depends(get_current_tenant_context)):
     """
     Mendaftarkan perusahaan/tenant baru secara mandiri:
     1. Mengatur konteks tenant baru via tenant_tx(new_tenant_id) untuk memenuhi kebijakan RLS.
@@ -208,7 +205,7 @@ async def register_tenant(req: RegisterTenantRequest):
     new_tenant_id = str(uuid.uuid4())
     new_membership_id = str(uuid.uuid4())
 
-    with tenant_tx(new_tenant_id, user_id=req.owner_auth_user_id) as conn:
+    with tenant_tx(new_tenant_id, user_id=context.user_id) as conn:
         # 1. Ambil subscription_plan_id
         plan_row = conn.execute(
             sa.text("SELECT id FROM subscription_plans WHERE plan_code = :code LIMIT 1;"),
@@ -246,7 +243,7 @@ async def register_tenant(req: RegisterTenantRequest):
             {
                 "id": new_membership_id,
                 "tenant_id": new_tenant_id,
-                "auth_user_id": req.owner_auth_user_id,
+                "auth_user_id": context.user_id,
                 "full_name": req.owner_full_name.strip(),
                 "created_at": now_dt,
             }
@@ -305,7 +302,7 @@ async def register_tenant(req: RegisterTenantRequest):
                 """),
                 {
                     "tenant_id": new_tenant_id,
-                    "actor_id": req.owner_auth_user_id,
+                    "actor_id": context.user_id,
                     "payload": json.dumps({
                         "legal_name": req.legal_name,
                         "display_name": req.display_name,
@@ -336,7 +333,6 @@ async def register_tenant(req: RegisterTenantRequest):
     response_model=JoinCompanyResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Validasi & Submit Registrasi Staf (via Company Code)",
-    dependencies=[Depends(public_endpoint("onboarding.join"))]
 )
 @router.post(
     "/join-company",
@@ -345,7 +341,7 @@ async def register_tenant(req: RegisterTenantRequest):
     include_in_schema=False,
     dependencies=[Depends(public_endpoint("onboarding.join"))]
 )
-async def join_company(req: JoinCompanyRequest):
+async def join_company(req: JoinCompanyRequest, context: AuthenticatedTenantContext = Depends(get_current_tenant_context)):
     """
     Calon staf mendaftar ke perusahaan menggunakan Company Code:
     1. Memvalidasi hash Company Code (aktif, belum kedaluwarsa, belum melampaui batas penggunaan).
@@ -403,7 +399,7 @@ async def join_company(req: JoinCompanyRequest):
                 WHERE tenant_id = :tenant_id AND requesting_auth_user_id = :user_id AND status = 'pending'
                 LIMIT 1;
             """),
-            {"tenant_id": tenant_id, "user_id": req.auth_user_id}
+            {"tenant_id": tenant_id, "user_id": context.user_id}
         ).scalar()
 
         if existing_queue:
@@ -453,7 +449,7 @@ async def join_company(req: JoinCompanyRequest):
                 """),
                 {
                     "tenant_id": tenant_id,
-                    "actor_id": req.auth_user_id,
+                    "actor_id": context.user_id,
                     "queue_id": new_queue_id,
                     "payload": json.dumps(profile_payload)
                 }
