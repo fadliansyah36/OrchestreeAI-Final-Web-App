@@ -10,15 +10,25 @@ export default function AdminHomePage() {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    try {
-      const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token');
-      const isMfa = localStorage.getItem('orchestree_mfa_verified') === 'true';
-      setIsAdminAuth(Boolean(token && isMfa));
-    } catch {
-      setIsAdminAuth(false);
-    } finally {
-      setLoading(false);
-    }
+    let cancelled = false;
+
+    fetch('/api/v1/admin/hub-overview', {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!cancelled) setIsAdminAuth(response.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdminAuth(false);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
