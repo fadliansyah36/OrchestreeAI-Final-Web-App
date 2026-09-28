@@ -1,0 +1,26 @@
+name: CI Runner Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  runner-diagnostic:
+    name: GitHub Hosted Runner Diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner started
+        run: echo "GitHub-hosted runner started successfully"
+
+      - name: Runtime versions
+        run: |
+          node --version
+          npm --version
+          python --version
+          uname -a
