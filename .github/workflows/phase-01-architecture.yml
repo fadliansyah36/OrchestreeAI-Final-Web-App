@@ -1,0 +1,81 @@
+name: PHASE 01 Architecture Verification
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  architecture-runtime:
+    name: Architecture & Runtime Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify legacy Vite production runtime is absent
+        shell: bash
+        run: |
+          test ! -e vite.config.ts
+          test ! -e index.html
+          test ! -e src/App.tsx
+          test ! -e src/main.tsx
+          test ! -e src/index.css
+          ! git ls-files | grep -E '(^|/)vite\.config\.(ts|js|mjs)$|(^|/)src/main\.tsx$'
+
+      - name: Verify official frontend structure
+        shell: bash
+        run: |
+          test -f apps/client/package.json
+          test -f apps/admin/package.json
+          test -f apps/client/app/layout.tsx
+          test -f apps/admin/app/layout.tsx
+          test -f apps/client/public/sw.js
+          test -f apps/backend/app/main.py
+
+      - name: Verify service worker privacy boundary
+        shell: bash
+        run: |
+          ! grep -nE 'cache\.put\(request|caches\.match\(request\)' apps/client/public/sw.js | grep -E 'navigate|navigation' || true
+          grep -q "request.mode === 'navigate'" apps/client/public/sw.js
+          grep -q "return;" apps/client/public/sw.js
+
+      - name: Type-check Next.js workspaces
+        run: npm run type-check
+
+      - name: Build Client PWA
+        run: npm run build:client
+
+      - name: Build Admin PWA
+        run: npm run build:admin
+
+      - name: Compile-check FastAPI backend
+        run: npm run build:backend
+
+      - name: Syntax-check service worker
+        run: node --check apps/client/public/sw.js
+
+      - name: Run mandatory content/perimeter/security gates
+        run: |
+          npm run ci:content-gate
+          npm run ci:perimeter
+          npm run ci:security-ast
