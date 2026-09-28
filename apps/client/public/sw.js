@@ -1,5 +1,8 @@
-// OrchestreeAI Production Service Worker (PWA Compliance & Fail-Closed Gate)
-const CACHE_NAME = 'orchestree-pwa-v2';
+// OrchestreeAI Production Service Worker
+// PRD v2.2 / AGENTS.md: never cache personalized or business-data HTML.
+// Only the public shell and immutable static assets may be cached.
+
+const CACHE_NAME = 'orchestree-pwa-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
@@ -11,23 +14,21 @@ const PRECACHE_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('PWA Precache warning (some assets optional during startup):', err);
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    caches.keys().then((cacheNames) =>
+      Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
           .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
@@ -35,8 +36,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Strictly NetworkOnly for all API endpoints, health probes, WebSocket, and non-GET requests
-  // PRD v2.2 Real Data Enforcement: Never serve stale/cached business responses
+  // Business APIs, health probes, WebSocket handshakes and all writes are network-only.
   if (
     request.method !== 'GET' ||
     url.pathname.startsWith('/api/') ||
@@ -48,31 +48,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests: Network-first with offline shell cache fallback
+  // Navigation is deliberately network-only.
+  // This prevents personalized tenant/auth HTML from entering the browser cache.
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) return cachedResponse;
-          const fallback = await caches.match('/');
-          return fallback || new Response('Offline - Jaringan tidak tersedia', {
-            status: 503,
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          });
-        })
-    );
     return;
   }
 
-  // Static assets (CSS, JS, images, fonts): Cache-first with network refresh
+  // Only static assets are cacheable.
   if (
     request.destination === 'image' ||
     request.destination === 'script' ||
@@ -81,23 +63,16 @@ self.addEventListener('fetch', (event) => {
   ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          // Asynchronously update cache in background
-          fetch(request).then((networkResponse) => {
+        const networkRequest = fetch(request)
+          .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
             }
-          }).catch(() => {});
-          return cachedResponse;
-        }
+            return networkResponse;
+          });
 
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return networkResponse;
-        });
+        return cachedResponse || networkRequest;
       })
     );
   }
