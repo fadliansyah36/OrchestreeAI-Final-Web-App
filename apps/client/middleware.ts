@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Server-side route authorization check (PRD v2.2 Bagian 3.5 & 15.1).
- * Memastikan rute internal tenant tidak dapat diakses tanpa sesi terotentikasi.
+ * Route perimeter guard.
+ * Cookie presence is only a navigation guard; the FastAPI PDP remains authoritative
+ * and cryptographically verifies the Supabase JWT on every protected API request.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
   const isProtectedPath = [
     '/overview',
     '/workforce',
@@ -26,13 +26,9 @@ export function middleware(request: NextRequest) {
   ].some(route => pathname.startsWith(route));
 
   if (isProtectedPath) {
-    const rawToken = request.cookies.get('sb-access-token')?.value ||
-                     request.cookies.get('orchestree_auth_token')?.value ||
-                     request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-
-    const hasValidToken = Boolean(rawToken && rawToken.length >= 20);
-
-    if (!hasValidToken) {
+    const secureCookie = request.cookies.get('__Host-orchestree_access')?.value;
+    const localCookie = request.cookies.get('orchestree_access')?.value;
+    if (!secureCookie && !localCookie) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       url.searchParams.set('auth_required', '1');
