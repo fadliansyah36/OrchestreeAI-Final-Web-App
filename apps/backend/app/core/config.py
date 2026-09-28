@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     SUPABASE_JWKS_KEY: Optional[str] = None
     SUPABASE_JWT_ISSUER: Optional[str] = None
     SUPABASE_JWT_AUDIENCE: Optional[str] = "authenticated"
+    ALLOW_TEST_HARNESS_TOKENS: bool = False
     JWT_SECRET_KEY: Optional[str] = None
 
     DATABASE_URL: Optional[str] = None
@@ -61,7 +62,7 @@ class Settings(BaseSettings):
     WA_PROACTIVE_PHONE_NUMBER_ID: Optional[str] = None
     WA_PROACTIVE_WABA_ID: Optional[str] = None
     WA_PROACTIVE_ACCESS_TOKEN: Optional[str] = None
-    OTP_PEPPER: str = "orchestree_proactive_otp_pepper_secure_salt_2026"
+    OTP_PEPPER: Optional[str] = None
 
     # Integrations & Prospecting
     VIBE_PROSPECTING_API_KEY: Optional[str] = None
