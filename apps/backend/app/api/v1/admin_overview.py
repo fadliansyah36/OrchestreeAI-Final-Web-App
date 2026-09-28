@@ -9,7 +9,7 @@ Menyediakan endpoint resmi:
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import logging
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
@@ -19,6 +19,7 @@ from app.authz.pdp import (
     authorize,
 )
 from app.core.database import get_database_engine
+from app.core.security import AuthenticatedTenantContext, require_platform_admin
 
 logger = logging.getLogger("orchestree.admin.overview")
 
@@ -96,18 +97,11 @@ class AdminTenantItem(BaseModel):
     response_model=AdminHubOverviewResponse,
     include_in_schema=False,
 )
-async def get_admin_hub_overview(
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
-):
+async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
     """
     Mengembalikan statistik ringkasan operasional platform global untuk Konsol Super Admin.
     Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
     """
-    roles = [r.strip().upper() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
 
     # Penegakan perimeter Super Admin: Hanya peran Super Admin yang diizinkan
     is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
@@ -121,6 +115,10 @@ async def get_admin_hub_overview(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operasi administratif Super Admin memerlukan verifikasi MFA aktif.",
         )
+
+    roles = context.roles
+    capabilities = context.capabilities
+    is_mfa = context.is_mfa_verified
 
     subject = SubjectContext(
         roles=roles,
@@ -237,17 +235,14 @@ async def get_admin_hub_overview(
     response_model=FinancialCommandCenterResponse,
     include_in_schema=False,
 )
-async def get_financial_command_center_overview(
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
-):
+async def get_financial_command_center_overview(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
     """
     Mengembalikan ringkasan saldo ledger dan total revenue platform untuk Super Admin (Wajib MFA).
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "admin.financial.view").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    roles = context.roles
+    capabilities = context.capabilities
+    is_mfa = context.is_mfa_verified
 
     subject = SubjectContext(
         roles=roles,
@@ -328,17 +323,14 @@ async def get_financial_command_center_overview(
     "/api/v1/admin/tenants",
     include_in_schema=False,
 )
-async def list_admin_tenants(
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
-):
+async def list_admin_tenants(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
     """
     Mengembalikan daftar seluruh organisasi tenant untuk Super Admin Hub (Wajib MFA).
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    roles = context.roles
+    capabilities = context.capabilities
+    is_mfa = context.is_mfa_verified
 
     subject = SubjectContext(
         roles=roles,
@@ -394,18 +386,15 @@ async def list_admin_tenants(
     "/process-integrity",
     summary="Pemeriksaan Integritas Proses Sistem (PRD v2.2 Bagian C.2)",
 )
-async def get_process_integrity(
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
-):
+async def get_process_integrity(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
     """
     Memeriksa kepatuhan seluruh proses sistem yang berjalan terhadap whitelist deployment.
     Memverifikasi Uvicorn aktif dan zero rogue runner tidak sah.
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    roles = context.roles
+    capabilities = context.capabilities
+    is_mfa = context.is_mfa_verified
 
     subject = SubjectContext(
         roles=roles,
@@ -435,19 +424,15 @@ async def get_process_integrity(
     "/process-integrity/test-alert",
     summary="Uji Coba Pemicuan Alert Integritas Proses (DoD C.2)",
 )
-async def test_process_integrity_alert(
-    simulate_scenario: str = "rogue_process",  # allowlist: DoD C.2 security test diagnostic parameter
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header("false", alias="X-MFA-Verified"),
-):
+async def test_process_integrity_alert(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
     """
     Mensimulasikan deteksi proses terlarang atau servis resmi terhenti
     untuk membuktikan alert audit_logs & notifikasi terpicu (DoD Bagian C.2).
     """
-    roles = [r.strip() for r in (x_user_roles or "PLATFORM_SUPERADMIN").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "platform.admin.manage,admin.hub.view").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
+
+    roles = context.roles
+    capabilities = context.capabilities
+    is_mfa = context.is_mfa_verified
 
     subject = SubjectContext(
         roles=roles,
