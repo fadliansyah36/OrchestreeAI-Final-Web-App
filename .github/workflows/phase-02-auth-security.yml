@@ -1,0 +1,70 @@
+name: PHASE 02 Authentication Security Verification
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authentication-security:
+    name: Authentication & Identity Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e apps/backend
+
+      - name: Verify forbidden client auth patterns are absent
+        shell: bash
+        run: |
+          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.git             -E 'localStorage\.(setItem|getItem).*?(auth_token|admin_token|sb-access-token)|X-User-Roles|X-User-Capabilities|X-MFA-Verified|x-mfa-verified'             apps/client apps/admin apps/backend || exit 1
+          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.git             -E 'jwt\.<|sig_valid_hash|usr_default_anon|tenant_default_anon'             apps/backend/app/core/security || exit 1
+
+      - name: Verify production cookie/session policy
+        shell: bash
+        run: |
+          grep -q "__Host-orchestree_access" apps/backend/app/api/v1/auth.py
+          grep -q "httponly=True" apps/backend/app/api/v1/auth.py
+          grep -q "samesite.*lax" apps/backend/app/api/v1/auth.py
+          grep -q "require_platform_admin" apps/backend/app/api/v1/admin_overview.py
+
+      - name: Backend JWT security tests
+        env:
+          APP_ENV: test
+          ALLOW_TEST_HARNESS_TOKENS: "false"
+        run: PYTHONPATH=apps/backend pytest -q apps/backend/tests/test_auth_security.py
+
+      - name: Backend compile verification
+        run: python -m compileall -q apps/backend/app
+
+      - name: Client type-check
+        run: npm run type-check:client
+
+      - name: Admin type-check
+        run: npm run type-check:admin
+
+      - name: Client PWA production build
+        run: npm run build:client
+
+      - name: Admin PWA production build
+        run: npm run build:admin
