@@ -1,0 +1,26 @@
+name: Runner Smoke Test
+run-name: Runner Smoke Test — GitHub Hosted
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Minimal GitHub Hosted Runner Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner OK
+        run: echo "RUNNER_OK"
+
+      - name: Environment OK
+        run: |
+          echo "OS: $(uname -srm)"
+          echo "Runner: $RUNNER_NAME"
+          echo "Temp: $RUNNER_TEMP"
