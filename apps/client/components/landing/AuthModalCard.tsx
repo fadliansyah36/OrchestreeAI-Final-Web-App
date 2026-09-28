@@ -617,6 +617,36 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Kata Sandi *
+                </label>
+                <input
+                  type="password"
+                  id="register-owner-password-input"
+                  value={ownerPassword}
+                  onChange={(e) => setOwnerPassword(e.target.value)}
+                  minLength={8}
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-white text-xs focus:outline-none focus:border-[#34D399]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Konfirmasi Kata Sandi *
+                </label>
+                <input
+                  type="password"
+                  id="register-owner-password-confirmation-input"
+                  value={ownerPasswordConfirmation}
+                  onChange={(e) => setOwnerPasswordConfirmation(e.target.value)}
+                  minLength={8}
+                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/15 text-white text-xs focus:outline-none focus:border-[#34D399]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Pilih Paket Layanan Awal *
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
