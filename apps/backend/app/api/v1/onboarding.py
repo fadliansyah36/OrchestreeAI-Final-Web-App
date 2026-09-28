@@ -392,7 +392,7 @@ async def join_company(req: JoinCompanyRequest, context: AuthenticatedTenantCont
     company_code_id = str(code_row["id"])
 
     # 2. Masukkan ke hr_approval_queue dalam konteks tenant_tx
-    with tenant_tx(tenant_id, user_id=req.auth_user_id) as conn:
+    with tenant_tx(tenant_id, user_id=context.user_id) as conn:
         existing_queue = conn.execute(
             sa.text("""
                 SELECT id FROM hr_approval_queue
