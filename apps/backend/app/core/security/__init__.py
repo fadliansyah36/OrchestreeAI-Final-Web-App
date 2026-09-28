@@ -20,7 +20,232 @@ class AuthenticatedTenantContext(BaseModel):
     roles: List[str] = Field(default_factory=list)
     capabilities: List[str] = Field(default_factory=list)
     is_mfa_verified: bool = False
-    app_scope: str = "tenant"  # "admin" | "tenant" (Isolasi Perimeter antar Apps)
+    app_scope: str = "tenant"
+
+
+_JWKS_CACHE: dict[str, tuple[float, dict]] = {}
+_JWKS_CACHE_TTL_SECONDS = 600
+
+
+def _b64url_decode(value: str) -> bytes:
+    import base64
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _supabase_jwks_url() -> str:
+    configured = getattr(settings, "SUPABASE_JWKS_URL", None)
+    if configured:
+        return configured
+    if settings.SUPABASE_URL:
+        return settings.SUPABASE_URL.rstrip("/") + "/auth/v1/.well-known/jwks.json"
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Supabase JWKS belum dikonfigurasi.",
+    )
+
+
+def _supabase_issuer() -> str:
+    configured = getattr(settings, "SUPABASE_JWT_ISSUER", None)
+    if configured:
+        return configured.rstrip("/")
+    if settings.SUPABASE_URL:
+        return settings.SUPABASE_URL.rstrip("/") + "/auth/v1"
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Supabase JWT issuer belum dikonfigurasi.",
+    )
+
+
+def _load_jwks() -> dict:
+    import time
+    import urllib.request
+    url = _supabase_jwks_url()
+    cached = _JWKS_CACHE.get(url)
+    if cached and time.time() - cached[0] < _JWKS_CACHE_TTL_SECONDS:
+        return cached[1]
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            import json
+            jwks = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Supabase JWKS tidak dapat diverifikasi: {exc}",
+        )
+    if not isinstance(jwks, dict) or not isinstance(jwks.get("keys"), list):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase JWKS response tidak valid.",
+        )
+    _JWKS_CACHE[url] = (time.time(), jwks)
+    return jwks
+
+
+def _jwk_public_key(jwk: dict):
+    from cryptography.hazmat.primitives.asymmetric import ec, rsa
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    kty = jwk.get("kty")
+    if kty == "RSA":
+        n = int.from_bytes(_b64url_decode(jwk["n"]), "big")
+        e = int.from_bytes(_b64url_decode(jwk["e"]), "big")
+        return rsa.RSAPublicNumbers(e, n).public_key()
+    if kty == "EC":
+        curve_name = jwk.get("crv")
+        curve = {"P-256": ec.SECP256R1(), "P-384": ec.SECP384R1(), "P-521": ec.SECP521R1()}.get(curve_name)
+        if not curve:
+            raise ValueError(f"Kurva JWT tidak didukung: {curve_name}")
+        return ec.EllipticCurvePublicNumbers(
+            int.from_bytes(_b64url_decode(jwk["x"]), "big"),
+            int.from_bytes(_b64url_decode(jwk["y"]), "big"),
+            curve,
+        ).public_key()
+    raise ValueError(f"Tipe JWK tidak didukung: {kty}")
+
+
+def _verify_supabase_jwt(token: str) -> dict:
+    import hashlib
+    import json
+    import time
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec, padding
+
+    parts = token.split(".")
+    if len(parts) != 3:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Format JWT tidak valid.")
+
+    try:
+        header = json.loads(_b64url_decode(parts[0]).decode("utf-8"))
+        payload = json.loads(_b64url_decode(parts[1]).decode("utf-8"))
+        signature = _b64url_decode(parts[2])
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT tidak dapat diparse.")
+
+    alg = header.get("alg")
+    kid = header.get("kid")
+    if alg not in {"RS256", "ES256", "ES384", "ES512"} or not kid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Algoritma JWT tidak diizinkan.")
+
+    jwks = _load_jwks()
+    jwk = next((item for item in jwks["keys"] if item.get("kid") == kid and item.get("alg", alg) == alg), None)
+    if not jwk:
+        # Force one refresh on key rotation.
+        _JWKS_CACHE.pop(_supabase_jwks_url(), None)
+        jwks = _load_jwks()
+        jwk = next((item for item in jwks["keys"] if item.get("kid") == kid and item.get("alg", alg) == alg), None)
+    if not jwk:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT signing key tidak dipercaya.")
+
+    try:
+        public_key = _jwk_public_key(jwk)
+        signing_input = f"{parts[0]}.{parts[1]}".encode("ascii")
+        if alg.startswith("RS"):
+            public_key.verify(signature, signing_input, padding.PKCS1v15(), hashes.SHA256())
+        else:
+            # JWT ECDSA signatures are fixed-width R||S, while cryptography expects DER.
+            size = {"ES256": 32, "ES384": 48, "ES512": 66}[alg]
+            if len(signature) != size * 2:
+                raise ValueError("Panjang signature ECDSA JWT tidak valid.")
+            r = int.from_bytes(signature[:size], "big")
+            s = int.from_bytes(signature[size:], "big")
+            from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+            public_key.verify(
+                encode_dss_signature(r, s),
+                signing_input,
+                {"ES256": ec.ECDSA(hashes.SHA256()), "ES384": ec.ECDSA(hashes.SHA384()), "ES512": ec.ECDSA(hashes.SHA512())}[alg],
+            )
+    except InvalidSignature:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Signature JWT tidak valid.")
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"JWT signature verification gagal: {exc}")
+
+    now = time.time()
+    exp = payload.get("exp")
+    nbf = payload.get("nbf")
+    if not isinstance(exp, (int, float)) or now >= float(exp):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT telah kedaluwarsa.")
+    if nbf is not None and now < float(nbf):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT belum aktif.")
+
+    issuer = payload.get("iss")
+    if issuer != _supabase_issuer():
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT issuer tidak cocok.")
+
+    expected_aud = getattr(settings, "SUPABASE_JWT_AUDIENCE", None) or "authenticated"
+    audience = payload.get("aud")
+    valid_audience = expected_aud in audience if isinstance(audience, list) else audience == expected_aud
+    if not valid_audience:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT audience tidak cocok.")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="JWT tidak memiliki subject.")
+
+    return payload
+
+
+def _extract_bearer_or_cookie(request: Request, authorization: Optional[str]) -> str:
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1].strip()
+    secure = settings.APP_ENV.lower() not in {"local", "development", "test"}
+    prefix = "__Host-" if secure else ""
+    token = request.cookies.get(f"{prefix}orchestree_access")
+    if token:
+        return token
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesi Supabase tidak ditemukan.")
+
+
+def _membership_context(user_id: str, requested_tenant_id: Optional[str]) -> AuthenticatedTenantContext:
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        params = {"user_id": user_id}
+        tenant_filter = ""
+        if requested_tenant_id:
+            tenant_filter = " AND m.tenant_id = :tenant_id"
+            params["tenant_id"] = requested_tenant_id
+
+        rows = conn.execute(
+            sa.text("""
+                SELECT m.tenant_id, r.role_code, r.capabilities
+                FROM tenant_memberships m
+                JOIN user_roles ur ON ur.tenant_membership_id = m.id
+                JOIN roles r ON r.id = ur.role_id
+                WHERE m.auth_user_id = :user_id
+                  AND m.status = 'active'
+            """ + tenant_filter + """
+                ORDER BY m.created_at ASC;
+            """),
+            params,
+        ).mappings().all()
+
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pengguna belum memiliki membership tenant aktif.")
+
+    tenant_ids = {str(row["tenant_id"]) for row in rows}
+    if len(tenant_ids) > 1 and not requested_tenant_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pengguna memiliki beberapa tenant aktif; pilih tenant melalui X-Tenant-Id.")
+
+    tenant_id = str(next(iter(tenant_ids)))
+    roles = sorted({str(row["role_code"]).upper() for row in rows if row.get("role_code")})
+    capabilities: set[str] = set()
+    for row in rows:
+        caps = row.get("capabilities") or []
+        if isinstance(caps, str):
+            capabilities.update(c.strip() for c in caps.split(",") if c.strip())
+        elif isinstance(caps, (list, tuple)):
+            capabilities.update(str(c).strip() for c in caps if str(c).strip())
+
+    is_admin = any(role in {"SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN"} for role in roles)
+    return AuthenticatedTenantContext(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        roles=roles,
+        capabilities=sorted(capabilities),
+        is_mfa_verified=False,
+        app_scope="admin" if is_admin else "tenant",
+    )
 
 
 async def get_current_tenant_context(
@@ -28,206 +253,109 @@ async def get_current_tenant_context(
     authorization: Optional[str] = Header(None),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ) -> AuthenticatedTenantContext:
-    """
-    Mengekstrak konteks tenant yang sah.
-    Aturan Anti-Spoofing & Perimeter:
-    Bila X-Tenant-Id dikirim oleh client, nilainya WAJIB identik dengan tenant_id
-    yang terikat pada sesi/token otentikasi. Manipulasi lintas tenant langsung ditolak (403 Forbidden).
-    Sesi admin ditandai eksplisit dengan app_scope='admin' dan dipisahkan dari sesi tenant ('tenant').
-    """
-    # 1. Periksa token otentikasi
-    header_caps = []
-    app_scope = "tenant"
-    if not authorization or not authorization.startswith("Bearer "):
-        if settings.APP_ENV == "local" and x_tenant_id:
-            user_id = request.headers.get("x-user-id") or "usr_default_admin"
-            user_role = request.headers.get("x-user-role") or request.headers.get("x-user-roles") or "TENANT_OWNER"
-            roles = [r.strip().upper() for r in user_role.split(",") if r.strip()]
-            raw_caps = request.headers.get("x-user-capabilities") or ""
-            header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
-            token_tenant_id = x_tenant_id
-            is_mfa = request.headers.get("x-mfa-verified", "true").lower() in ("true", "1")
-            if any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles):
-                app_scope = "admin"
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Header otentikasi Bearer token diperlukan."
-            )
-    else:
-        token = authorization.split(" ")[1]
+    token = _extract_bearer_or_cookie(request, authorization)
+    if is_token_revoked(token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token sesi telah dicabut.")
 
-        # Ekstraksi klaim token (mendukung JWT Supabase & token terstruktur harness)
-        user_id, token_tenant_id, roles, is_mfa, app_scope = _extract_claims_from_token(token)
-        raw_caps = request.headers.get("x-user-capabilities") or ""
-        header_caps = [c.strip() for c in raw_caps.split(",") if c.strip()]
-        header_mfa = (
-            request.headers.get("x-mfa-verified")
-            or request.headers.get("X-MFA-Verified")
-            or ""
-        ).lower() in ("true", "1")
-        is_mfa = is_mfa or header_mfa
+    if token.startswith("jwt.") and settings.APP_ENV.lower() in {"test"} and getattr(settings, "ALLOW_TEST_HARNESS_TOKENS", False):
+        parts = token.split(".")
+        if len(parts) < 3:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Harness token tidak valid.")
+        user_id, tenant_id = parts[1], parts[2]
+        roles = [r.strip().upper() for r in (parts[3] if len(parts) > 3 else "STAFF_HUMAN").split(",") if r.strip()]
+        is_mfa = "mfa" in token.lower()
+        return AuthenticatedTenantContext(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            roles=roles,
+            capabilities=[],
+            is_mfa_verified=is_mfa,
+            app_scope="admin" if any(r.startswith("PLATFORM_") for r in roles) else "tenant",
+        )
 
-        # 2. Penegakan Anti-Spoofing: X-Tenant-Id tidak boleh memalsukan identitas tenant
-        if x_tenant_id and x_tenant_id != token_tenant_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    f"Deteksi manipulasi header: X-Tenant-Id '{x_tenant_id}' tidak cocok "
-                    f"dengan tenant resmi '{token_tenant_id}' pada token otentikasi."
-                )
-            )
+    payload = _verify_supabase_jwt(token)
+    user_id = str(payload["sub"])
+    requested_tenant = x_tenant_id or payload.get("app_metadata", {}).get("tenant_id")
+    context = _membership_context(user_id, str(requested_tenant) if requested_tenant else None)
+    context.is_mfa_verified = payload.get("aal") == "aal2"
+    return context
 
-    # 3. Muat peran nyata dari database jika tersedia
-    capabilities: List[str] = list(header_caps)
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            # Cari membership dan peran pengguna di tenant ini
-            role_rows = conn.execute(
-                sa.text("""
-                    SELECT r.role_code, r.capabilities
-                    FROM tenant_memberships m
-                    JOIN user_roles ur ON ur.tenant_membership_id = m.id
-                    JOIN roles r ON r.id = ur.role_id
-                    WHERE m.tenant_id = :tenant_id AND m.auth_user_id = :user_id AND m.status = 'active';
-                """),
-                {"tenant_id": token_tenant_id, "user_id": user_id}
-            ).mappings().all()
 
-            if role_rows:
-                db_roles = [r["role_code"] for r in role_rows]
-                roles = list(set(roles + db_roles))
-                for r in role_rows:
-                    if r.get("capabilities"):
-                        capabilities.extend(r["capabilities"])
-    except Exception:
-        pass
+async def require_platform_admin(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+) -> AuthenticatedTenantContext:
+    token = _extract_bearer_or_cookie(request, authorization)
+    if is_token_revoked(token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token sesi telah dicabut.")
+    payload = _verify_supabase_jwt(token)
+    user_id = str(payload["sub"])
+    if payload.get("aal") != "aal2":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super Admin memerlukan MFA/AAL2.")
 
-    if not roles:
-        roles = ["STAFF_HUMAN"]
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.text("""
+                SELECT m.tenant_id, r.role_code, r.capabilities
+                FROM tenant_memberships m
+                JOIN user_roles ur ON ur.tenant_membership_id = m.id
+                JOIN roles r ON r.id = ur.role_id
+                WHERE m.auth_user_id = :user_id
+                  AND m.status = 'active'
+                  AND UPPER(r.role_code) IN ('SUPER_ADMIN','PLATFORM_SUPER_ADMIN','PLATFORM_SUPERADMIN')
+            """),
+            {"user_id": user_id},
+        ).mappings().all()
 
-    if any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles):
-        app_scope = "admin"
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akun bukan anggota Platform Super Admin.")
+
+    capabilities: set[str] = set()
+    roles: set[str] = set()
+    for row in rows:
+        roles.add(str(row["role_code"]).upper())
+        caps = row.get("capabilities") or []
+        if isinstance(caps, str):
+            capabilities.update(c.strip() for c in caps.split(",") if c.strip())
+        elif isinstance(caps, (list, tuple)):
+            capabilities.update(str(c).strip() for c in caps if str(c).strip())
 
     return AuthenticatedTenantContext(
         user_id=user_id,
-        tenant_id=token_tenant_id,
-        actor_type="human_user",
-        roles=roles,
-        capabilities=list(set(capabilities)),
-        is_mfa_verified=is_mfa,
-        app_scope=app_scope,
+        tenant_id="global",
+        roles=sorted(roles),
+        capabilities=sorted(capabilities),
+        is_mfa_verified=True,
+        app_scope="admin",
     )
 
 
-_revoked_token_hashes = set()
-
-
 def revoke_token(token: str, user_id: Optional[str] = None, reason: str = "logout") -> None:
-    """Mencatat token ke blacklist / revocation registry secara permanen."""
     import hashlib
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    _revoked_token_hashes.add(token_hash)
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            with conn.begin():
-                conn.execute(
-                    sa.text("""
-                        CREATE TABLE IF NOT EXISTS auth_revoked_tokens (
-                            token_hash text PRIMARY KEY,
-                            user_id text,
-                            reason text,
-                            revoked_at timestamptz DEFAULT now()
-                        );
-                    """)
-                )
-                conn.execute(
-                    sa.text("""
-                        INSERT INTO auth_revoked_tokens (token_hash, user_id, reason, revoked_at)
-                        VALUES (:th, :uid, :reason, now())
-                        ON CONFLICT (token_hash) DO NOTHING;
-                    """),
-                    {"th": token_hash, "uid": user_id, "reason": reason}
-                )
-    except Exception:
-        pass
+    engine = get_database_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            sa.text("""
+                INSERT INTO auth_revoked_tokens (token_hash, user_id, reason, revoked_at)
+                VALUES (:th, :uid, :reason, now())
+                ON CONFLICT (token_hash) DO NOTHING;
+            """),
+            {"th": token_hash, "uid": user_id, "reason": reason},
+        )
 
 
 def is_token_revoked(token: str) -> bool:
-    """Memeriksa apakah token telah dicabut / logout."""
     import hashlib
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    if token_hash in _revoked_token_hashes:
-        return True
-    try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            row = conn.execute(
-                sa.text("SELECT token_hash FROM auth_revoked_tokens WHERE token_hash = :th LIMIT 1;"),
-                {"th": token_hash}
-            ).fetchone()
-            if row:
-                _revoked_token_hashes.add(token_hash)
-                return True
-    except Exception:
-        pass
-    return False
-
-
-def _extract_claims_from_token(token: str) -> tuple[str, str, List[str], bool, str]:
-    """
-    Mengekstrak klaim user_id, tenant_id, roles, mfa_verified, dan app_scope dari token.
-    Mendukung format token uji harness 'jwt.<user_id>.<tenant_id>.<sig>'
-    serta format JWT standar (Supabase).
-    Memverifikasi masa berlaku (exp) dan status pencabutan (revocation).
-    """
-    import time
-    if is_token_revoked(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token sesi telah dicabut atau telah keluar (logged out)."
-        )
-
-    parts = token.split(".")
-    if len(parts) >= 3 and parts[0] == "jwt":
-        # Format harness: jwt.<user_id>.<tenant_id>.<sig>
-        # Atau jwt.<user_id>.<tenant_id>.<roles>.<sig>
-        user_id = parts[1]
-        tenant_id = parts[2]
-        roles = ["STAFF_HUMAN"]
-        is_mfa = any("mfa" in p.lower() for p in parts)
-        if len(parts) >= 4 and parts[3] and parts[3] != "sig_valid_hash":
-            roles = [r.strip().upper() for r in parts[3].split(",") if r.strip()]
-        is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
-        app_scope = "admin" if is_admin else "tenant"
-        return user_id, tenant_id, roles, is_mfa, app_scope
-
-    # Format token fallback (Supabase JWT payload)
-    try:
-        import base64
-        import json
-        payload_b64 = parts[1]
-        padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
-        exp = payload.get("exp")
-        if exp and time.time() > float(exp):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token otentikasi telah kedaluwarsa (expired)."
-            )
-        user_id = payload.get("sub", "usr_default_anon")
-        tenant_id = payload.get("app_metadata", {}).get("tenant_id") or payload.get("user_metadata", {}).get("tenant_id", "tenant_default_anon")
-        roles = payload.get("app_metadata", {}).get("roles", ["STAFF_HUMAN"])
-        is_mfa = payload.get("aal") == "aal2"
-        is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
-        app_scope = payload.get("app_scope") or payload.get("app_metadata", {}).get("app_scope") or ("admin" if is_admin else "tenant")
-        return user_id, tenant_id, roles, is_mfa, app_scope
-    except HTTPException:
-        raise
-    except Exception:
-        return "usr_default_anon", "tenant_default_anon", ["STAFF_HUMAN"], False, "tenant"
+    engine = get_database_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.text("SELECT 1 FROM auth_revoked_tokens WHERE token_hash = :th LIMIT 1;"),
+            {"th": token_hash},
+        ).first()
+    return row is not None
 
 
 # ============================================================================
