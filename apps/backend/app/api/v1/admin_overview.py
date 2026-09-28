@@ -103,19 +103,6 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
     Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
     """
 
-    # Penegakan perimeter Super Admin: Hanya peran Super Admin yang diizinkan
-    is_admin = any(r in ("SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN") for r in roles)
-    if not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Perimeter Violation: Sesi tenant/client dilarang mengakses konsol admin platform.",
-        )
-    if not is_mfa:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operasi administratif Super Admin memerlukan verifikasi MFA aktif.",
-        )
-
     roles = context.roles
     capabilities = context.capabilities
     is_mfa = context.is_mfa_verified
