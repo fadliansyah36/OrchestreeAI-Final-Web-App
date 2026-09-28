@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.health import router as health_router
+from app.api.v1.auth import router as auth_session_router
 from app.api.v1.tenant import router as tenant_router
 from app.api.v1.onboarding import router as onboarding_router, auth_router
 from app.api.v1.public import router as public_router, console_router
@@ -268,6 +269,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(health_router)
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router)
+app.include_router(auth_session_router, prefix="/api/v1")
 app.include_router(tenant_router)
 app.include_router(onboarding_router)
 app.include_router(public_router)
