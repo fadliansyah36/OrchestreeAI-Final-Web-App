@@ -448,11 +448,10 @@ import time
 
 
 def get_storage_signing_secret() -> str:
-    return (
-        getattr(settings, "JWT_SECRET_KEY", None)
-        or getattr(settings, "SUPABASE_SECRET_KEY", None)
-        or "orchestree-internal-storage-signing-secret-k9"
-    )
+    secret = getattr(settings, "JWT_SECRET_KEY", None) or getattr(settings, "SUPABASE_SECRET_KEY", None)
+    if not secret:
+        raise RuntimeError("Storage signing secret belum dikonfigurasi; startup/runtime harus fail-closed.")
+    return secret
 
 
 def generate_signed_storage_token(bucket: str, file_path: str, expires_ts: int) -> str:
