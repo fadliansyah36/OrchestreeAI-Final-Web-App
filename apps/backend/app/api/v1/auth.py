@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core.config import settings
@@ -183,7 +183,7 @@ async def refresh(request: Request, response: Response) -> AuthSessionResponse:
 
 
 @router.get("/session", response_model=AuthSessionResponse)
-async def session(context: AuthenticatedTenantContext = __import__("fastapi").Depends(get_current_tenant_context)) -> AuthSessionResponse:
+async def session(context: AuthenticatedTenantContext = Depends(get_current_tenant_context)) -> AuthSessionResponse:
     return AuthSessionResponse(
         authenticated=True,
         user_id=context.user_id,
