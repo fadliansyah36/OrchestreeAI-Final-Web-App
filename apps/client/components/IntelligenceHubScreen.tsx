@@ -30,7 +30,7 @@ import {
   Play,
   ShieldAlert
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { DataQualityCenterScreen } from './DataQualityCenterScreen';
 
 interface IntelligenceHubScreenProps {
