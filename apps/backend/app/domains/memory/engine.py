@@ -204,7 +204,7 @@ class HybridMemoryEngine:
         query_vector = await self.model_router.embed_text(query, output_dimension=1536)
         vector_str = "[" + ",".join(str(v) for v in query_vector) + "]"
 
-        async with self.engine.begin() as conn:
+        async with tenant_tx_async(tenant_id) as conn:
             # Set context RLS bertenant
             await conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
@@ -370,7 +370,7 @@ class HybridMemoryEngine:
             actor_type = "ai_agent" if subject and (subject.roles and "STAFF_AI" in subject.roles or subject.agent_id) else "human_user"
             actor_id = (subject.agent_id or subject.user_id) if subject else "anonymous"
 
-            async with self.engine.begin() as conn:
+            async with tenant_tx_async(tenant_id) as conn:
                 await conn.execute(
                     sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
                     {"tid": tenant_id},
@@ -413,7 +413,7 @@ class HybridMemoryEngine:
         Job terjadwal yang menurunkan (decay) confidence memory seiring waktu
         berdasarkan rumus: confidence = confidence * exp(-decay_factor * days_since_last_access).
         """
-        async with self.engine.begin() as conn:
+        async with tenant_tx_async(tenant_id) as conn:
             if tenant_id:
                 await conn.execute(
                     sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
@@ -495,7 +495,7 @@ class HybridMemoryEngine:
         if not retrieved_doc_ids:
             return []
         try:
-            async with self.engine.begin() as conn:
+            async with tenant_tx_async(tenant_id) as conn:
                 if tenant_id:
                     await conn.execute(
                         sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
