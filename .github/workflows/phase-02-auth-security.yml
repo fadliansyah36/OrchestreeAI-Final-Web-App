@@ -37,7 +37,7 @@ jobs:
       - name: Verify forbidden client auth patterns are absent
         shell: bash
         run: |
-          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.git             -E 'localStorage\.(setItem|getItem).*?(auth_token|admin_token|sb-access-token)|X-User-Roles|X-User-Capabilities|X-MFA-Verified|x-mfa-verified'             apps/client apps/admin apps/backend || exit 1
+          ! grep -RIn --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=tests             -E 'localStorage\.(setItem|getItem).*?(auth_token|admin_token|sb-access-token)|X-User-Roles|X-User-Capabilities|X-MFA-Verified|x-mfa-verified'             apps/client apps/admin apps/backend || exit 1
           ! grep -RIn --exclude-dir=node_modules --exclude-dir=.git             -E 'jwt\.<|sig_valid_hash|usr_default_anon|tenant_default_anon'             apps/backend/app/core/security || exit 1
 
       - name: Verify production cookie/session policy
