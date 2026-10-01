@@ -23,6 +23,11 @@ jobs:
           python-version: '3.12'
       - name: Install backend dependencies
         run: python -m pip install -r apps/backend/requirements.txt
+      - name: Verify deployed API health
+        shell: bash
+        run: |
+          code=$(curl -sS -o /tmp/r1b4-health.json -w '%{http_code}' --max-time 20 "$R1B4_API_BASE_URL/api/v1/health")
+          test "$code" = "200"
       - name: Require live credentials
         shell: bash
         run: |
