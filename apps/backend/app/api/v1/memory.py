@@ -127,16 +127,10 @@ async def list_tenant_memory_documents(
 ):
     _authorize_memory(context, "memory.documents.read", "memory", "documents_list")
 
-    from app.core.database import get_database_engine
+    from app.core.database import tenant_tx
     import sqlalchemy as sa
 
-    engine = get_database_engine()
-    with engine.connect() as conn:
-        conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
-        conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": context.tenant_id},
-        )
+    with tenant_tx(context.tenant_id) as conn:
         sql = """
             SELECT id, tenant_id, title, summary, category, source_type,
                    data_classification, audience_scope, confidence, decay_factor, access_count,
