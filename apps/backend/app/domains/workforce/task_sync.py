@@ -105,9 +105,9 @@ async def emit_task_realtime_event(
     
     # Broadcast via Supabase Realtime REST API jika konfigurasi Supabase tersedia
     supabase_url = settings.SUPABASE_URL if hasattr(settings, "SUPABASE_URL") else None
-    service_key = getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None) or getattr(settings, "SUPABASE_SECRET_KEY", None)
+    realtime_key = getattr(settings, "SUPABASE_PUBLISHABLE_KEY", None) or getattr(settings, "SUPABASE_ANON_KEY", None)
 
-    if supabase_url and service_key:
+    if supabase_url and realtime_key:
         broadcast_endpoint = f"{supabase_url.rstrip('/')}/realtime/v1/api/broadcast"
         req_payload = {
             "messages": [
@@ -125,8 +125,8 @@ async def emit_task_realtime_event(
                 data=req_data,
                 headers={
                     "Content-Type": "application/json",
-                    "apikey": service_key,
-                    "Authorization": f"Bearer {service_key}"
+                    "apikey": realtime_key,
+                    "Authorization": f"Bearer {realtime_key}"
                 },
                 method="POST"
             )
