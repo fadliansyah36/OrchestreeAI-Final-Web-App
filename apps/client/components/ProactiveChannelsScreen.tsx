@@ -20,7 +20,7 @@ import {
   Flame,
   Users
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { CollaborationSetupScreen } from './proactive/CollaborationSetupScreen';
 
 interface ProactiveChannelsScreenProps {
