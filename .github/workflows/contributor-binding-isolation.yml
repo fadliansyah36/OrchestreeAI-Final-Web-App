@@ -1,0 +1,23 @@
+name: Contributor Binding Isolation Test
+run-name: Contributor Binding Isolation — GitHub Hosted
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  contributor-binding-test:
+    name: Contributor Binding Runner Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Contributor Binding OK
+        run: |
+          echo "CONTRIBUTOR_BINDING_OK"
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $(uname -srm)"
