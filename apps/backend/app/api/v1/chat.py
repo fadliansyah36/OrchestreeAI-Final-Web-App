@@ -10,13 +10,13 @@ import logging
 import asyncio
 from decimal import Decimal
 from typing import Optional, Dict, Any, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Depends, Header, Request
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
 from app.core.model_router.router import get_model_router, ModelRouterRequest
-from app.core.security import wrap_untrusted_external_content, sanitize_ai_output
+from app.core.security import AuthenticatedTenantContext, get_trusted_request_context, wrap_untrusted_external_content, sanitize_ai_output
 from app.domains.billing.credits import reserve_credit, consume_credit, refund_credit
 from app.domains.billing.credit_engine import estimate_credit_cost
 
@@ -28,8 +28,6 @@ router = APIRouter(prefix="/api/v1/chat", tags=["Ask AI & Chat Streaming"])
 class ChatMessageRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(..., min_length=1, max_length=10000, description="Pesan pertanyaan dari staf")
-    tenant_id: str = Field(..., min_length=3, max_length=100, description="ID Tenant/Organisasi")
-    membership_id: Optional[str] = Field(None, max_length=100, description="ID Membership staf")
     session_id: Optional[str] = Field(None, max_length=100, description="ID Sesi percakapan")
     system_prompt: Optional[str] = Field(
         "Anda adalah asisten kognitif cerdas OrchestreeAI. Berikan jawaban yang tepat, ringkas, dan profesional.",
@@ -57,14 +55,14 @@ async def stream_chat_message(
     user_id = x_user_id or payload.membership_id or str(uuid.uuid4())
     subject = SubjectContext(
         user_id=user_id,
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         actor_type="human_user",
         roles=["member"],
     )
     resource = ResourceContext(
         resource_type="chat_session",
         resource_id=payload.session_id,
-        owner_tenant_id=payload.tenant_id,
+        owner_tenant_id=tenant_id,
     )
     decision = authorize(subject, "chat.message.create", resource)
     if not decision.is_authorized:
