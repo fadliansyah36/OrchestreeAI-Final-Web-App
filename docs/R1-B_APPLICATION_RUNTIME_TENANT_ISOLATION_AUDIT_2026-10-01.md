@@ -3,282 +3,213 @@
 
 **Repository:** `fadliansyah36/OrchestreeAI-Final-Web-App`  
 **Canonical Supabase:** `OrchestreeDB-Web-PWA` (`szvbcvmvrucqxfikgjlx`)  
-**Basis:** AGENTS.md + Master PRD & Design System v2.2 + live R1-A database remediation.
+**Basis:** AGENTS.md + Master PRD & Design System v2.2 + R1-A database remediation.
 
 ## 1. Objective
 
-R1-B verifies that the application layer actually enforces the database isolation contract proven in R1-A:
+R1-B verifies that the application layer enforces the database isolation contract proven in R1-A:
 
 1. runtime database access uses `orchestree_app`;
 2. `service_role` is never used for tenant queries;
 3. every tenant transaction establishes `app.tenant_id`, `app.user_id`, `app.actor_type`;
-4. tenant identity comes from verified Supabase JWT + active membership, not client-controlled identity;
+4. tenant identity comes from verified Supabase JWT + active membership;
 5. `X-Tenant-Id` can select only an authenticated membership tenant;
 6. REST → service → database paths cannot bypass the canonical transaction boundary;
 7. workflow/node/MCP/memory/conversation/credit paths preserve the same tenant context.
 
-PRD v2.2 explicitly requires tenant queries through `orchestree_app` with NOBYPASSRLS/FORCE RLS, transaction-local GUCs, restricted `service_role`, and `authorize()` as the unified PDP.
+PRD v2.2 requires tenant queries through `orchestree_app` with NOBYPASSRLS/FORCE RLS, transaction-local GUCs, restricted `service_role`, and `authorize()` as the unified PDP.
 
-## 2. Audit evidence
+## 2. Initial audit findings
 
-### 2.1 Canonical DB helper
+### 2.1 Canonical transaction pattern
 
-`apps/backend/app/core/database.py` contains a synchronous `tenant_tx()` that:
+The previous `database.py` already had synchronous `tenant_tx()` that set:
 
-- executes `SET LOCAL ROLE orchestree_app`;
-- sets `app.tenant_id`;
-- sets `app.user_id` when supplied;
-- sets `app.membership_id` when supplied;
-- sets `app.actor_type`;
-- sets `app.request_id`.
+- `SET LOCAL ROLE orchestree_app`;
+- `app.tenant_id`;
+- `app.user_id`;
+- `app.membership_id`;
+- `app.actor_type`;
+- `app.request_id`.
 
-This matches the intended PRD transaction pattern.
+### 2.2 Blocking access-path findings
 
-### 2.2 Critical runtime gap — synchronous engine
+Before R1-B.1 there were unrestricted sync/async database access paths:
 
-`get_database_engine()` creates the singleton SQLAlchemy engine from `DATABASE_URL`, but the engine itself does not enforce `orchestree_app` at connection establishment.
-
-The role is enforced only when callers explicitly enter `tenant_tx()` or manually execute `SET LOCAL ROLE orchestree_app`.
-
-Therefore a direct:
-
-```python
-engine = get_database_engine()
-with engine.connect() as conn:
-    ...
-```
-
-does not, by construction, prove that the connection is `orchestree_app`.
-
-This is a **R1-B blocker** because AGENTS/PRD require the runtime database role to be controlled centrally rather than by individual endpoint discipline.
-
-### 2.3 Critical runtime gap — asynchronous pool
-
-`apps/backend/app/core/database.py` also exposes:
-
-- module-level `_async_pool`;
+- `get_database_engine()`;
 - `get_async_pool()`;
-- `DBConnectionWrapper.fetch()`;
-- `DBConnectionWrapper.fetchrow()`;
-- `DBConnectionWrapper.fetchval()`;
-- `DBConnectionWrapper.execute()`.
+- `DBConnectionWrapper`;
+- `get_db_connection()`.
 
-The async pool is created directly from `DATABASE_URL` and does not establish `orchestree_app` or tenant GUC context on acquisition.
+The async pool did not establish `orchestree_app` or tenant GUC context.
 
-This creates a second database access path outside the canonical `tenant_tx()` boundary.
+### 2.3 Blocking identity findings
 
-**Disposition: HIGH / BLOCKING.**
+Chat accepted client-supplied `tenant_id`, `membership_id`, and `x-user-id`.
 
-### 2.4 Authentication / membership resolution
+Memory accepted client-supplied identity/role/capability/MFA headers.
 
-`get_current_tenant_context()` verifies the Supabase JWT and then resolves membership through `_membership_context()`.
+These remain R1-B.2 blockers and were deliberately not mixed into R1-B.1.
 
-The membership lookup checks:
+## 3. R1-B.1 implementation
 
-- authenticated JWT subject;
-- active tenant membership;
-- optional `X-Tenant-Id`;
-- multi-tenant users must select an active membership tenant.
+### 3.1 Canonical runtime boundary implemented
 
-This is directionally aligned with the PRD.
+`apps/backend/app/core/database.py` now defines:
 
-However, the membership lookup itself uses `get_database_engine().connect()` rather than the canonical tenant transaction. Because this is the bootstrap step before tenant context exists, it requires a dedicated **identity/bootstrap DB access path** with explicit runtime role enforcement rather than an unrestricted generic engine connection.
+- `RuntimeDatabaseRoleError`;
+- `get_database_engine()`;
+- `get_async_database_engine()`;
+- `tenant_tx()`;
+- `tenant_tx_async()`.
 
-### 2.5 Critical endpoint finding — Chat
+Both transaction helpers:
 
-`apps/backend/app/api/v1/chat.py` currently accepts:
+1. acquire the canonical runtime engine;
+2. open a transaction;
+3. execute `SET LOCAL ROLE orchestree_app`;
+4. verify `current_user = orchestree_app`;
+5. verify `rolbypassrls = false`;
+6. verify `rolsuper = false`;
+7. establish transaction-local:
+   - `app.tenant_id`
+   - `app.user_id`
+   - `app.actor_type`
+   - `app.request_id`
+   - `app.membership_id`.
 
-- `tenant_id` in the request body;
-- `membership_id` in the request body;
-- `x-user-id` as a request header.
+This follows the PRD pattern for transaction-local GUCs and role isolation.
 
-It constructs `SubjectContext` directly from these client-controlled values.
+### 3.2 Legacy async pool path disabled
 
-This violates the R1-B requirement that authenticated identity and tenant context originate from the verified request security context.
+The former unrestricted:
 
-Even though `authorize()` is invoked, PDP input itself is being supplied by the client for this endpoint.
+- `get_async_pool()`;
+- `DBConnectionWrapper`;
+- `get_db_connection()`
 
-**Disposition: CRITICAL.**
+are now fail-closed and raise `RuntimeDatabaseRoleError`.
 
-The endpoint must instead derive:
+Tenant-capable async code must migrate to `tenant_tx_async()`.
 
-- `user_id`
-- `tenant_id`
-- `roles`
-- `capabilities`
-- MFA state
+### 3.3 Runtime role verification strengthened
 
-from `get_current_tenant_context()` / canonical FastAPI dependency, while the request payload contains only business data.
+`verify_db_connection_and_role()` now fails when the runtime URL resolves to a role other than:
 
-### 2.6 Memory endpoint findings
+`orchestree_app`
 
-`apps/backend/app/api/v1/memory.py` contains multiple endpoints accepting:
+or when that role has:
 
-- path `tenant_id`;
-- `X-User-Id`;
-- `X-User-Roles`;
-- `X-User-Capabilities`;
-- `X-MFA-Verified`.
+- `rolbypassrls=true`;
+- `rolsuper=true`.
 
-Some handlers merge request headers into PDP subject state.
+This directly aligns the startup check with the PRD requirement.
 
-One document-list path manually performs:
+### 3.4 Regression guard added
 
-```sql
-SET LOCAL ROLE orchestree_app;
-set_config('app.tenant_id', :tenant_id, true)
-```
+Added:
 
-This is safer than a completely unscoped query, but it duplicates the transaction-security contract at endpoint level.
+`apps/backend/tests/test_canonical_runtime_db_boundary.py`
 
-**Disposition: HIGH.**
+The tests verify that the retired unrestricted async-pool/database-wrapper APIs fail closed.
 
-R1-B should consolidate these paths behind the canonical security/transaction context rather than relying on every endpoint to implement the same controls correctly.
+## 4. Important limitation
 
-### 2.7 Unified PDP
+R1-B.1 establishes the canonical helpers and disables the known unrestricted async pool API, but **R1-B is not GREEN**.
 
-`apps/backend/app/authz/pdp.py` is present as the canonical `authorize()` implementation.
+There are still callers that must be migrated away from direct database connections and client-derived identity.
 
-It performs:
+In particular:
 
-1. RBAC;
-2. subscription tier;
-3. ABAC;
-4. department budget.
+- membership/bootstrap lookup still needs a deliberate bootstrap DB path;
+- Chat still requires R1-B.2 trusted request context;
+- Memory still requires R1-B.2 trusted request context;
+- remaining direct database access across domains must be inventoried and migrated;
+- `service_role` source usage is not yet fully proven absent.
 
-It also contains explicit cross-tenant denial logic except for MFA-authenticated Super Admin paths.
+Therefore R1-B.1 is an implementation milestone, not final tenant-isolation acceptance.
 
-This satisfies the architectural direction, but R1-B still needs to ensure every relevant endpoint constructs its `SubjectContext` from trusted authentication context.
+## 5. Current gap matrix
 
-## 3. R1-B gap matrix
-
-| Control | Result | Evidence |
+| Control | Status after R1-B.1 | Disposition |
 |---|---|---|
-| Supabase JWT verification | GREEN | canonical security module verifies signature/issuer/audience/exp/nbf |
-| Active membership resolution | GREEN/PARTIAL | membership query exists and filters active membership |
-| X-Tenant-Id membership binding | GREEN/PARTIAL | membership lookup constrains requested tenant |
-| Canonical `authorize()` | GREEN/PARTIAL | unified PDP exists and is used by dependencies |
-| `tenant_tx()` exists | GREEN | sets role + tenant/user/actor/request GUC |
-| Central runtime role enforcement | **FAIL** | generic sync engine does not enforce role |
-| Async runtime role enforcement | **FAIL** | async pool does not enforce role |
-| Central transaction boundary | **FAIL** | direct engine/pool paths remain |
-| Client-controlled tenant in Chat | **FAIL** | payload tenant_id directly enters SubjectContext |
-| Client-controlled user identity in Chat | **FAIL** | x-user-id directly enters SubjectContext |
-| Client-controlled roles/capabilities in Memory | **FAIL** | request headers merged into subject |
-| service_role exclusion | **NOT PROVEN** | source/runtime evidence incomplete |
-| DB-level RLS backstop | GREEN | R1-A live isolation suite |
-| Cross-tenant API E2E | **NOT GREEN** | requires runtime remediation first |
+| Canonical sync tenant transaction | GREEN | Implemented |
+| Canonical async tenant transaction | GREEN | Implemented |
+| Runtime role check | GREEN/PARTIAL | Enforced inside canonical transaction + startup verifier |
+| Legacy unrestricted async pool | GREEN | Disabled fail-closed |
+| Tenant GUC central helper | GREEN | Implemented |
+| Missing tenant context | GREEN | Canonical tenant transaction rejects empty tenant |
+| Client-controlled Chat identity | RED | R1-B.2 |
+| Client-controlled Memory identity | RED | R1-B.2 |
+| Direct DB calls across application | YELLOW | Inventory/migration required |
+| service_role exclusion | YELLOW | R1-B.3/R1-B.4 proof required |
+| Live API cross-tenant test | NOT GREEN | Execute after runtime migration |
+| R1-B overall | NOT GREEN | B.2–B.5 remain |
 
-## 4. R1-B disposition
+## 6. Files changed
 
-**R1-B status: AUDIT COMPLETE / REMEDIATION BLOCKED BY APPLICATION RUNTIME GAPS.**
+- `apps/backend/app/core/database.py`
+- `apps/backend/tests/test_canonical_runtime_db_boundary.py`
+- `docs/R1-B_APPLICATION_RUNTIME_TENANT_ISOLATION_AUDIT_2026-10-01.md`
 
-The database backstop is strong after R1-A, but the application layer is not yet compliant with the PRD/AGENTS contract.
+## 7. Commits
 
-The two most important blockers are:
+R1-B.1 database boundary implementation:
 
-### B1 — Multiple database access paths
+`83e840a304c5a590c2453e9295db8ab67baf5302`
 
-The application currently has:
+Regression guard:
 
-`get_database_engine()`  
-`tenant_tx()`  
-`get_async_pool()`  
-`DBConnectionWrapper`
+`e07b4b28ca6c481dbfdbb44978fd0436a5202d30`
 
-The PRD requires one controlled tenant database access pattern. Runtime role and tenant GUC enforcement cannot depend on every endpoint remembering the correct helper.
+## 8. R1-B.1 gate
 
-### B2 — Client-derived identity in tenant-sensitive endpoints
+### GREEN achieved for the defined implementation scope
 
-Chat and Memory still contain paths where request headers/body influence identity/tenant/role/capability state.
+- [x] canonical sync tenant transaction exists;
+- [x] canonical async tenant transaction exists;
+- [x] runtime role must be `orchestree_app`;
+- [x] runtime role must be NOBYPASSRLS/non-superuser;
+- [x] tenant GUCs are transaction-local;
+- [x] unrestricted async pool API is fail-closed;
+- [x] regression guards added.
 
-The authenticated security context must become authoritative.
+### Still blocked for R1-B overall
 
-## 5. Required remediation sequence
+- [ ] trusted RequestContext;
+- [ ] Chat identity migration;
+- [ ] Memory identity migration;
+- [ ] direct DB access inventory/migration;
+- [ ] service_role source/runtime proof;
+- [ ] live API cross-tenant negative suite.
 
-### R1-B.1 — Canonical Runtime DB Boundary
+No production database mutation was performed in R1-B.1.
 
-Create one authoritative runtime database boundary:
+## 9. Tahap/Fase Selanjutnya
 
-- enforce `orchestree_app`;
-- reject runtime connections that remain `service_role`/superuser;
-- provide explicit bootstrap/global access only where justified;
-- provide sync + async tenant transaction helpers;
-- set `app.tenant_id`, `app.user_id`, `app.actor_type`, `app.request_id` centrally;
-- fail closed when tenant context is absent;
-- remove/restrict unrestricted tenant-capable pool helpers.
+### **R1-B.2 — Trusted RequestContext & Identity Authority**
 
-### R1-B.2 — Trusted RequestContext
+**Objective:** menjadikan verified Supabase JWT + active membership sebagai satu-satunya sumber authoritative untuk user, tenant, role, capability, actor type, dan MFA.
 
-Make verified `AuthenticatedTenantContext` the only source for:
+**Scope:**
+1. canonical FastAPI `AuthenticatedTenantContext`;
+2. Chat;
+3. Memory;
+4. remove client-controlled identity headers;
+5. reject payload tenant override;
+6. ensure `authorize()` receives trusted context only;
+7. preserve `X-Tenant-Id` only as a selector validated against active membership.
 
-- user ID;
-- tenant ID;
-- roles;
-- capabilities;
-- actor type;
-- MFA state.
+**GREEN gate:**
+- forged `X-User-Id` cannot impersonate;
+- forged role/capability/MFA headers cannot elevate;
+- Tenant A token + Tenant B payload/header → 403;
+- PDP receives only trusted identity context;
+- no fabricated fallback identity.
 
-Remove client-controlled identity headers from tenant-sensitive handlers.
+**STOP blockers:**
+- any endpoint still trusting client identity;
+- any fallback UUID/user/role/capability;
+- any tenant context created from unverified request data.
 
-### R1-B.3 — Endpoint migration
-
-Migrate high-risk endpoints first:
-
-1. Chat
-2. Memory
-3. Billing/Credit
-4. Conversations
-5. Workflow/Orchestration
-6. MCP/tool invocation
-7. Storage
-8. Collaboration/Tasks
-
-### R1-B.4 — Runtime negative tests
-
-Add real integration tests proving:
-
-- Tenant A token + Tenant B header → 403;
-- Tenant A token + Tenant B payload → 403;
-- forged user header cannot impersonate another user;
-- forged roles/capabilities cannot elevate;
-- missing tenant context → fail closed;
-- tenant transaction → only tenant rows;
-- service_role runtime connection → startup/runtime rejection;
-- workflow node cannot escape tenant;
-- MCP tool cannot escape tenant.
-
-### R1-B.5 — Live API isolation
-
-Only after B1–B4:
-
-- execute against the real canonical Supabase tenants;
-- test REST endpoints;
-- workflow execution;
-- MCP tool access;
-- memory;
-- credits;
-- conversations;
-- storage;
-- audit ledger.
-
-## 6. Gate
-
-R1-B cannot be marked GREEN until:
-
-- [ ] one canonical runtime DB boundary exists;
-- [ ] runtime role is centrally enforced as `orchestree_app`;
-- [ ] no tenant path uses `service_role`;
-- [ ] tenant GUC is established centrally;
-- [ ] client identity cannot override verified identity;
-- [ ] Chat/Memory/etc. no longer construct trusted SubjectContext from headers/body;
-- [ ] real API cross-tenant negative tests pass;
-- [ ] missing tenant context fails closed.
-
-**No production database mutation was performed during this R1-B audit.**
-
-## 7. Next execution phase
-
-**NEXT: R1-B.1 — Canonical Runtime DB Boundary**
-
-This is the immediate next implementation step. It must be completed and verified before R1-B.2 endpoint migration begins.
+**Output required before R1-B.3:** trusted request-context migration report + passing negative tests.
