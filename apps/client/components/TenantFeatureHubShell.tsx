@@ -15,7 +15,7 @@ import {
   Activity,
   Bot
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { WorkforceHubScreen } from './workforce/WorkforceHubScreen';
 import { BillingHubScreen } from './billing/BillingHubScreen';
 import { ProactiveChannelsScreen } from './ProactiveChannelsScreen';
