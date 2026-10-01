@@ -120,15 +120,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Restore only the grants/policy state introduced by this migration.
-    # Public Data API grants are intentionally NOT restored: the previous
-    # exposure was a security defect and must not return silently.
+    # Security-preserving downgrade: never return public Data API grants and
+    # never disable RLS on a tenant-derived table. Removing the policy while
+    # keeping FORCE RLS leaves the table fail-closed until a reviewed policy
+    # is restored.
     op.execute(
         "DROP POLICY IF EXISTS workflow_nodes_tenant_isolation "
         "ON public.workflow_nodes"
     )
-    op.execute("ALTER TABLE public.workflow_nodes NO FORCE ROW LEVEL SECURITY")
-    op.execute("ALTER TABLE public.workflow_nodes DISABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE public.workflow_nodes ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE public.workflow_nodes FORCE ROW LEVEL SECURITY")
 
     op.execute(
         "REVOKE EXECUTE ON FUNCTION public.fn_board_visible_to_membership(uuid, uuid) "
