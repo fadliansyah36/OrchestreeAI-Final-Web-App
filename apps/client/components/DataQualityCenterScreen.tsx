@@ -21,7 +21,7 @@ import {
   HelpCircle,
   Cpu
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { ExplainabilityPanel, DataAvailabilityState } from './ExplainabilityPanel';
 
 interface DataQualityIssue {
