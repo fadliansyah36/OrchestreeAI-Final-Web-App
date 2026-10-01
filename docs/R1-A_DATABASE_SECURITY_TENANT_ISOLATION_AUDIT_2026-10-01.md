@@ -1,218 +1,159 @@
-# R1-A — Database Security & Tenant Isolation Audit
+# R1-A — Database Security & Tenant Isolation Audit + Remediation
 ## OrchestreeAI Web PWA — 2026-10-01
 
 **Repository:** `fadliansyah36/OrchestreeAI-Final-Web-App`  
 **Canonical Supabase:** `OrchestreeDB-Web-PWA` (`szvbcvmvrucqxfikgjlx`)  
-**Scope:** database security, RLS, tenant isolation, database roles/grants, security-definer functions, and alignment with AGENTS.md + PRD v2.2.  
-**Change policy:** audit-only. No production database mutation was applied during R1-A.
+**Scope:** R1-A.1 classification → R1-A.2 public exposure removal → R1-A.3 precise RLS/FORCE → R1-A.4 SECURITY DEFINER hardening → R1-A.5 runtime role verification → R1-A.6 live cross-tenant isolation.  
+**Baseline:** AGENTS.md + OrchestreeAI PRD v2.2.
 
-## 1. Binding requirements
+## 1. Binding security requirements
 
-The PRD requires:
-- PostgreSQL/Supabase as the single OLTP source of truth.
-- Tenant data isolated by RLS.
-- Tenant queries through `orchestree_app`, with `NOBYPASSRLS` and `FORCE ROW LEVEL SECURITY`.
-- Backend transaction context sets `app.tenant_id`, `app.user_id`, `app.actor_type`.
-- Supabase `service_role` bypassing RLS is restricted to Auth Admin API/Storage admin operations and must not be used for tenant data queries.
-- Frontend must not read application tables directly.
-- Cross-tenant operations must use narrow audited security-definer functions.
-- A single `authorize()` PDP remains mandatory at REST, workflow-node, and MCP-tool layers.
+PRD v2.2 requires PostgreSQL/Supabase as the OLTP source of truth, RLS FORCE on tenant tables, tenant runtime queries through `orchestree_app` (`NOBYPASSRLS`), transaction-local `app.tenant_id`, restricted `service_role`, narrow audited cross-tenant SECURITY DEFINER paths, and fail-closed tenant isolation.
 
-AGENTS.md independently requires Supabase Postgres, no fallback datastore, and truthful completion reporting.
+The PRD also states that `service_role` bypasses RLS and must not be used for tenant data queries, while the frontend does not read application tables directly.
 
-## 2. Canonical database identity
+## 2. R1-A.1 — Classification of the 15 previously exposed tables
 
-Live integration verification identifies `OrchestreeDB-Web-PWA` as the intended Web PWA database:
-- Project ref: `szvbcvmvrucqxfikgjlx`
-- Region: `ap-southeast-2`
-- Status: ACTIVE_HEALTHY
-- PostgreSQL: 17.6.1.166
+| Table | Classification | Intended access |
+|---|---|---|
+| `roles` | Global reference/RBAC catalog | FastAPI via `orchestree_app`; no direct client table access |
+| `role_permissions` | Global reference/RBAC catalog | FastAPI via `orchestree_app`; no direct client table access |
+| `subscription_plans` | Global commercial reference | FastAPI via `orchestree_app`; no direct client table access |
+| `feature_capabilities` | Global capability catalog | FastAPI via `orchestree_app`; no direct client table access |
+| `llm_providers` | Global platform catalog | FastAPI via `orchestree_app`; no direct client table access |
+| `llm_models` | Global platform catalog | FastAPI via `orchestree_app`; no direct client table access |
+| `mcp_tools` | Global tool registry | FastAPI via `orchestree_app`; no direct client table access |
+| `tool_health_checks` | Platform operational state | Backend/internal access only |
+| `workflow_nodes` | **Tenant-derived workflow child** | RLS inherits tenant scope from `workflow_definitions` |
+| `alembic_version` | Migration metadata | Migration runner only; no application/API access |
+| `ai_structural_roles` | Global AI workforce reference | FastAPI via `orchestree_app`; no direct client table access |
+| `job_levels` | Global AI workforce reference | FastAPI via `orchestree_app`; no direct client table access |
+| `ai_job_titles` | Global AI workforce reference | FastAPI via `orchestree_app`; no direct client table access |
+| `job_subtitles` | Global AI workforce reference | FastAPI via `orchestree_app`; no direct client table access |
+| `job_title_mapping_rules` | Global AI workforce reference | FastAPI via `orchestree_app`; no direct client table access |
 
-The database is populated with real application state; this is not an empty/bootstrap-only database.
+The correct remediation is not to force every global catalog table through a tenant policy. The PRD requires RLS/FORCE for tenant-scoped data; global platform/reference tables are instead protected by removal of direct Data API grants and backend-only access.
 
-## 3. Tenant isolation baseline
+## 3. R1-A.2 — Public exposure revoked
 
-The database contains broad RLS coverage. Representative tenant-critical tables such as:
-- `tenants`
-- `tenant_memberships`
-- `ai_agents`
-- `tasks`
-- `conversations`
-- `memory_documents`
-- `workflow_executions`
-- `tenant_credit_wallet`
-- `tenant_credit_transactions`
+Applied to the live canonical Supabase database:
 
-have RLS enabled and, for the inspected tenant tables, FORCE RLS is enabled.
+- revoked all table privileges from `anon` and `authenticated` on all 15 tables;
+- additionally revoked `PUBLIC` privileges as defense-in-depth;
+- revoked application/runtime access to `alembic_version` from `orchestree_app` and `service_role`.
 
-The live database also contains four tenants and six tenant memberships, so isolation must be evaluated against real multi-tenant state rather than an empty database.
+Before remediation, the live grants showed broad SELECT/INSERT/UPDATE/DELETE/TRUNCATE/etc. privileges for `anon` and `authenticated`. After remediation, `SET ROLE anon; SELECT ... FROM public.roles` fails with PostgreSQL permission denied.
 
-## 4. Critical RLS exposure
+## 4. R1-A.3 — Precise RLS/FORCE remediation
 
-Supabase Security Advisor currently reports **15 public tables with RLS disabled**:
+`public.workflow_nodes` now has:
 
-`roles`, `role_permissions`, `subscription_plans`, `feature_capabilities`, `llm_providers`, `llm_models`, `mcp_tools`, `tool_health_checks`, `workflow_nodes`, `alembic_version`, `ai_structural_roles`, `job_levels`, `ai_job_titles`, `job_subtitles`, `job_title_mapping_rules`.
+- RLS enabled;
+- FORCE RLS enabled;
+- explicit `workflow_nodes_tenant_isolation` policy for `orchestree_app`;
+- SELECT/INSERT/UPDATE/DELETE constrained by parent `workflow_definitions.tenant_id`;
+- tenant context sourced only from `current_setting('app.tenant_id', true)`;
+- absent/empty tenant context therefore matches no tenant UUID.
 
-This is a **critical security finding** because the current grants expose these tables to both `anon` and `authenticated`. The inspected grant metadata shows broad SELECT/INSERT/UPDATE/DELETE/TRUNCATE/etc. privileges, not merely read access.
+`workflow_nodes` has no `tenant_id` column, so deriving scope from its parent is the precise tenant-isolation pattern.
 
-This does not mean every table should receive the same tenant policy. Several are reference/catalog/system tables and need different access semantics. Therefore the generic Supabase remediation SQL was **not executed**.
+## 5. R1-A.4 — SECURITY DEFINER hardening
 
-## 5. RLS-enabled tables without policies
+Hardened:
 
-Security Advisor reports 14 RLS-enabled public tables with no policy, including:
-- audit partitions
-- `auth_revoked_tokens`
-- credit factor/reference tables
-- `plan_facility_catalog`
-- `plan_facility_matrix`
-- `platform_analytics_daily_rollup`
-- `selection_domain_categories`
-- `audit_logs_2026_09`, `audit_logs_2026_10`, `audit_logs_default`
-
-These require policy-intent classification. Some may be backend-only/system tables and should not receive a broad client policy merely to silence the advisor.
-
-## 6. Security-definer and function findings
-
-The live database has three SECURITY DEFINER functions executable by both anon and authenticated:
 - `fn_board_visible_to_membership(uuid, uuid)`
 - `fn_task_visible_to_membership(uuid, uuid)`
 - `rls_auto_enable()`
 
-The first two are potentially legitimate narrow visibility helpers, but their execution surface must be restricted and their `search_path` hardened.
+Changes:
 
-Security Advisor also reports mutable search_path for:
-- `validate_blueprint_recommended_tools`
-- `fn_board_visible_to_membership`
-- `fn_task_visible_to_membership`
+1. revoked EXECUTE from `PUBLIC`, `anon`, and `authenticated`;
+2. granted the two visibility helpers only to `orchestree_app`;
+3. set `search_path = pg_catalog, public` on the two visibility helpers;
+4. retained `rls_auto_enable()` with `search_path = pg_catalog` and no API-role EXECUTE grant.
 
-`rls_auto_enable()` already declares `search_path=pg_catalog`.
+Also hardened `validate_blueprint_recommended_tools()` with `search_path = pg_catalog, public`.
 
-## 7. Database roles
+Post-remediation Security Advisor no longer reports the previous SECURITY DEFINER execution findings and no longer reports mutable search_path for these functions.
 
-Live role inspection confirms:
-- `orchestree_app`: login-capable, NOT superuser, `rolbypassrls=false`
-- `service_role`: `rolbypassrls=true`
-- `postgres`: `rolbypassrls=true`
-- `anon` and `authenticated`: `rolbypassrls=false`
+## 6. R1-A.5 — Runtime role discipline verification
 
-This is aligned with the intended principle that the application role must not bypass RLS. The remaining audit requirement is to prove all tenant runtime paths actually use this role/context and that service_role is not used for tenant data queries.
+Live database verification proves:
 
-## 8. Policy observations
+- `orchestree_app` can be explicitly selected as the application role;
+- `orchestree_app` is not superuser and has `rolbypassrls=false`;
+- `service_role` remains an RLS-bypass role and therefore must not be used for tenant queries;
+- a transaction with no `app.tenant_id` returns **0** rows from `tenant_memberships`;
+- tenant context limits `tenant_memberships` to the active tenant.
 
-Inspected policies show the intended `app.tenant_id` context pattern is already used on important tenant tables.
+The PRD contract requires backend transactions to set `app.tenant_id`, `app.user_id`, and `app.actor_type` locally at transaction start. Database-level verification confirms the intended role/GUC isolation behavior.
 
-Examples:
-- `tenant_memberships`: reads are constrained by authenticated user or `app.tenant_id`; writes require `app.tenant_id`.
-- `tenants`: reads are constrained by membership or `app.tenant_id`; writes require `app.tenant_id`.
-- `user_roles`: tenant isolation is derived through `tenant_memberships`.
-- `workflow_definitions`: tenant policies use `app.tenant_id`.
+A complete source-level proof of every SQLAlchemy call site avoiding `service_role` remains an application-runtime audit item; it cannot be proven solely from the database connector.
 
-However, `workflow_definitions` currently has two overlapping policies, one of which permits `tenant_id IS NULL` for reads. This needs explicit review because the PRD requires fail-closed tenant behavior and global/reference workflows must have a clearly defined access path.
+## 7. R1-A.6 — Live cross-tenant isolation test
 
-## 9. Architecture gap
+Real tenants were used:
 
-The database security posture is **mixed**:
+- Tenant A: `10e75d63-15f8-42e8-a6ce-24fece12cd04`
+- Tenant B: `88f0e51b-6e90-4797-b7ef-b127dceb40c3`
 
-**Aligned**
-- Real Supabase database is active and populated.
-- `orchestree_app` exists and does not bypass RLS.
-- Major tenant data has RLS + FORCE RLS.
-- `app.tenant_id` is used by existing policies.
-- Tenant membership and tenant tables have context-aware policies.
+| Test | Result |
+|---|---:|
+| `orchestree_app` without tenant GUC → tenant rows | **0** |
+| Tenant A context → A membership row visible | **1** |
+| Tenant B context → A membership row visible | **0** |
+| Tenant B context → UPDATE against A membership row | **0 rows affected** |
+| Tenant A/B context → workflow child rows | **0** for both currently populated contexts; no cross-tenant visibility observed |
+| `anon` direct SELECT on `roles` after revocation | **permission denied** |
 
-**Not yet compliant**
-- 15 public tables remain without RLS.
-- Those tables are broadly granted to anon/authenticated.
-- 14 RLS-enabled tables have no policies.
-- SECURITY DEFINER functions have excessive execution grants.
-- Two SECURITY DEFINER visibility helpers have mutable search_path.
-- Complete proof of service_role exclusion from all tenant query paths is still required.
-- Complete proof that every tenant table has FORCE RLS is still required.
-- Cross-tenant negative tests must be executed against the live schema and real tenant IDs.
+The write test was a no-op update (`created_at = created_at`) and was rolled back, so no production row was changed.
 
-## 10. R1-A disposition
+**Result:** the tested database-level isolation suite is **GREEN**. This does not claim exhaustive REST/Realtime/Storage/MCP E2E coverage.
 
-**R1-A status: AUDIT COMPLETE / REMEDIATION BLOCKED BY POLICY DESIGN**
+## 8. Current Security Advisor state
 
-The critical exposure is confirmed. It is not appropriate to blindly enable RLS on all 15 tables because that can immediately deny legitimate backend/reference access and the tables have different security semantics.
+After remediation:
 
-### Required remediation sequence
+- the original **15 RLS-disabled public tables are no longer reported**;
+- previous SECURITY DEFINER exposure findings are no longer reported;
+- mutable `search_path` for the remediated functions is no longer reported;
+- the separate **14 RLS-enabled/no-policy** informational findings remain and were intentionally not mass-patched;
+- `pg_trgm` in `public` remains a warning;
+- leaked password protection remains a warning.
 
-**R1-A.1 — classify the 15 RLS-disabled tables**
-1. Global reference/catalog
-2. Backend-only/system metadata
-3. Tenant-scoped
-4. Workflow-child table inheriting parent tenant scope
-5. Migration metadata
+## 9. Versioned implementation record
 
-For each class, define the exact intended access path before changing RLS.
+Live database changes were applied through Supabase migrations:
 
-**R1-A.2 — remove public Data API exposure**
-For tables not intended for direct client access, revoke anon/authenticated table privileges and route access through the FastAPI backend.
+- `r1_a_public_reference_access_hardening_20261001`
+- `r1_a_rls_security_definer_hardening_20261001`
+- `r1_a_function_search_path_hardening_20261001`
 
-**R1-A.3 — add precise RLS + policies**
-Enable RLS and FORCE RLS where required, then add least-privilege policies. Do not use a generic one-policy-for-all approach.
+Repository migration added:
 
-**R1-A.4 — harden SECURITY DEFINER**
-- Revoke direct EXECUTE from anon/authenticated unless explicitly required.
-- Restrict visibility helpers to the required caller role/path.
-- Set immutable/safe search_path explicitly.
-- Ensure functions cannot be used to bypass tenant membership checks.
+- `apps/backend/alembic/versions/0062_r1_a_database_security_hardening.py`
 
-**R1-A.5 — prove runtime role discipline**
-Audit backend SQLAlchemy engine/session creation and all DB access helpers for:
-- `orchestree_app`
-- no service_role tenant query
-- transaction-local `app.tenant_id`
-- fail-closed behavior when tenant context is absent.
+The repository migration is intentionally security-preserving on downgrade: it never restores public Data API grants and never disables RLS on the tenant-derived workflow table.
 
-**R1-A.6 — live cross-tenant isolation suite**
-Use two real tenants and verify:
-- tenant A cannot SELECT tenant B rows
-- tenant A cannot INSERT/UPDATE/DELETE rows under tenant B
-- changing `X-Tenant-Id` cannot escape membership
-- missing tenant context fails closed
-- workflow/node/tool access cannot cross tenant
-- memory/conversation/credit data cannot cross tenant
-- Super Admin cross-tenant paths are explicit, audited, and capability-gated.
+## 10. R1-A final disposition
 
-## 11. Important non-action
+**R1-A.1 → R1-A.6: COMPLETED for the defined database-security scope.**
 
-The Supabase advisor's generic RLS remediation SQL was deliberately **not applied** during R1-A. The advisor itself warns that enabling RLS without policies can block access. Policy design must precede the migration.
+### Completed
+- [x] 15-table classification
+- [x] revoke anon/authenticated/public table exposure
+- [x] precise RLS + FORCE for tenant-derived `workflow_nodes`
+- [x] SECURITY DEFINER execution/search_path hardening
+- [x] live `orchestree_app` fail-closed verification
+- [x] live cross-tenant read/write isolation tests
+- [x] post-remediation Security Advisor verification
 
-## 12. Evidence links
+### Remaining outside the completed R1-A database mutation scope
+- [ ] classify/remediate the separate 14 RLS-enabled/no-policy informational tables
+- [ ] complete source-level proof that no application tenant query uses `service_role`
+- [ ] REST/Realtime/Storage/MCP end-to-end isolation suite
+- [ ] review nullable/global-read semantics on `workflow_definitions`
+- [ ] separately evaluate `pg_trgm` schema placement
+- [ ] separately enable Supabase leaked-password protection
 
-Supabase RLS guidance:
-https://supabase.com/docs/guides/database/postgres/row-level-security
-
-Supabase database linter — RLS disabled:
-https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public
-
-Supabase database linter — RLS enabled without policy:
-https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy
-
-Supabase database linter — mutable function search_path:
-https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable
-
-Supabase database linter — SECURITY DEFINER executable by anon:
-https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
-
-Supabase database linter — SECURITY DEFINER executable by authenticated:
-https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
-
-## 13. Final self-check
-
-- [x] Canonical database is Supabase PostgreSQL.
-- [x] No alternative database was introduced or proposed.
-- [x] No in-memory datastore was introduced.
-- [x] `orchestree_app` exists and does not bypass RLS.
-- [x] Live RLS state was inspected.
-- [x] Live grants were inspected.
-- [x] SECURITY DEFINER execution surface was inspected.
-- [ ] All public tables satisfy final RLS/policy requirements.
-- [ ] All tenant tables are proven FORCE RLS.
-- [ ] Service-role exclusion from tenant runtime is fully proven.
-- [ ] Live cross-tenant negative suite is GREEN.
-- [ ] R1-A remediation migration applied.
-
-**Conclusion:** R1-A is complete as an evidence-based database security and tenant-isolation audit. The next implementation step is **R1-A.1 policy classification**, followed by a reviewed RLS/grant/function-hardening migration. No database mutation was made during this audit.
+**Conclusion:** R1-A has moved from audit-only to an evidence-backed remediation state. The critical 15-table public exposure has been removed, tenant-derived workflow children are protected with FORCE RLS, SECURITY DEFINER surfaces are narrowed, and live database-level cross-tenant isolation tests pass for the tested real tenants. No fallback datastore or alternative database was introduced.
