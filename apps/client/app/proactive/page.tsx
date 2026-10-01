@@ -1,27 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { ProactiveChannelsScreen } from '@/apps/client/components/ProactiveChannelsScreen';
+import React from 'react';
+import { ProactiveChannelsScreen } from '../../components/ProactiveChannelsScreen';
+import { useAuthSession } from '../../lib/useAuthSession';
 import { ShieldAlert } from 'lucide-react';
 
 import { EmptyState } from '@orchestree/ui';
 
 export default function ClientProactivePage() {
-  const [activeTenant, setActiveTenant] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('orchestree_active_tenant');
-      if (stored) {
-        setActiveTenant(JSON.parse(stored));
-      }
-    } catch (e) {
-      // Ignored
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { session: activeTenant, loading } = useAuthSession();
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-[#0B1220] pb-16">
