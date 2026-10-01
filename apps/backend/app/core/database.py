@@ -9,6 +9,7 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Dict, Generator, Optional, Tuple, Union
 import uuid
+from urllib.parse import urlparse, unquote
 
 import sqlalchemy as sa
 from sqlalchemy import event
@@ -61,6 +62,12 @@ def _require_runtime_url() -> str:
     url = get_runtime_database_url()
     if not url:
         raise DatabaseNotConfiguredError()
+    parsed = urlparse(url)
+    username = unquote(parsed.username or "")
+    if username != "orchestree_app":
+        raise RuntimeDatabaseRoleError(
+            "DATABASE_URL runtime wajib menunjuk langsung ke role orchestree_app; service_role/postgres/credential lain dilarang."
+        )
     return url
 
 
