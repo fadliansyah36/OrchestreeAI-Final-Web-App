@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict, List, Optional
 import uuid
 import sqlalchemy as sa
-from app.core.database import get_database_engine
+from app.core.database import tenant_tx
 
 logger = logging.getLogger("orchestree.analytics.rollup")
 
@@ -25,8 +25,8 @@ def compute_daily_rollup(target_date: Optional[date] = None) -> Dict[str, Any]:
     if target_date is None:
         target_date = datetime.now(timezone.utc).date()
 
-    engine = get_database_engine()
-    with engine.begin() as conn:
+    raise RuntimeError("Platform-wide analytics rollup must execute through the audited cross-tenant DB function boundary (R1-B.3).")
+    with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
         # 1. Pastikan tabel rollup ada
         conn.execute(sa.text("""
             CREATE TABLE IF NOT EXISTS platform_analytics_daily_rollup (
@@ -355,8 +355,7 @@ def get_platform_analytics_overview(
     """
     start_date, end_date = parse_date_range(range_str, start_str, end_str)
 
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    with tenant_tx(tenant_id) as conn:
         # Cek apakah rollup sudah ada
         rows = conn.execute(sa.text("""
             SELECT
@@ -516,8 +515,8 @@ def get_tenant_rankings(
     sort_col = valid_sorts.get(sort_by, "revenue_idr")
     dir_str = "DESC" if order.lower() == "desc" else "ASC"
 
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    raise RuntimeError("Platform-wide analytics read must execute through the audited cross-tenant DB function boundary (R1-B.3).")
+    with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
         query = sa.text(f"""
             WITH latest_rollup AS (
                 SELECT DISTINCT ON (tenant_id)
