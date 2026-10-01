@@ -6,7 +6,7 @@ dan secara ketat menolak upaya manipulasi header X-Tenant-Id.
 
 from typing import List, Optional
 import uuid
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 from app.core.config import settings
@@ -283,7 +283,7 @@ async def get_current_tenant_context(
 
 async def get_trusted_request_context(
     request: Request,
-    context: AuthenticatedTenantContext = __import__("fastapi").Depends(get_current_tenant_context),
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
 ) -> AuthenticatedTenantContext:
     """Canonical request identity: verified Supabase JWT + active membership only.
 
