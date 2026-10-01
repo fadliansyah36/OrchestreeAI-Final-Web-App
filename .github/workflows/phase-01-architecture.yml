@@ -78,6 +78,10 @@ jobs:
           python -m pip install -r apps/backend/requirements.txt
           python -m pytest apps/backend/tests/test_r1_b3_db_access_inventory.py -q -s
 
+      - name: R1-B.4 API identity and cross-tenant negative suite
+        run: |
+          python -m pytest apps/backend/tests/test_r1_b4_live_api_cross_tenant_isolation.py -m "not live" -q -s
+
       - name: Run mandatory content/perimeter/security gates
         run: |
           npm run ci:content-gate
