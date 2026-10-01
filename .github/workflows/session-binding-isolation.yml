@@ -1,0 +1,20 @@
+name: Session Binding Isolation Test
+run-name: Session Binding Isolation — GitHub Hosted
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  binding-test:
+    name: Session Binding Runner Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Binding OK
+        run: |
+          echo "SESSION_BINDING_OK"
+          echo "Runner: $RUNNER_NAME"
+          echo "OS: $(uname -srm)"
