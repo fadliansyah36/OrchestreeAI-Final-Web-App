@@ -259,3 +259,37 @@ No production database mutation was performed in R1-B.1.
 - bootstrap identity resolution falls back to client-supplied identity.
 
 **Output required before R1-B.4:** complete DB access inventory, migration report, service-role exclusion evidence, and passing regression suite.
+
+## R1-B.3 Continuation — Complete Direct DB Extraction
+
+### Implemented
+
+- Added synchronous `platform_tx()` and asynchronous `platform_tx_async()` for **global platform/reference reads** that must still use `orchestree_app`, never `service_role`.
+- Runtime DB URL is now fail-closed unless its username is exactly `orchestree_app`.
+- Sync engine pool checkout verifies `current_user=orchestree_app`, `rolbypassrls=false`, and `rolsuper=false`.
+- Migrated proactive tenant operations to `tenant_tx()` / `tenant_tx_async()`; sender/trigger discovery without tenant context uses the narrow platform boundary before tenant context is established.
+- Migrated selection ABAC and tenant operations to canonical `tenant_tx()`; global selection category lookup uses `platform_tx()`; signed webhook trigger resolution uses `platform_tx()` only for the narrow trigger lookup and switches to tenant context before tenant execution.
+- Migrated global credit-factor reads to `platform_tx_async()` and tenant wallet/subscription operations to `tenant_tx_async()`.
+- Migrated memory operations to `tenant_tx_async()`.
+- Removed workforce Realtime use of `service_role`.
+- R1-B.3 inventory remains a CI gate.
+
+### Remaining classified direct DB access
+
+`domains/analytics/rollup_service.py` still contains direct engine access for **platform-wide analytics/rollup aggregation**. This is not a tenant request path, but it is a privileged cross-tenant aggregation path. The PRD specifies that scheduler/Super Admin cross-tenant operations should use narrow `SECURITY DEFINER` functions returning only required IDs/aggregates and recording Audit Ledger events. Therefore this path is classified as **P1 follow-up**, not silently converted to a tenant transaction that would alter its cross-tenant semantics.
+
+### R1-B.3 continuation gate status
+
+- [x] proactive direct tenant DB paths extracted;
+- [x] selection tenant DB paths extracted;
+- [x] memory tenant DB paths extracted;
+- [x] credit tenant DB paths extracted;
+- [x] global reference reads have a canonical non-tenant runtime boundary;
+- [x] runtime DB credential is fail-closed to `orchestree_app`;
+- [x] sync pool checkout role verification;
+- [x] service-role Realtime path removed;
+- [ ] CI verification complete;
+- [ ] platform-wide analytics cross-tenant aggregation moved to narrow audited SECURITY DEFINER boundary.
+
+**R1-B.3 status: NOT GREEN until CI completes and the analytics privileged aggregation boundary is formally accepted/migrated.**
+
