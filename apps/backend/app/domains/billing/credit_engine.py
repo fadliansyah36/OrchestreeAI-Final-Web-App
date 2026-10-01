@@ -18,7 +18,7 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
-from app.core.database import get_engine
+from app.core.database import get_engine, tenant_tx_async
 
 logger = logging.getLogger("orchestree.billing.credit_engine")
 
@@ -291,12 +291,7 @@ class CreditExecutionFactorRepo:
 
 class TenantSubscriptionRepo:
     async def get_active(self, tenant_id: str) -> ActiveSubscriptionRecord:
-        engine = get_engine()
-        async with engine.begin() as conn:
-            await conn.execute(
-                sa.text("SELECT set_config('app.tenant_id', :val, true);"),
-                {"val": tenant_id},
-            )
+        async with tenant_tx_async(tenant_id) as conn:
             res = await conn.execute(
                 sa.text("""
                     SELECT id, tenant_id, plan_id, status, is_unlimited_override, unlimited_reason
@@ -399,12 +394,7 @@ async def reserve_credit(
         meta["is_unlimited_override"] = True
         meta["unlimited_reason"] = subscription.unlimited_reason
 
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :val, true);"),
-            {"val": tenant_id},
-        )
+    async with tenant_tx_async(tenant_id) as conn:
 
         # 1. Kunci dompet tenant (Row-Level Locking)
         res_w = await conn.execute(
@@ -543,12 +533,7 @@ async def consume_credit(
     exec_reference = execution_ref or reservation.execution_ref or reservation.reference_id
     cost = max(0.0, actual_cost)
 
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :val, true);"),
-            {"val": reservation.tenant_id},
-        )
+    async with tenant_tx_async(reservation.tenant_id) as conn:
 
         # 1. Kunci dompet tenant
         res_w = await conn.execute(
@@ -640,12 +625,7 @@ async def refund_credit(
     """
     subscription = await tenant_subscription_repo.get_active(reservation.tenant_id)
 
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :val, true);"),
-            {"val": reservation.tenant_id},
-        )
+    async with tenant_tx_async(reservation.tenant_id) as conn:
 
         res_w = await conn.execute(
             sa.text("""
