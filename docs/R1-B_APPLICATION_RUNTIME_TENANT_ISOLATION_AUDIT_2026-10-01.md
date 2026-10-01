@@ -49,7 +49,7 @@ Chat accepted client-supplied `tenant_id`, `membership_id`, and `x-user-id`.
 
 Memory accepted client-supplied identity/role/capability/MFA headers.
 
-These remain R1-B.2 blockers and were deliberately not mixed into R1-B.1.
+These were the R1-B.2 blockers. They have now been migrated for the Chat and Memory API surfaces.
 
 ## 3. R1-B.1 implementation
 
@@ -129,7 +129,37 @@ In particular:
 
 Therefore R1-B.1 is an implementation milestone, not final tenant-isolation acceptance.
 
-## 5. Current gap matrix
+## 5. R1-B.2 implementation — Trusted RequestContext & Identity Authority
+
+### 5.1 Canonical trusted context
+
+`apps/backend/app/core/security/__init__.py` now exposes `get_trusted_request_context()` as the canonical FastAPI identity dependency. It is derived from the verified Supabase JWT and active tenant membership resolved by `get_current_tenant_context()`. `X-Tenant-Id` remains only a validated tenant selector. When a tenant path parameter exists, it must match the trusted active tenant or the request is rejected with HTTP 403.
+
+`require_capability()` now consumes this trusted dependency, so the unified PDP no longer receives a subject assembled from endpoint-supplied identity headers.
+
+### 5.2 Chat migration
+
+`POST /api/v1/chat/messages` now receives `AuthenticatedTenantContext` through `get_trusted_request_context()` and constructs `SubjectContext` exclusively from it. The request body no longer accepts `tenant_id` or `membership_id`; Pydantic `extra="forbid"` rejects those client overrides. The endpoint no longer accepts `X-User-Id`, and tenant/user/role/capability/MFA values used by PDP and Credit/Model Router are sourced from trusted context.
+
+### 5.3 Memory migration
+
+Memory search, document list/create, and consolidation endpoints now consume `AuthenticatedTenantContext`. Client-controlled `X-User-Id`, `X-User-Roles`, `X-User-Capabilities`, and `X-MFA-Verified` are removed from these endpoint contracts. Tenant, user, role, capability, actor type, and MFA state are taken only from trusted context. Tenant path values are independently checked by the trusted dependency.
+
+### 5.4 Regression tests
+
+Added `apps/backend/tests/test_r1_b2_trusted_request_context.py` covering:
+- path tenant mismatch rejection;
+- matching trusted tenant acceptance;
+- Chat payload rejection of `tenant_id` override;
+- Chat payload rejection of `membership_id` identity injection.
+
+### 5.5 R1-B.2 status
+
+**Implementation scope: GREEN.** The targeted Chat and Memory identity surfaces are now server-authoritative.
+
+**R1-B overall: NOT GREEN.** This does not yet prove that every backend endpoint is free of client-derived identity, nor does it prove live API cross-tenant isolation or absence of `service_role` tenant queries.
+
+## 6. Current gap matrix
 
 | Control | Status after R1-B.1 | Disposition |
 |---|---|---|
@@ -139,30 +169,43 @@ Therefore R1-B.1 is an implementation milestone, not final tenant-isolation acce
 | Legacy unrestricted async pool | GREEN | Disabled fail-closed |
 | Tenant GUC central helper | GREEN | Implemented |
 | Missing tenant context | GREEN | Canonical tenant transaction rejects empty tenant |
-| Client-controlled Chat identity | RED | R1-B.2 |
-| Client-controlled Memory identity | RED | R1-B.2 |
+| Client-controlled Chat identity | GREEN | Migrated to trusted context |
+| Client-controlled Memory identity | GREEN | Migrated to trusted context |
 | Direct DB calls across application | YELLOW | Inventory/migration required |
 | service_role exclusion | YELLOW | R1-B.3/R1-B.4 proof required |
 | Live API cross-tenant test | NOT GREEN | Execute after runtime migration |
-| R1-B overall | NOT GREEN | B.2–B.5 remain |
+| R1-B overall | NOT GREEN | B.3–B.5 remain |
 
-## 6. Files changed
+## 7. Files changed
 
 - `apps/backend/app/core/database.py`
 - `apps/backend/tests/test_canonical_runtime_db_boundary.py`
+- `apps/backend/app/core/security/__init__.py`
+- `apps/backend/app/authz/pdp.py`
+- `apps/backend/app/api/v1/chat.py`
+- `apps/backend/app/api/v1/memory.py`
+- `apps/backend/tests/test_r1_b2_trusted_request_context.py`
 - `docs/R1-B_APPLICATION_RUNTIME_TENANT_ISOLATION_AUDIT_2026-10-01.md`
 
-## 7. Commits
+## 8. Commits
 
 R1-B.1 database boundary implementation:
 
 `83e840a304c5a590c2453e9295db8ab67baf5302`
 
-Regression guard:
+R1-B.2 trusted context + PDP:
 
-`e07b4b28ca6c481dbfdbb44978fd0436a5202d30`
+`fb7d1271850c2f4938e9958696aefca7c22a8417` · `37ebe77facd9485fbf059179acbd15ae6737da8c`
 
-## 8. R1-B.1 gate
+R1-B.2 Chat/Memory migration:
+
+`585a8005ece8c981c2f539d9af5d94996540ad64` · `1b0a18d6aae05d8aad1eb412ebdd2330569170ac` · `4665685ef6a522ba6e3665d0e3da0d5419997a37`
+
+R1-B.2 regression tests:
+
+`6cb7107fe7d5b580713b94ce4a93d1ea1f86d5f6`
+
+## 9. R1-B.1 + R1-B.2 gate
 
 ### GREEN achieved for the defined implementation scope
 
@@ -176,40 +219,39 @@ Regression guard:
 
 ### Still blocked for R1-B overall
 
-- [ ] trusted RequestContext;
-- [ ] Chat identity migration;
-- [ ] Memory identity migration;
+- [x] trusted RequestContext;
+- [x] Chat identity migration;
+- [x] Memory identity migration;
 - [ ] direct DB access inventory/migration;
 - [ ] service_role source/runtime proof;
 - [ ] live API cross-tenant negative suite.
 
 No production database mutation was performed in R1-B.1.
 
-## 9. Tahap/Fase Selanjutnya
+## 10. Tahap/Fase Selanjutnya
 
-### **R1-B.2 — Trusted RequestContext & Identity Authority**
+### **R1-B.3 — Direct DB Access Inventory & Service-Role Exclusion**
 
-**Objective:** menjadikan verified Supabase JWT + active membership sebagai satu-satunya sumber authoritative untuk user, tenant, role, capability, actor type, dan MFA.
+**Objective:** membuktikan seluruh jalur database aplikasi memakai boundary runtime kanonik dan tidak menggunakan `service_role` untuk query tenant.
 
 **Scope:**
-1. canonical FastAPI `AuthenticatedTenantContext`;
-2. Chat;
-3. Memory;
-4. remove client-controlled identity headers;
-5. reject payload tenant override;
-6. ensure `authorize()` receives trusted context only;
-7. preserve `X-Tenant-Id` only as a selector validated against active membership.
+1. inventory seluruh direct DB engine/connection usage;
+2. migrate tenant-capable callers to `tenant_tx()` / `tenant_tx_async()`;
+3. define the explicit identity/bootstrap path for membership resolution;
+4. audit all `service_role` references and classify Auth/Storage admin-only usage;
+5. add source-level guards for forbidden tenant queries via `service_role`.
 
-**GREEN gate:**
-- forged `X-User-Id` cannot impersonate;
-- forged role/capability/MFA headers cannot elevate;
-- Tenant A token + Tenant B payload/header → 403;
-- PDP receives only trusted identity context;
-- no fabricated fallback identity.
+**Execution order:** inventory → classify bootstrap vs tenant transaction → migrate callers → service_role audit → regression tests.
+
+**GREEN gates:**
+- no unrestricted tenant-capable DB path remains;
+- no `service_role` tenant query path remains;
+- bootstrap path is explicit and fail-closed;
+- direct DB caller regression suite passes.
 
 **STOP blockers:**
-- any endpoint still trusting client identity;
-- any fallback UUID/user/role/capability;
-- any tenant context created from unverified request data.
+- any tenant query can execute through `service_role`;
+- any direct connection bypasses canonical runtime role/GUC boundary;
+- bootstrap identity resolution falls back to client-supplied identity.
 
-**Output required before R1-B.3:** trusted request-context migration report + passing negative tests.
+**Output required before R1-B.4:** complete DB access inventory, migration report, service-role exclusion evidence, and passing regression suite.
