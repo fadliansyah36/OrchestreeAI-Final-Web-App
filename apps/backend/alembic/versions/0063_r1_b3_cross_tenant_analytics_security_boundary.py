@@ -34,10 +34,6 @@ DECLARE
     v_tenant uuid;
     v_count bigint := 0;
 BEGIN
-    IF current_user <> 'orchestree_app' THEN
-        RAISE EXCEPTION 'forbidden';
-    END IF;
-
     INSERT INTO public.platform_analytics_daily_rollup (
         rollup_date,total_tenants,active_tenants,trial_tenants,total_human_staff,
         total_ai_agents_active,total_transactions,total_revenue_idr,total_repeat_orders,
@@ -97,7 +93,7 @@ BEGIN
         now()
     FROM public.tenants t
     WHERE t.created_at::date <= p_target_date
-    ON CONFLICT (rollup_date) DO UPDATE SET
+    ON CONFLICT ON CONSTRAINT uq_platform_analytics_daily_rollup_date DO UPDATE SET
         total_tenants=EXCLUDED.total_tenants,
         active_tenants=EXCLUDED.active_tenants,
         trial_tenants=EXCLUDED.trial_tenants,
@@ -139,7 +135,7 @@ BEGIN
             COALESCE((SELECT COUNT(*) FROM public.ai_agents a WHERE a.tenant_id=v_tenant AND lower(a.status)='active' AND a.created_at::date<=p_target_date),0),
             COALESCE((SELECT COUNT(DISTINCT m.auth_user_id) FROM public.tenant_memberships m WHERE m.tenant_id=v_tenant AND (m.status IS NULL OR lower(m.status)='active') AND m.created_at::date<=p_target_date),0),
             now()
-        ON CONFLICT (tenant_id,rollup_date) DO UPDATE SET
+        ON CONFLICT ON CONSTRAINT uq_tenant_analytics_daily_rollup DO UPDATE SET
             transaction_count=EXCLUDED.transaction_count,
             revenue_idr=EXCLUDED.revenue_idr,
             credit_consumed=EXCLUDED.credit_consumed,
@@ -167,9 +163,9 @@ BEGIN
     RETURN QUERY
     SELECT
         p_target_date,
-        r.total_tenants,r.active_tenants,r.trial_tenants,r.total_human_staff,
-        r.total_ai_agents_active,r.total_transactions,r.total_revenue_idr,
-        r.total_repeat_orders,r.total_llm_cost_usd,r.total_credit_consumed,v_count
+        r.total_tenants::bigint,r.active_tenants::bigint,r.trial_tenants::bigint,r.total_human_staff::bigint,
+        r.total_ai_agents_active::bigint,r.total_transactions::bigint,r.total_revenue_idr,
+        r.total_repeat_orders::bigint,r.total_llm_cost_usd,r.total_credit_consumed,v_count
     FROM public.platform_analytics_daily_rollup r
     WHERE r.rollup_date=p_target_date;
 END;
