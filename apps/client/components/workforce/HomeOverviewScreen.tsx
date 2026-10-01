@@ -48,7 +48,7 @@ import {
   MessageSquare,
   Radio
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 
 export interface SourceBreakdownItem {
   channel: string;
