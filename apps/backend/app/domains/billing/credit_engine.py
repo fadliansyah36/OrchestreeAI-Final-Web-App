@@ -718,13 +718,7 @@ async def get_tenant_credit_wallet_summary(tenant_id: str) -> Dict[str, Any]:
     }
     """
     subscription = await tenant_subscription_repo.get_active(tenant_id)
-    engine = get_engine()
-
-    async with engine.begin() as conn:
-        await conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :val, true);"),
-            {"val": tenant_id},
-        )
+    async with tenant_tx_async(tenant_id) as conn:
 
         # Ambil saldo wallet
         w_res = await conn.execute(
