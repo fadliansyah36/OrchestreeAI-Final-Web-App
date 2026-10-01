@@ -39,7 +39,7 @@ import {
   SubmitPersonaAnswerResponse,
   CompletePersonaSessionResponse,
   PaidPlanCheckoutResponse,
-} from '@/apps/client/types';
+} from '@/types';
 
 interface OnboardingWizardProps {
   initialPlanCode?: string;
