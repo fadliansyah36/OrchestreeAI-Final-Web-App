@@ -558,7 +558,7 @@ def authorize(
 # =============================================================================
 
 from fastapi import Depends, HTTPException, Request, status
-from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
+from app.core.security import AuthenticatedTenantContext, get_trusted_request_context
 
 
 def require_capability(
@@ -573,7 +573,7 @@ def require_capability(
     """
     async def dependency(
         request: Request,
-        context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
+        context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
     ) -> AuthorizationDecision:
         # Penegakan Perimeter Independen:
         # Sesi client/tenant tidak dapat mengakses endpoint konsol admin
