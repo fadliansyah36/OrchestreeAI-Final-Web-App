@@ -281,6 +281,25 @@ async def get_current_tenant_context(
     return context
 
 
+async def get_trusted_request_context(
+    request: Request,
+    context: AuthenticatedTenantContext = __import__("fastapi").Depends(get_current_tenant_context),
+) -> AuthenticatedTenantContext:
+    """Canonical request identity: verified Supabase JWT + active membership only.
+
+    X-Tenant-Id is a tenant selector already validated by get_current_tenant_context;
+    user/role/capability/MFA identity never comes from client-controlled headers or payloads.
+    Path tenant IDs, when present, must match the trusted active tenant.
+    """
+    path_tenant_id = request.path_params.get("tenant_id")
+    if path_tenant_id and str(path_tenant_id) != context.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant context tidak cocok dengan membership tenant aktif.",
+        )
+    return context
+
+
 async def require_platform_admin(
     request: Request,
     authorization: Optional[str] = Header(None),
