@@ -164,6 +164,16 @@ def tenant_tx(tenant_id: Union[str, uuid.UUID], user_id: Optional[Union[str, uui
 
 
 @asynccontextmanager
+async def platform_tx_async() -> AsyncGenerator[AsyncConnection, None]:
+    """Canonical async non-tenant runtime transaction for platform reference reads."""
+    async with get_async_database_engine().connect() as conn:
+        async with conn.begin():
+            await conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+            await _assert_async_runtime_role(conn)
+            yield conn
+
+
+@asynccontextmanager
 async def tenant_tx_async(tenant_id: Union[str, uuid.UUID], user_id: Optional[Union[str, uuid.UUID]] = None,
                           actor_type: str = "human_user", request_id: Optional[str] = None,
                           membership_id: Optional[Union[str, uuid.UUID]] = None) -> AsyncGenerator[AsyncConnection, None]:
