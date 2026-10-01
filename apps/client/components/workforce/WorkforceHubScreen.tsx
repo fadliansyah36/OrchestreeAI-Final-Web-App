@@ -34,7 +34,7 @@ import {
   X,
   FileCheck,
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { KanbanBoardScreen } from '../KanbanBoardScreen';
 import { WebAuthnAttendanceScreen } from '../WebAuthnAttendanceScreen';
 import { HomeOverviewScreen } from './HomeOverviewScreen';
