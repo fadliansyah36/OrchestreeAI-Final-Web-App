@@ -1,6 +1,5 @@
 name: Runner Smoke Test
-run-name: Runner Smoke Test — GitHub Hosted
-
+run-name: Runner Smoke Test — Post Ownership Transfer
 on:
   workflow_dispatch:
   push:
@@ -12,12 +11,12 @@ permissions:
 
 jobs:
   smoke-test:
-    name: Minimal GitHub Hosted Runner Test
+    name: Minimal GitHub Hosted Runner Test — Post Transfer
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Runner OK
-        run: echo "RUNNER_OK"
+        run: echo "RUNNER_OK_POST_TRANSFER"
 
       - name: Environment OK
         run: |
