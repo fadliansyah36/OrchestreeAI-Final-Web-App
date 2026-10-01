@@ -18,7 +18,7 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
-from app.core.database import get_engine, tenant_tx_async
+from app.core.database import tenant_tx_async, platform_tx_async
 
 logger = logging.getLogger("orchestree.billing.credit_engine")
 
@@ -143,8 +143,7 @@ class CreditEngine:
 
 class AiActivityTypeRepo:
     async def get_by_code(self, activity_code: str) -> ActivityTypeRecord:
-        engine = get_engine()
-        async with engine.begin() as conn:
+        async with platform_tx_async() as conn:
             res = await conn.execute(
                 sa.text("""
                     SELECT id, activity_code, display_name, base_work_unit_min, base_work_unit_max
@@ -197,8 +196,7 @@ class AiActivityTypeRepo:
 
 class CreditComplexityFactorRepo:
     async def get(self, complexity_code: str) -> Factor:
-        engine = get_engine()
-        async with engine.begin() as conn:
+        async with platform_tx_async() as conn:
             res = await conn.execute(
                 sa.text("""
                     SELECT multiplier FROM credit_complexity_factors
@@ -217,8 +215,7 @@ class CreditComplexityFactorRepo:
 
 class CreditModelCostFactorRepo:
     async def get(self, model_identifier: str) -> Factor:
-        engine = get_engine()
-        async with engine.begin() as conn:
+        async with platform_tx_async() as conn:
             # Cari berdasarkan model_code atau id uuid
             res = await conn.execute(
                 sa.text("""
@@ -251,8 +248,7 @@ class CreditToolFactorRepo:
     async def get(self, risk_tier: Optional[str]) -> Factor:
         if not risk_tier:
             return Factor(multiplier=1.0)
-        engine = get_engine()
-        async with engine.begin() as conn:
+        async with platform_tx_async() as conn:
             res = await conn.execute(
                 sa.text("""
                     SELECT multiplier FROM credit_tool_factors
@@ -271,8 +267,7 @@ class CreditToolFactorRepo:
 
 class CreditExecutionFactorRepo:
     async def get(self, execution_mode: str) -> Factor:
-        engine = get_engine()
-        async with engine.begin() as conn:
+        async with platform_tx_async() as conn:
             res = await conn.execute(
                 sa.text("""
                     SELECT multiplier FROM credit_execution_factors
