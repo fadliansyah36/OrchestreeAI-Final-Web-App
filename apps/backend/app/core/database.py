@@ -11,6 +11,7 @@ from typing import AsyncGenerator, Dict, Generator, Optional, Tuple, Union
 import uuid
 
 import sqlalchemy as sa
+from sqlalchemy import event
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection, create_async_engine
 from fastapi import HTTPException
@@ -122,6 +123,16 @@ def get_database_engine() -> sa.Engine:
     global _engine
     if _engine is None:
         _engine = sa.create_engine(_require_runtime_url(), pool_pre_ping=True, pool_size=10, max_overflow=20, connect_args={"connect_timeout": 5})
+        @event.listens_for(_engine, "checkout")
+        def _verify_sync_runtime_checkout(dbapi_conn, connection_record, connection_proxy):
+            cursor = dbapi_conn.cursor()
+            try:
+                cursor.execute("SELECT current_user, r.rolbypassrls, r.rolsuper FROM pg_roles r WHERE r.rolname = current_user")
+                row = cursor.fetchone()
+                if not row or row[0] != "orchestree_app" or bool(row[1]) or bool(row[2]):
+                    raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan orchestree_app NOBYPASSRLS non-superuser.")
+            finally:
+                cursor.close()
     return _engine
 
 
