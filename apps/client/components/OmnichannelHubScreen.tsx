@@ -15,20 +15,20 @@ import {
   ChevronRight,
   ShieldAlert
 } from 'lucide-react';
-import { LeadPipelineScreen } from './LeadPipelineScreen';
-import { PersonaConfigurationScreen } from './PersonaConfigurationScreen';
-import { ProductCatalogScreen } from './ProductCatalogScreen';
-import { OrderManagementScreen } from './OrderManagementScreen';
+import { LeadPipelineScreen } from './sales/LeadPipelineScreen';
+import { PersonaConfigurationScreen } from './sales/PersonaConfigurationScreen';
+import { ProductCatalogScreen } from './sales/ProductCatalogScreen';
+import { OrderManagementScreen } from './sales/OrderManagementScreen';
 import { CampaignBuilderScreen } from './CampaignBuilderScreen';
 import { ServiceRequestScreen } from './ServiceRequestScreen';
 import { SalesCoachScreen } from './SalesCoachScreen';
 import { SalesGuardrailsScreen } from './SalesGuardrailsScreen';
 import { RevenueIntelligenceScreen } from './RevenueIntelligenceScreen';
 import { MessageExperimentScreen } from './MessageExperimentScreen';
-import { OmnichannelInboxScreen } from '../../apps/client/components/omnichannel/OmnichannelInboxScreen';
-import { CustomerMergeReviewScreen } from '../../apps/client/components/omnichannel/CustomerMergeReviewScreen';
-import { ChannelAccountsScreen } from '../../apps/client/components/omnichannel/ChannelAccountsScreen';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { OmnichannelInboxScreen } from './omnichannel/OmnichannelInboxScreen';
+import { CustomerMergeReviewScreen } from './omnichannel/CustomerMergeReviewScreen';
+import { ChannelAccountsScreen } from './omnichannel/ChannelAccountsScreen';
+import { TenantRegistrationResponse } from '@/types';
 
 export type OmnichannelTab =
   | 'INBOX'
