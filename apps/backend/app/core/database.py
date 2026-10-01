@@ -139,6 +139,20 @@ def get_async_database_engine() -> AsyncEngine:
 
 
 @contextmanager
+def platform_tx() -> Generator[sa.Connection, None, None]:
+    """Canonical non-tenant runtime transaction for global platform reference reads.
+
+    The connection is still forced through orchestree_app and is never service_role.
+    Callers must not use this helper for tenant-owned data.
+    """
+    with get_database_engine().connect() as conn:
+        with conn.begin():
+            conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+            _assert_runtime_role(conn)
+            yield conn
+
+
+@contextmanager
 def tenant_tx(tenant_id: Union[str, uuid.UUID], user_id: Optional[Union[str, uuid.UUID]] = None,
               actor_type: str = "human_user", request_id: Optional[str] = None,
               membership_id: Optional[Union[str, uuid.UUID]] = None) -> Generator[sa.Connection, None, None]:
