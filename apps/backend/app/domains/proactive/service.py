@@ -1318,17 +1318,16 @@ async def route_proactive_reply(
     from app.domains.workforce.access_tier import get_access_tier, get_membership_info
     from app.domains.enterprise.conversational_query import process_conversational_query
     from app.domains.enterprise.automatic_reporting import ReportDataPoint
-    from app.core.database import get_database_engine
+    from app.core.database import platform_tx, tenant_tx
     import sqlalchemy as sa
 
-    engine = get_database_engine()
     resolved_tid = tenant_id
     resolved_mid = membership_id
 
     # 1. Cari membership dan tenant jika belum diberikan
     if not resolved_tid or not resolved_mid:
         hashed_sender = hash_identifier(sender)
-        with tenant_tx(tenant_id) as conn:
+        with platform_tx() as conn:
             # Cari dari proactive_verified_senders
             v_row = conn.execute(
                 sa.text("""
@@ -1502,7 +1501,7 @@ async def route_proactive_reply(
                 
                 # Buat task langsung via database
                 try:
-                    with engine.begin() as t_conn:
+                    with tenant_tx(resolved_tid) as t_conn:
                         t_conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
                         t_conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
                         b_row = t_conn.execute(
