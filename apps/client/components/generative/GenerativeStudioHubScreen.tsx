@@ -112,7 +112,7 @@ interface FileArtifact {
 }
 
 export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
-  const tenantId = tenant?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
+  const tenantId = tenant?.tenant_id || '';
 
   const [activeTab, setActiveTab] = useState<'create' | 'gallery' | 'brand_locks' | 'templates'>('create');
   const [loading, setLoading] = useState(false);
@@ -1043,7 +1043,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                           <div className="flex items-center justify-between">
                             <span>Checksum SHA-256:</span>
                             <span className="text-slate-300 font-mono text-[10px] truncate max-w-[150px]">
-                              {art.checksum_sha256 || '4f8a...9c2e'}
+                              {art.checksum_sha256 || 'Belum tersedia'}
                             </span>
                           </div>
                         </div>
