@@ -299,3 +299,37 @@ Implemented and live-verified on canonical Supabase project.
 
 **R1-B.3 status: IMPLEMENTATION GREEN; release gate remains pending CI verification.**
 
+
+## R1-B.4 — Live API Cross-Tenant Isolation & Negative Security Suite
+
+Implementation completed on main.
+
+### API perimeter hardening
+
+- Admin analytics endpoints no longer accept `X-User-Roles`, `X-User-Capabilities`, or `X-MFA-Verified` as authorization inputs.
+- All admin analytics REST endpoints now derive identity from `require_platform_admin`, which verifies Supabase JWT, token revocation, AAL2, and platform-admin membership server-side.
+- Analytics endpoints no longer fabricate zero-valued success responses when the backend fails.
+- Memory document listing no longer uses direct unrestricted engine access; it uses canonical `tenant_tx(context.tenant_id)`.
+
+### Automated negative suite
+
+Added `apps/backend/tests/test_r1_b4_live_api_cross_tenant_isolation.py` covering:
+
+- trusted tenant path mismatch → 403;
+- forged analytics role/capability/MFA headers → denied;
+- analytics routes must depend on `require_platform_admin`;
+- memory API must use `get_trusted_request_context` and contain no direct database engine;
+- live Tenant A → Tenant B and Tenant B → Tenant A memory reads → 403/404;
+- forged platform headers from tenant user → 401/403;
+- explicit cross-tenant `X-Tenant-Id` selector → 403/404;
+- unauthenticated protected analytics API → 401/403.
+
+A manual GitHub workflow `.github/workflows/r1-b4-live-api-security.yml` runs the live suite only when explicit real Supabase access tokens and tenant IDs are provided through GitHub Secrets. No synthetic production identity is accepted.
+
+The mandatory Phase 01 CI workflow now executes the non-live R1-B.4 negative suite on every main push.
+
+### R1-B.4 status
+
+**IMPLEMENTATION GREEN; live external API gate remains pending execution with real Tenant A/Tenant B access tokens.**
+
+The live Supabase database cross-tenant controls remain verified from R1-A/R1-B.3. This phase does not claim end-to-end live API GREEN until the manual live workflow executes successfully against the deployed API.
