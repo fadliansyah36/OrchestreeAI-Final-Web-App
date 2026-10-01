@@ -115,7 +115,7 @@ async def stream_chat_message(
         source_id=user_id,
     )
     req = ModelRouterRequest(
-        tenant_id=payload.tenant_id,
+        tenant_id=tenant_id,
         task_type="text_generation",
         prompt=secure_prompt,
         system_prompt=payload.system_prompt,
