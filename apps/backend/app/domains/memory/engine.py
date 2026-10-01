@@ -16,7 +16,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
-from app.core.database import get_engine
+from app.core.database import tenant_tx_async
 from app.core.model_router.router import get_model_router
 from app.authz.pdp import authorize, SubjectContext, ResourceContext
 
@@ -63,7 +63,6 @@ class HybridMemoryEngine:
     """
 
     def __init__(self):
-        self.engine = get_engine()
         self.model_router = get_model_router()
 
     async def ingest_document(
@@ -93,7 +92,7 @@ class HybridMemoryEngine:
         doc_id = str(uuid.uuid4())
         chunks = self._chunk_text(doc_in.content, max_chars=1200, overlap=150)
 
-        async with self.engine.begin() as conn:
+        async with tenant_tx_async(tenant_id) as conn:
             # Set context RLS bertenant
             await conn.execute(
                 sa.text("SELECT set_config('app.tenant_id', :tid, true);"),
@@ -407,6 +406,8 @@ class HybridMemoryEngine:
         return verified_results
 
     async def consolidate_decay(self, tenant_id: Optional[str] = None) -> Dict[str, Any]:
+        if not tenant_id:
+            raise ValueError("Cross-tenant memory consolidation must be dispatched per tenant through tenant_tx_async().")
         """
         Memory Consolidator (PRD v2.2 Bagian 11.5 / F.01-MEMFLOW):
         Job terjadwal yang menurunkan (decay) confidence memory seiring waktu
@@ -485,6 +486,8 @@ class HybridMemoryEngine:
         return [c for c in chunks if c]
 
     async def filter_internal_only(self, retrieved_doc_ids: List[str], tenant_id: Optional[str] = None) -> List[str]:
+        if not tenant_id:
+            raise ValueError("tenant_id is required for memory access filtering.")
         """
         Mengidentifikasi dokumen mana saja di antara retrieved_doc_ids yang berstatus 'internal_only'.
         Digunakan oleh sanitize_customer_facing_output sebagai lapisan kedua pertahanan data.
