@@ -68,3 +68,4 @@ def test_direct_tenant_db_inventory_is_emitted():
     print("\nR1-B.3 direct tenant DB inventory:")
     for item in findings:
         print(f" - {item[0]}:{item[1]} {item[2]}")
+    assert not findings, "Direct tenant DB access remains outside canonical transaction boundaries: " + repr(findings)
