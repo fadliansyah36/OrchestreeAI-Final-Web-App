@@ -1,13 +1,8 @@
-"""
-OrchestreeAI Memory & Hybrid Search Endpoints (PRD v2.2 Bagian 8.4 & 11.5)
-Endpoints:
-- GET /api/v1/tenants/{tenant_id}/memory/search: Pencarian hybrid kNN HNSW + full-text RRF
-- POST /api/v1/tenants/{tenant_id}/memory/documents: Penambahan dokumen memori Company Brain
-- POST /api/v1/tenants/{tenant_id}/memory/consolidate: Memicu job peluruhan confidence memori
-"""
+"""OrchestreeAI Memory & Hybrid Search API — trusted identity boundary (R1-B.2)."""
 
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Header, Query, Path, Depends, Request
+
+from fastapi import APIRouter, HTTPException, Query, Path, Depends, Request
 from pydantic import BaseModel, Field
 
 from app.domains.memory.engine import (
@@ -16,6 +11,7 @@ from app.domains.memory.engine import (
     MemorySearchResult,
 )
 from app.authz.pdp import SubjectContext, authorize, ResourceContext, require_capability
+from app.core.security import AuthenticatedTenantContext, get_trusted_request_context
 
 router = APIRouter(prefix="/api/v1", tags=["Memory & Hybrid Search"])
 
@@ -41,124 +37,80 @@ class SearchMemoryPostRequest(BaseModel):
     execution_context: str = Field("internal_dashboard", description="omnichannel, proactive, atau internal_dashboard")
 
 
-@router.get("/tenants/{tenant_id}/memory/search", response_model=List[MemorySearchResult], dependencies=[Depends(require_capability("memory.search"))])
+def _subject(context: AuthenticatedTenantContext) -> SubjectContext:
+    return SubjectContext(
+        user_id=context.user_id,
+        tenant_id=context.tenant_id,
+        actor_type=context.actor_type,
+        roles=context.roles,
+        capabilities=context.capabilities,
+        is_mfa_verified=context.is_mfa_verified,
+    )
+
+
+def _authorize_memory(context: AuthenticatedTenantContext, action: str, resource_type: str, resource_id: str) -> SubjectContext:
+    subject = _subject(context)
+    decision = authorize(
+        subject=subject,
+        resource=ResourceContext(
+            tenant_id=context.tenant_id,
+            owner_tenant_id=context.tenant_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
+        ),
+        action=action,
+    )
+    if not decision.is_authorized:
+        raise HTTPException(status_code=403, detail=f"Akses memori ditolak PDP: {decision.reason}")
+    return subject
+
+
+@router.get(
+    "/tenants/{tenant_id}/memory/search",
+    response_model=List[MemorySearchResult],
+    dependencies=[Depends(require_capability("memory.search"))],
+)
 async def search_tenant_memory(
     request: Request,
     tenant_id: str = Path(..., description="ID Tenant"),
     q: str = Query(..., min_length=1, description="Kata kunci atau pertanyaan semantik"),
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     top_k: int = Query(5, ge=1, le=20, description="Batas hasil yang dikembalikan"),
-    execution_context: str = Query("internal_dashboard", description="Konteks eksekusi pemanggil (omnichannel/proactive/internal_dashboard)"),
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
+    execution_context: str = Query("internal_dashboard", description="Konteks eksekusi pemanggil"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
-    """
-    Pencarian hybrid multi-modal teks & vektor memori Company Brain.
-    Tervalidasi secara ketat oleh isolasi RLS dan filter ABAC/PDP per entitas data.
-    """
-    state_roles = getattr(request.state, "roles", []) or []
-    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    roles = list(set(state_roles + header_roles)) or ["STAFF_AI", "EMPLOYEE"]
-
-    state_caps = getattr(request.state, "capabilities", []) or []
-    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    capabilities = list(set(state_caps + header_caps + ["memory.search", "data.read"]))
-
-    is_mfa = getattr(request.state, "is_mfa_verified", False) or ((x_mfa_verified or "false").lower() in ("true", "1"))
-
-    subject = SubjectContext(
-        user_id=x_user_id or getattr(request.state, "user_id", None),
-        tenant_id=tenant_id,
-        roles=roles,
-        capabilities=capabilities,
-        is_mfa_verified=is_mfa,
-    )
-
-    # Validasi awal kapabilitas memori
-    pdp_decision = authorize(
-        subject=subject,
-        resource=ResourceContext(
-            tenant_id=tenant_id,
-            resource_type="memory",
-            resource_id="global_search",
-        ),
-        action="memory.search",
-    )
-    if not pdp_decision.is_authorized:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Akses pencarian memori ditolak PDP: {pdp_decision.reason}",
-        )
-
+    subject = _authorize_memory(context, "memory.search", "memory", "global_search")
     engine = get_memory_engine()
-    results = await engine.hybrid_search(
-        tenant_id=tenant_id,
+    return await engine.hybrid_search(
+        tenant_id=context.tenant_id,
         query=q,
         subject=subject,
         top_k=top_k,
         category=category,
         execution_context=execution_context,
     )
-    return results
 
 
-@router.post("/tenants/{tenant_id}/memory/search", dependencies=[Depends(require_capability("memory.search"))])
+@router.post(
+    "/tenants/{tenant_id}/memory/search",
+    dependencies=[Depends(require_capability("memory.search"))],
+)
 async def search_tenant_memory_post(
     payload: SearchMemoryPostRequest,
     request: Request,
     tenant_id: str = Path(..., description="ID Tenant"),
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
-    """
-    Pencarian hybrid Company Brain melalui HTTP POST (JSON Payload).
-    """
-    state_roles = getattr(request.state, "roles", []) or []
-    header_roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    roles = list(set(state_roles + header_roles)) or ["STAFF_AI", "EMPLOYEE"]
-
-    state_caps = getattr(request.state, "capabilities", []) or []
-    header_caps = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    capabilities = list(set(state_caps + header_caps + ["memory.search", "data.read"]))
-
-    is_mfa = getattr(request.state, "is_mfa_verified", False) or ((x_mfa_verified or "false").lower() in ("true", "1"))
-
-    subject = SubjectContext(
-        user_id=x_user_id or getattr(request.state, "user_id", None),
-        tenant_id=tenant_id,
-        roles=roles,
-        capabilities=capabilities,
-        is_mfa_verified=is_mfa,
-    )
-
-    pdp_decision = authorize(
-        subject=subject,
-        resource=ResourceContext(
-            tenant_id=tenant_id,
-            resource_type="memory",
-            resource_id="global_search",
-        ),
-        action="memory.search",
-    )
-    if not pdp_decision.is_authorized:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Akses pencarian memori ditolak PDP: {pdp_decision.reason}",
-        )
-
+    subject = _authorize_memory(context, "memory.search", "memory", "global_search")
     engine = get_memory_engine()
     limit = payload.limit or payload.top_k or 5
     results = await engine.hybrid_search(
-        tenant_id=tenant_id,
+        tenant_id=context.tenant_id,
         query=payload.query,
         subject=subject,
         top_k=limit,
         category=payload.category,
-        execution_context=payload.execution_context or "internal_dashboard",
+        execution_context=payload.execution_context,
     )
     return {"results": [r.model_dump() if hasattr(r, "model_dump") else r.dict() for r in results]}
 
@@ -171,49 +123,19 @@ async def list_tenant_memory_documents(
     tenant_id: str = Path(..., description="ID Tenant"),
     category: Optional[str] = Query(None, description="Filter kategori memori"),
     limit: int = Query(50, ge=1, le=200),
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
-    """
-    Mengambil daftar dokumen pengetahuan yang tersimpan di Company Brain milik tenant.
-    """
-    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
-
-    subject = SubjectContext(
-        user_id=x_user_id,
-        tenant_id=tenant_id,
-        roles=roles,
-        capabilities=capabilities,
-        is_mfa_verified=is_mfa,
-    )
-
-    pdp_decision = authorize(
-        subject=subject,
-        resource=ResourceContext(
-            tenant_id=tenant_id,
-            resource_type="memory",
-            resource_id="documents_list",
-        ),
-        action="memory.documents.read",
-    )
-    if not pdp_decision.is_authorized:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Akses dokumen memori ditolak PDP: {pdp_decision.reason}",
-        )
+    _authorize_memory(context, "memory.documents.read", "memory", "documents_list")
 
     from app.core.database import get_database_engine
     import sqlalchemy as sa
+
     engine = get_database_engine()
     with engine.connect() as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :tenant_id, true);"),
-            {"tenant_id": tenant_id}
+            {"tenant_id": context.tenant_id},
         )
         sql = """
             SELECT id, tenant_id, title, summary, category, source_type,
@@ -222,7 +144,7 @@ async def list_tenant_memory_documents(
             FROM memory_documents
             WHERE tenant_id = :tenant_id
         """
-        params = {"tenant_id": tenant_id, "limit": limit}
+        params = {"tenant_id": context.tenant_id, "limit": limit}
         if category and category != "all":
             sql += " AND category = :category"
             params["category"] = category
@@ -256,40 +178,9 @@ async def list_tenant_memory_documents(
 async def create_tenant_memory_document(
     payload: DocumentCreateRequest,
     tenant_id: str = Path(..., description="ID Tenant"),
-    x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
-    """
-    Menyimpan dokumen pengetahuan baru dan menghasilkan representasi vektor embedding 1536.
-    """
-    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
-
-    subject = SubjectContext(
-        user_id=x_user_id,
-        tenant_id=tenant_id,
-        roles=roles,
-        capabilities=capabilities,
-        is_mfa_verified=is_mfa,
-    )
-
-    pdp_decision = authorize(
-        action="memory.documents.create",
-        subject=subject,
-        resource=ResourceContext(
-            tenant_id=tenant_id,
-            resource_type="memory_document",
-            classification=payload.data_classification
-        )
-    )
-    if not pdp_decision.allowed:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Penambahan dokumen memori ditolak PDP: {pdp_decision.reason}",
-        )
+    subject = _authorize_memory(context, "memory.documents.create", "memory_document", "new")
 
     doc_in = MemoryDocumentCreate(
         title=payload.title,
@@ -301,18 +192,21 @@ async def create_tenant_memory_document(
         data_classification=payload.data_classification,
         audience_scope=payload.audience_scope,
         confidence=payload.confidence,
-        created_by_user_id=x_user_id,
+        created_by_user_id=context.user_id,
         metadata=payload.metadata,
     )
 
     engine = get_memory_engine()
     try:
-        res = await engine.ingest_document(tenant_id=tenant_id, doc_in=doc_in, subject=subject)
-        return res
-    except PermissionError as pe:
-        raise HTTPException(status_code=403, detail=str(pe))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal memproses dokumen memori: {str(e)}")
+        return await engine.ingest_document(
+            tenant_id=context.tenant_id,
+            doc_in=doc_in,
+            subject=subject,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Gagal memproses dokumen memori: {exc}")
 
 
 @router.post(
@@ -321,32 +215,8 @@ async def create_tenant_memory_document(
 )
 async def consolidate_tenant_memory(
     tenant_id: str = Path(..., description="ID Tenant"),
-    x_user_roles: Optional[str] = Header(None, alias="X-User-Roles"),
-    x_user_capabilities: Optional[str] = Header(None, alias="X-User-Capabilities"),
-    x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
-    """
-    Memicu evaluasi peluruhan (decay) confidence memori organisasi.
-    """
-    roles = [r.strip() for r in (x_user_roles or "").split(",") if r.strip()]
-    capabilities = [c.strip() for c in (x_user_capabilities or "").split(",") if c.strip()]
-    is_mfa = (x_mfa_verified or "false").lower() in ("true", "1")
-
-    subject = SubjectContext(
-        tenant_id=tenant_id,
-        roles=roles,
-        capabilities=capabilities,
-        is_mfa_verified=is_mfa,
-    )
-
-    pdp_decision = authorize(
-        subject=subject,
-        resource=ResourceContext(tenant_id=tenant_id, resource_type="memory", resource_id="consolidate"),
-        action="memory.decay.consolidate",
-    )
-    if not pdp_decision.is_authorized:
-        raise HTTPException(status_code=403, detail=f"Akses konsolidasi memori ditolak: {pdp_decision.reason}")
-
+    _authorize_memory(context, "memory.decay.consolidate", "memory", "consolidate")
     engine = get_memory_engine()
-    res = await engine.consolidate_decay(tenant_id=tenant_id)
-    return res
+    return await engine.consolidate_decay(tenant_id=context.tenant_id)
