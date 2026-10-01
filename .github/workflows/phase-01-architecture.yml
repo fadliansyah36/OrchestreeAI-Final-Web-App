@@ -73,6 +73,11 @@ jobs:
       - name: Syntax-check service worker
         run: node --check apps/client/public/sw.js
 
+      - name: R1-B.3 DB access and service-role inventory
+        run: |
+          python -m pip install -r apps/backend/requirements.txt
+          python -m pytest apps/backend/tests/test_r1_b3_db_access_inventory.py -q -s
+
       - name: Run mandatory content/perimeter/security gates
         run: |
           npm run ci:content-gate
