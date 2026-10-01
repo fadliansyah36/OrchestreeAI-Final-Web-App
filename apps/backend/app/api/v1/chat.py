@@ -41,7 +41,7 @@ class ChatMessageRequest(BaseModel):
 @router.post("/messages", dependencies=[Depends(require_capability("chat.message.create"))])
 async def stream_chat_message(
     payload: ChatMessageRequest,
-    x_user_id: Optional[str] = Header(None, alias="x-user-id"),
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
     """
     Streaming SSE untuk asisten Ask AI (PRD v2.2 Bagian 8.2):
@@ -52,12 +52,15 @@ async def stream_chat_message(
     5. Rekonsiliasi & konsumsi kredit aktual saat selesai, atau refund jika gagal
     """
     # 1. PDP Authorization
-    user_id = x_user_id or payload.membership_id or str(uuid.uuid4())
+    user_id = context.user_id
+    tenant_id = context.tenant_id
     subject = SubjectContext(
-        user_id=user_id,
-        tenant_id=tenant_id,
-        actor_type="human_user",
-        roles=["member"],
+        user_id=context.user_id,
+        tenant_id=context.tenant_id,
+        actor_type=context.actor_type,
+        roles=context.roles,
+        capabilities=context.capabilities,
+        is_mfa_verified=context.is_mfa_verified,
     )
     resource = ResourceContext(
         resource_type="chat_session",
@@ -86,7 +89,7 @@ async def stream_chat_message(
     reservation = None
     try:
         reservation = await reserve_credit(
-            tenant_id=payload.tenant_id,
+            tenant_id=tenant_id,
             estimated_cost=estimated_cost,
             reference_type="chat_message",
             reference_id=session_id,
