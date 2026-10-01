@@ -193,6 +193,10 @@ R1-B.1 database boundary implementation:
 
 `83e840a304c5a590c2453e9295db8ab67baf5302`
 
+R1-B.3 DB boundary/service-role changes:
+
+`1adee09440ed846a8d75f925c31ec7081544f8ef` · `47a9ff668294f88779740d1d87b1949b71e33638` · `39044d146098b8d0f036923aed0ad7e816bb7fc8` · `e08797aaefb04e2942995b843c8c822d7d67b2ef` · `674d3d91e33986870f74af0153dce89f13fc2a77`
+
 R1-B.2 trusted context + PDP:
 
 `fb7d1271850c2f4938e9958696aefca7c22a8417` · `37ebe77facd9485fbf059179acbd15ae6737da8c`
