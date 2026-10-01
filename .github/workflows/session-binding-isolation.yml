@@ -3,6 +3,9 @@ run-name: Session Binding Isolation — GitHub Hosted
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
