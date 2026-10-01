@@ -333,3 +333,19 @@ The mandatory Phase 01 CI workflow now executes the non-live R1-B.4 negative sui
 **IMPLEMENTATION GREEN; live external API gate remains pending execution with real Tenant A/Tenant B access tokens.**
 
 The live Supabase database cross-tenant controls remain verified from R1-A/R1-B.3. This phase does not claim end-to-end live API GREEN until the manual live workflow executes successfully against the deployed API.
+
+
+## R1-B.5 — Frontend Identity Authority & Runtime Hygiene
+
+Implemented on `main` after the R1-B.4 live-gate pause:
+
+- Added `apps/client/lib/useAuthSession.ts` as the client session boundary. It reads only `GET /api/v1/auth/session` with credentials and no browser token storage.
+- `apps/client/app/generative/page.tsx` and `apps/client/app/proactive/page.tsx` no longer derive tenant context from `localStorage`.
+- Generative Studio no longer reads browser-stored access tokens and no longer falls back to a fabricated checksum display value.
+- Normalized client type imports from `@/apps/client/types` to the canonical `@/types` alias.
+- Corrected Omnichannel component imports to their canonical `sales/` and `omnichannel/` locations.
+- Phase 02 forbidden-auth scanner now excludes `apps/**/tests` so security tests can legitimately contain forged-header strings without being mistaken for production authentication code. Production application code remains scanned.
+
+This is a frontend authority/hygiene implementation milestone. It does not by itself close R1-B.4 live execution.
+
+Next R1-B.5 work remains: complete browser-derived identity/tenant-state inventory across client/admin, remove remaining production localStorage auth/tenant authority, remove fabricated UI success/fallback states, and re-run Phase 01/02 gates.
