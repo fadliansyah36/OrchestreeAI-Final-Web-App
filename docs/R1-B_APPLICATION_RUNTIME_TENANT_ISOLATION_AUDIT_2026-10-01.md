@@ -260,36 +260,42 @@ No production database mutation was performed in R1-B.1.
 
 **Output required before R1-B.4:** complete DB access inventory, migration report, service-role exclusion evidence, and passing regression suite.
 
-## R1-B.3 Continuation — Complete Direct DB Extraction
 
-### Implemented
+## R1-B.3 Finalization — Cross-Tenant Analytics Security Boundary
 
-- Added synchronous `platform_tx()` and asynchronous `platform_tx_async()` for **global platform/reference reads** that must still use `orchestree_app`, never `service_role`.
-- Runtime DB URL is now fail-closed unless its username is exactly `orchestree_app`.
-- Sync engine pool checkout verifies `current_user=orchestree_app`, `rolbypassrls=false`, and `rolsuper=false`.
-- Migrated proactive tenant operations to `tenant_tx()` / `tenant_tx_async()`; sender/trigger discovery without tenant context uses the narrow platform boundary before tenant context is established.
-- Migrated selection ABAC and tenant operations to canonical `tenant_tx()`; global selection category lookup uses `platform_tx()`; signed webhook trigger resolution uses `platform_tx()` only for the narrow trigger lookup and switches to tenant context before tenant execution.
-- Migrated global credit-factor reads to `platform_tx_async()` and tenant wallet/subscription operations to `tenant_tx_async()`.
-- Migrated memory operations to `tenant_tx_async()`.
-- Removed workforce Realtime use of `service_role`.
-- R1-B.3 inventory remains a CI gate.
+Implemented and live-verified on canonical Supabase project.
 
-### Remaining classified direct DB access
+### Security boundary
 
-`domains/analytics/rollup_service.py` still contains direct engine access for **platform-wide analytics/rollup aggregation**. This is not a tenant request path, but it is a privileged cross-tenant aggregation path. The PRD specifies that scheduler/Super Admin cross-tenant operations should use narrow `SECURITY DEFINER` functions returning only required IDs/aggregates and recording Audit Ledger events. Therefore this path is classified as **P1 follow-up**, not silently converted to a tenant transaction that would alter its cross-tenant semantics.
+- Cross-tenant rollup computation is now encapsulated in `SECURITY DEFINER` function `public.superadmin_compute_daily_rollup(date)`.
+- Platform analytics overview uses `public.superadmin_platform_analytics_overview(date,date)`.
+- Tenant ranking uses `public.superadmin_tenant_rankings(text,boolean,integer)` with an allowlisted sort key and bounded limit.
+- LLM usage aggregation uses `public.superadmin_llm_usage_breakdown(text,date,date)` and returns aggregate JSON only.
+- All four functions use fixed `search_path = pg_catalog, public`.
+- EXECUTE is denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`; only `orchestree_app` has EXECUTE.
+- Tenant detail drill-down remains tenant-scoped and now uses `tenant_tx(tenant_id)` rather than an unrestricted engine.
+- Rollup execution records an append-only Audit Ledger event in `audit_logs_2026_10` with a server-generated request id for scheduled/system execution.
 
-### R1-B.3 continuation gate status
+### Live verification
 
-- [x] proactive direct tenant DB paths extracted;
-- [x] selection tenant DB paths extracted;
-- [x] memory tenant DB paths extracted;
-- [x] credit tenant DB paths extracted;
-- [x] global reference reads have a canonical non-tenant runtime boundary;
-- [x] runtime DB credential is fail-closed to `orchestree_app`;
-- [x] sync pool checkout role verification;
-- [x] service-role Realtime path removed;
-- [ ] CI verification complete;
-- [ ] platform-wide analytics cross-tenant aggregation moved to narrow audited SECURITY DEFINER boundary.
+- `orchestree_app`: `rolsuper=false`, `rolbypassrls=false`.
+- Cross-tenant compute function executed successfully under `SET ROLE orchestree_app` in a rolled-back verification transaction and returned live aggregate values for 4 tenants.
+- Anonymous execution of `superadmin_tenant_rankings` was denied with PostgreSQL permission error.
+- Function metadata confirms `prosecdef=true`, owner `postgres`, fixed search path, and EXECUTE only for `orchestree_app` among runtime roles checked.
+- Direct engine/connect/begin usage was removed from `domains/analytics/rollup_service.py`.
 
-**R1-B.3 status: NOT GREEN until CI completes and the analytics privileged aggregation boundary is formally accepted/migrated.**
+### R1-B.3 Finalization gate
+
+- [x] cross-tenant rollup isolated behind narrow SECURITY DEFINER boundary;
+- [x] platform overview isolated behind SECURITY DEFINER boundary;
+- [x] tenant ranking isolated behind SECURITY DEFINER boundary;
+- [x] LLM usage aggregate isolated behind SECURITY DEFINER boundary;
+- [x] tenant detail remains canonical tenant transaction;
+- [x] fixed search_path;
+- [x] anon/authenticated/service_role function execution denied;
+- [x] orchestree_app execution verified;
+- [x] live cross-tenant aggregate execution verified;
+- [ ] repository CI final verification still pending.
+
+**R1-B.3 status: IMPLEMENTATION GREEN; release gate remains pending CI verification.**
 
