@@ -1,0 +1,36 @@
+name: R1-B.4 Live API Cross-Tenant Security
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-api-negative:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R1B4_API_BASE_URL: ${{ secrets.R1B4_API_BASE_URL }}
+      R1B4_TENANT_A_ID: ${{ secrets.R1B4_TENANT_A_ID }}
+      R1B4_TENANT_B_ID: ${{ secrets.R1B4_TENANT_B_ID }}
+      R1B4_TENANT_A_TOKEN: ${{ secrets.R1B4_TENANT_A_TOKEN }}
+      R1B4_TENANT_B_TOKEN: ${{ secrets.R1B4_TENANT_B_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install backend dependencies
+        run: python -m pip install -r apps/backend/requirements.txt
+      - name: Require live credentials
+        shell: bash
+        run: |
+          test -n "$R1B4_API_BASE_URL"
+          test -n "$R1B4_TENANT_A_ID"
+          test -n "$R1B4_TENANT_B_ID"
+          test -n "$R1B4_TENANT_A_TOKEN"
+          test -n "$R1B4_TENANT_B_TOKEN"
+      - name: Run R1-B.4 live negative suite
+        run: |
+          python -m pytest apps/backend/tests/test_r1_b4_live_api_cross_tenant_isolation.py -m live -q -s
