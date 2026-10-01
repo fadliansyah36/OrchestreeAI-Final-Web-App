@@ -26,7 +26,7 @@ import httpx
 import sqlalchemy as sa
 
 from app.core.config import settings
-from app.core.database import get_engine
+from app.core.database import tenant_tx_async, tenant_tx
 
 logger = logging.getLogger("orchestree.domains.proactive")
 
@@ -308,10 +308,9 @@ async def request_whatsapp_otp(
     code_hash = hash_otp(otp_code, settings.OTP_PEPPER)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)
 
-    engine = get_engine()
     ticket_id = str(uuid.uuid4())
 
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -370,7 +369,7 @@ async def request_whatsapp_otp(
     msg_id = api_res.get("message_id")
 
     # Catat ke log pesan audit
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -428,10 +427,9 @@ async def verify_whatsapp_otp(
     Anti brute-force (maksimal 5 kali percobaan), validasi hash HMAC-SHA256, dan
     aktivasi langganan WhatsApp resmi.
     """
-    engine = get_engine()
     clean_code = verification_code.strip()
 
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -646,10 +644,9 @@ async def generate_telegram_deeplink(
     token_hash = hash_token(verify_token, settings.OTP_PEPPER)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
 
-    engine = get_engine()
     ticket_id = str(uuid.uuid4())
 
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -736,8 +733,7 @@ async def handle_telegram_start_webhook(
     token_hash = hash_token(raw_param, settings.OTP_PEPPER)
     now_utc = datetime.datetime.now(datetime.timezone.utc)
 
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         res = await conn.execute(
             sa.text("""
                 SELECT id, tenant_id, membership_id, otp_expires_at, status
@@ -922,10 +918,9 @@ async def get_verification_status(
     Mengambil status tiket verifikasi kanal (pending, verified, expired).
     TIDAK PERNAH mengembalikan token, kode OTP, hash, atau ID rahasia ke client.
     """
-    engine = get_engine()
     now_utc = datetime.datetime.now(datetime.timezone.utc)
 
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -977,8 +972,7 @@ async def handle_opt_out(
     Protokol Opt-Out wajib (PRD v2.2 Bagian 10.3 & 10.6):
     Menjeda (status = 'paused') langganan proaktif saat staf mengirim STOP / BERHENTI.
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         res = await conn.execute(
             sa.text("""
                 UPDATE proactive_subscriptions
@@ -1033,8 +1027,7 @@ async def handle_opt_in(
     Mengaktifkan kembali (status = 'active') langganan yang sebelumnya dijeda
     saat staf mengirim START / LANJUT / MULAI.
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         res = await conn.execute(
             sa.text("""
                 UPDATE proactive_subscriptions
@@ -1085,8 +1078,7 @@ async def update_subscription_preferences(
     status: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Memperbarui preferensi jadwal dan jenis notifikasi proaktif staf."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1142,8 +1134,7 @@ async def get_subscriptions(
     membership_id: str,
 ) -> List[Dict[str, Any]]:
     """Mengambil seluruh langganan kanal proaktif anggota organisasi."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1167,8 +1158,7 @@ async def get_message_logs(
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
     """Mengambil riwayat audit pesan proaktif yang terkirim."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1196,8 +1186,7 @@ async def get_notifications(
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
     """Mengambil pesan dari In-App Notification Center."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1227,8 +1216,7 @@ async def mark_notification_read(
     notification_id: str,
 ) -> bool:
     """Menandai satu notifikasi in-app telah dibaca."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1251,8 +1239,7 @@ async def mark_all_notifications_read(
     membership_id: str,
 ) -> int:
     """Menandai seluruh notifikasi in-app anggota telah dibaca."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1279,8 +1266,7 @@ async def register_push_subscription(
     user_agent: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Mendaftarkan langganan Web Push VAPID peramban untuk staf."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with tenant_tx_async(tenant_id) as conn:
         await conn.execute(
             sa.text("SELECT set_config('app.tenant_id', :val, true);"),
             {"val": tenant_id},
@@ -1342,7 +1328,7 @@ async def route_proactive_reply(
     # 1. Cari membership dan tenant jika belum diberikan
     if not resolved_tid or not resolved_mid:
         hashed_sender = hash_identifier(sender)
-        with engine.connect() as conn:
+        with tenant_tx(tenant_id) as conn:
             # Cari dari proactive_verified_senders
             v_row = conn.execute(
                 sa.text("""
@@ -1387,7 +1373,7 @@ async def route_proactive_reply(
     if tier == "executive":
         # Owner / Direksi: Rute ke Management Conversational Query Engine
         data_points = []
-        with engine.connect() as conn:
+        with tenant_tx(tenant_id) as conn:
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
 
@@ -1426,7 +1412,7 @@ async def route_proactive_reply(
 
         if not data_points:
             # Ambil data transaksi aktual sebagai fallback data point
-            with engine.connect() as conn:
+            with tenant_tx(tenant_id) as conn:
                 conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
                 conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
                 rev_row = conn.execute(
@@ -1598,7 +1584,7 @@ async def route_proactive_reply(
 
     # 5. Catat log percakapan
     try:
-        with engine.begin() as conn:
+        with tenant_tx(tenant_id) as conn:
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": resolved_tid})
             conn.execute(
@@ -1656,7 +1642,6 @@ async def run_proactive_job_with_task_tracking(job: ProactiveJobDefinition) -> D
     - Memindahkan kolom tugas secara bertahap (TODO -> In Progress -> Done).
     - Menyiarkan perubahan via Supabase Realtime secara live.
     """
-    engine = get_engine()
     tenant_id = job.tenant_id
     agent_id = job.ai_agent_id
 
@@ -1666,7 +1651,7 @@ async def run_proactive_job_with_task_tracking(job: ProactiveJobDefinition) -> D
     col_progress_id = None
     col_done_id = None
 
-    with engine.begin() as conn:
+    with tenant_tx(tenant_id) as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": tenant_id})
 
@@ -1745,7 +1730,7 @@ async def run_proactive_job_with_task_tracking(job: ProactiveJobDefinition) -> D
     current_col_id = col_todo_id
     current_version = 1
 
-    with engine.begin() as conn:
+    with tenant_tx(tenant_id) as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": tenant_id})
 
@@ -1839,7 +1824,7 @@ async def run_proactive_job_with_task_tracking(job: ProactiveJobDefinition) -> D
                 target_col = col_progress_id or current_col_id
 
         current_version += 1
-        with engine.begin() as conn:
+        with tenant_tx(tenant_id) as conn:
             conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
             conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": tenant_id})
 
@@ -1996,7 +1981,6 @@ async def create_proactive_business_event_task(
     - Menulis log awal ke task_events dengan event_type='created_by_proactive_agent'.
     - Menyiarkan perubahan via Supabase Realtime secara live.
     """
-    engine = get_engine()
     template = PROACTIVE_EVENT_TEMPLATES.get(event_type, {
         "title_template": f"Perhatian Diperlukan: {{entity}}",
         "default_priority": severity or "high",
@@ -2015,7 +1999,7 @@ async def create_proactive_business_event_task(
     task_id = str(uuid.uuid4())
     checklist_id = str(uuid.uuid4())
 
-    with engine.begin() as conn:
+    with tenant_tx(tenant_id) as conn:
         conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
         conn.execute(sa.text("SELECT set_config('app.tenant_id', :tid, true);"), {"tid": tenant_id})
 
