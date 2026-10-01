@@ -26,7 +26,7 @@ import {
   Check,
   ShieldAlert
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/apps/client/types';
+import { TenantRegistrationResponse } from '@/types';
 import { EnterpriseReportingQueryView } from './EnterpriseReportingQueryView';
 import { EnterpriseWorkforceHubScreen } from './workforce/EnterpriseWorkforceHubScreen';
 import { AccessTierConfigScreen } from './settings/AccessTierConfigScreen';
