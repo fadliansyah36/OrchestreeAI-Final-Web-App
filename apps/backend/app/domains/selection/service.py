@@ -18,7 +18,7 @@ import hmac
 import hashlib
 
 import sqlalchemy as sa
-from app.core.database import tenant_tx
+from app.core.database import tenant_tx, platform_tx
 from app.authz.abac import ABACSubject, ABACResource, check_ai_data_permission
 from app.core.orchestration.engine import OrchestrationEngine, WorkflowDispatchRequest, WorkflowGraphSpec, WorkflowNodeSpec
 from app.domains.selection.models import (
@@ -975,8 +975,7 @@ class SelectionDomainService:
     @classmethod
     def get_domain_categories(cls) -> List[Dict[str, Any]]:
         """Mengambil daftar kategori domain seleksi yang tersedia."""
-        raise RuntimeError("Global selection domain categories require an explicit platform-read boundary; direct DB access is prohibited by R1-B.3.")
-        with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
+        with platform_tx() as conn:
             stmt = sa.text("""
                 SELECT id, category_key, display_name, description
                 FROM selection_domain_categories
@@ -2022,8 +2021,9 @@ class SelectionDomainService:
         """
         Menangani permintaan webhook publik untuk memicu seleksi otomatis dengan verifikasi signature.
         """
-        raise RuntimeError("Webhook selection lookup requires tenant resolution before DB access; direct DB access is prohibited by R1-B.3.")
-        with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
+        # Trigger resolution is a narrow platform lookup; all subsequent tenant work
+        # is executed through tenant_tx() after the tenant is resolved.
+        with platform_tx() as conn:
             stmt = sa.text("""
                 SELECT id, tenant_id, trigger_name, trigger_config, is_active
                 FROM selection_automation_triggers
