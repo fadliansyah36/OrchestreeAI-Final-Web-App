@@ -18,7 +18,7 @@ import hmac
 import hashlib
 
 import sqlalchemy as sa
-from app.core.database import get_database_engine, tenant_tx
+from app.core.database import tenant_tx
 from app.authz.abac import ABACSubject, ABACResource, check_ai_data_permission
 from app.core.orchestration.engine import OrchestrationEngine, WorkflowDispatchRequest, WorkflowGraphSpec, WorkflowNodeSpec
 from app.domains.selection.models import (
@@ -135,10 +135,11 @@ class SelectionDomainService:
         if not agent_id:
             return {"authorized": True, "allowed_fields": None}
 
-        eng = engine or get_database_engine()
+        if engine is not None:
+            raise RuntimeError("Injected unrestricted engine is prohibited by R1-B.3; use tenant_tx().")
         agent_info = None
         try:
-            with eng.connect() as conn:
+            with tenant_tx(tenant_id) as conn:
                 conn.execute(sa.text("SET LOCAL ROLE orchestree_app;"))
                 try:
                     t_uuid = str(uuid.UUID(str(tenant_id)))
@@ -974,8 +975,8 @@ class SelectionDomainService:
     @classmethod
     def get_domain_categories(cls) -> List[Dict[str, Any]]:
         """Mengambil daftar kategori domain seleksi yang tersedia."""
-        engine = get_database_engine()
-        with engine.connect() as conn:
+        raise RuntimeError("Global selection domain categories require an explicit platform-read boundary; direct DB access is prohibited by R1-B.3.")
+        with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
             stmt = sa.text("""
                 SELECT id, category_key, display_name, description
                 FROM selection_domain_categories
@@ -2021,8 +2022,8 @@ class SelectionDomainService:
         """
         Menangani permintaan webhook publik untuk memicu seleksi otomatis dengan verifikasi signature.
         """
-        engine = get_database_engine()
-        with engine.connect() as conn:
+        raise RuntimeError("Webhook selection lookup requires tenant resolution before DB access; direct DB access is prohibited by R1-B.3.")
+        with tenant_tx("00000000-0000-0000-0000-000000000000") as conn:
             stmt = sa.text("""
                 SELECT id, tenant_id, trigger_name, trigger_config, is_active
                 FROM selection_automation_triggers
