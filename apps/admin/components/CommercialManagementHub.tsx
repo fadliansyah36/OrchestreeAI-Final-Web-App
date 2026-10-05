@@ -8,6 +8,7 @@ import {
   Cpu,
   CreditCard,
   ShieldAlert,
+  CheckCircle2,
 } from 'lucide-react';
 import { FinancialCommandCenter } from './FinancialCommandCenter';
 import { SubscriptionPlanScreen } from './SubscriptionPlanScreen';
