@@ -82,6 +82,10 @@ jobs:
         run: |
           python -m pytest apps/backend/tests/test_r1_b4_live_api_cross_tenant_isolation.py -m "not live" -q -s
 
+      - name: R1-B.5 Final frontend identity inventory
+        run: |
+          python3 scripts/r1_b5_frontend_identity_inventory.py
+
       - name: Run mandatory content/perimeter/security gates
         run: |
           npm run ci:content-gate
