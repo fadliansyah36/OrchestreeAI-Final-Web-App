@@ -90,8 +90,6 @@ export function CreditFormulaConfigScreen() {
     try {
       const res = await fetch('/api/v1/billing/admin/formula-factors', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
 
@@ -173,8 +171,6 @@ export function CreditFormulaConfigScreen() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify(bodyData),
       });
@@ -203,8 +199,6 @@ export function CreditFormulaConfigScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify({
           activity_code: simActivity,
