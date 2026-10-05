@@ -382,3 +382,57 @@ Additional remediation completed on `main`:
 **R1-B.5 implementation status: GREEN for the completed remediation scope; release/CI gate remains pending.**
 
 R1-B overall remains **NOT GREEN** until the remaining CI and live API gates are executed and pass.
+
+
+### R1-B.5-GATE — Final Frontend Identity Inventory & CI Closure
+
+Gate execution was started on main with a production-only static inventory:
+- `scripts/r1_b5_frontend_identity_inventory.py`
+- integrated into Phase 01 CI after the R1-B.4 non-live negative suite;
+- excludes tests and generated build output;
+- blocks browser auth-token storage, browser tenant authority, client-authored role/capability/MFA headers, frontend service-role secrets, and known synthetic identity patterns.
+
+### CI evidence
+
+Latest relevant Phase 02 run:
+- run **37357429237**
+- **SUCCESS**
+- forbidden client-auth pattern scan: SUCCESS
+- production cookie/session policy: SUCCESS
+- backend JWT security tests: SUCCESS
+- backend compile: SUCCESS
+- client type-check: SUCCESS
+- admin type-check: SUCCESS
+- client build reached SUCCESS
+- admin build gate is part of the successful run.
+
+Latest relevant Phase 01 run:
+- run **37357429249**
+- **FAILURE**
+- frontend type-check: SUCCESS
+- client PWA build: SUCCESS
+- admin PWA build: SUCCESS
+- backend compile: SUCCESS
+- service-worker syntax: SUCCESS
+- failure occurred at existing **R1-B.3 DB access inventory**, before R1-B.4/R1-B.5 gate execution.
+
+### R1-B.3 blocker discovered by final CI
+
+The existing direct-DB inventory gate reports:
+1. retired unrestricted DB APIs are still referenced by `api/v1/enterprise.py` and `api/v1/permissions.py`;
+2. direct tenant DB/GUC patterns remain across multiple API/domain/skill modules, including billing, commerce, CRM, integrations, intelligence, kanban/attendance, omnichannel, proactive, sales, selection, service, workforce, authorization, model router, orchestration, process-integrity, billing credits, boundary, chief-of-staff, proactive scheduler, MCP/memory/scrape skills.
+
+This is treated as a **real prerequisite blocker**, not a scanner failure. The gate must not be weakened merely to close R1-B.5.
+
+### Gate status
+
+- [x] R1-B.5 production frontend identity inventory is implemented and wired into CI.
+- [x] Phase 02 Authentication Security Verification is GREEN (run 37357429237).
+- [x] frontend/admin type-check and both production builds passed in the latest Phase 01 execution.
+- [ ] Phase 01 GREEN — blocked by R1-B.3 direct DB access inventory.
+- [ ] R1-B.5 final GREEN — blocked until the prerequisite Phase 01 gate is GREEN and the new R1-B.5 inventory actually executes in the same successful pipeline.
+- [ ] R1-B.4 live external API workflow remains pending real Tenant A/B credentials.
+
+**R1-B.5-GATE status: BLOCKED BY R1-B.3 PREREQUISITE.**
+
+The correct next execution is **R1-B.3 Continuation — Complete Direct DB Extraction**, not weakening the gate.
