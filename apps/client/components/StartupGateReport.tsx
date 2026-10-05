@@ -9,7 +9,7 @@ import {
   Shield,
   Layers
 } from 'lucide-react';
-import { StartupGateStatus } from '@/apps/client/types';
+import { StartupGateStatus } from '@/types';
 
 interface GateItem {
   step: number;
