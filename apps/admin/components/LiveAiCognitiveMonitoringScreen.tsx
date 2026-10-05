@@ -217,9 +217,7 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
     const fetchHistory = async () => {
       setHistoryLoading(true);
       try {
-        const headers: Record<string, string> = {
-        };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
         const res = await fetch(`${apiBaseUrl}/api/v1/admin/ai-agent-live-state/${selectedAgent.ai_agent_id}/recent-nodes?limit=8`, { headers });
         if (res.ok) {
@@ -235,44 +233,15 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
     fetchHistory();
   }, [selectedAgent]);
 
-  // 4. Trigger Real Live Workflow Execution Test (Membuat aktivitas live nyata)
+  // 4. Trigger Real Live Workflow Execution Test
+  // This action remains disabled until the orchestration endpoint accepts
+  // only server-derived tenant/actor authority. The frontend must not
+  // fabricate tenant, role, capability, or MFA attributes.
   const handleTriggerRealWorkflowTest = async () => {
-    const activeTenantId = liveStates[0]?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
-    if (!activeTenantId) {
-      setTriggerSuccessMsg('Pilih organisasi/tenant aktif terlebih dahulu untuk memicu alur kerja nyata.');
-      return;
-    }
-    setTriggeringDemo(true);
-    setTriggerSuccessMsg(null);
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/orchestration/dispatch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenant_id: activeTenantId,
-          intent_text: 'Audit intelijen performa staf dan evaluasi sentimen saluran operasional',
-          actor_type: 'ai_agent',
-          roles: ['STAFF_AI'],
-          capabilities: ['workflow.dispatch', 'workflow.node.execute', 'mcp.tool.invoke'],
-          execution_context: 'internal_dashboard',
-          context_data: { test_source: 'live_cognitive_monitoring_ui' },
-        }),
-      });
-      if (res.ok) {
-        setTriggerSuccessMsg('Tugas orkestrasi nyata berhasil dipicu! Agen AI menyala live di jaringan pusat.');
-        setTimeout(() => setTriggerSuccessMsg(null), 6000);
-        setTimeout(fetchLiveStateData, 1000);
-      } else {
-        setTriggerSuccessMsg('Tugas terkirim ke queue orkestrasi.');
-        setTimeout(() => setTriggerSuccessMsg(null), 4000);
-      }
-    } catch {
-      setTriggerSuccessMsg('Permintaan orkestrasi dikirim.');
-      setTimeout(() => setTriggerSuccessMsg(null), 4000);
-    } finally {
-      setTriggeringDemo(false);
-    }
+    setTriggerSuccessMsg('Pemicu orkestrasi ditahan: endpoint backend masih memerlukan migrasi ke trusted RequestContext.');
+    setTimeout(() => setTriggerSuccessMsg(null), 6000);
   };
+
 
   // 5. Filter logic
   const filteredStates = useMemo(() => {
