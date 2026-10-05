@@ -102,11 +102,7 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
   // 1. Fetch Snapshot & Summary
   const fetchLiveStateData = async () => {
     try {
-      const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token') || '';
       const headers: Record<string, string> = {
-        'X-User-Roles': 'PLATFORM_SUPERADMIN',
-        'X-User-Capabilities': 'admin.cognitive_monitoring.view,platform.admin.manage',
-        'X-MFA-Verified': 'true',
       };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -223,11 +219,7 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
     const fetchHistory = async () => {
       setHistoryLoading(true);
       try {
-        const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token') || '';
         const headers: Record<string, string> = {
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.cognitive_monitoring.view,platform.admin.manage',
-          'X-MFA-Verified': 'true',
         };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
