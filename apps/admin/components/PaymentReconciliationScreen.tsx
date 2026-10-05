@@ -70,12 +70,7 @@ export function PaymentReconciliationScreen() {
   const [detecting, setDetecting] = useState<boolean>(false);
   const [detectionReport, setDetectionReport] = useState<any | null>(null);
 
-  const getHeaders = () => {
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
+  const getHeaders = () => ({ 'Content-Type': 'application/json' });
 
   const fetchCasesData = async (tabToFetch: 'error_confirm' | 'pending' | 'success') => {
     setLoading(true);
