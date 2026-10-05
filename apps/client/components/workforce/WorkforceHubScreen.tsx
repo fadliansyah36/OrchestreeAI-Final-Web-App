@@ -258,9 +258,6 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
       }
 
       const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const res = await fetch(`/api/v1/workforce/${tenantId}/staff/${selectedStaffForDocs.id}/documents/upload`, {
         method: 'POST',
