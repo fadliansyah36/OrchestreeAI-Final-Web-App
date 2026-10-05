@@ -10,6 +10,11 @@ export interface AuthSessionContext {
   capabilities: string[];
   is_mfa_verified: boolean;
   app_scope: string;
+  membership_id: string | null;
+  tenant_legal_name: string | null;
+  tenant_display_name: string | null;
+  tenant_status: string | null;
+  tenant_created_at: string | null;
 }
 
 export function useAuthSession() {
