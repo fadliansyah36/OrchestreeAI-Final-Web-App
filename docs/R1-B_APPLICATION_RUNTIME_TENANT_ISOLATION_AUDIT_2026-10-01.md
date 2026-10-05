@@ -362,6 +362,7 @@ Additional remediation completed on `main`:
 - Platform Analytics rollup refresh now treats a non-2xx response as an actual failure.
 - `GET /api/v1/auth/session` now enriches the authenticated session from authoritative `tenant_memberships` and `tenants` records, returning membership ID and tenant legal/display/status/creation metadata. The browser still supplies none of these identity attributes.
 - Login tenant payload now uses those server-returned values and fails closed if required tenant metadata is missing; the former fabricated `Organisasi Terdaftar`, client user-id-as-membership, and client-generated tenant creation timestamp were removed.
+- Pending staff join no longer synthesizes a tenant membership payload, queue ID, or client-created timestamp; the UI remains pending until authoritative HR approval/session establishment.
 - Tracked `apps/admin/tsconfig.tsbuildinfo` was removed as generated repository artifact.
 
 ### R1-B.5 gate status
