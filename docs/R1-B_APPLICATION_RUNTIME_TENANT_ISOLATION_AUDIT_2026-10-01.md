@@ -349,3 +349,35 @@ Implemented on `main` after the R1-B.4 live-gate pause:
 This is a frontend authority/hygiene implementation milestone. It does not by itself close R1-B.4 live execution.
 
 Next R1-B.5 work remains: complete browser-derived identity/tenant-state inventory across client/admin, remove remaining production localStorage auth/tenant authority, remove fabricated UI success/fallback states, and re-run Phase 01/02 gates.
+
+
+### R1-B.5 Completion — Frontend Identity & Real-Data Hardening
+
+Additional remediation completed on `main`:
+
+- Home Overview no longer falls back to `localStorage` for tenant identity.
+- Home Overview no longer exposes a fabricated check-in state/time or hardcoded agenda entries; it now reports loading/error/unavailable state when the backend does not provide agenda data.
+- Home Overview no longer converts orchestration HTTP/network failure into a fabricated successful response; the real backend error is surfaced.
+- Platform Analytics no longer reads browser-stored admin/Supabase tokens and no longer sends client-supplied role/capability/MFA headers. Requests use the HttpOnly session cookie with `credentials: include`.
+- Platform Analytics rollup refresh now treats a non-2xx response as an actual failure.
+- `GET /api/v1/auth/session` now enriches the authenticated session from authoritative `tenant_memberships` and `tenants` records, returning membership ID and tenant legal/display/status/creation metadata. The browser still supplies none of these identity attributes.
+- Login tenant payload now uses those server-returned values and fails closed if required tenant metadata is missing; the former fabricated `Organisasi Terdaftar`, client user-id-as-membership, and client-generated tenant creation timestamp were removed.
+- Tracked `apps/admin/tsconfig.tsbuildinfo` was removed as generated repository artifact.
+
+### R1-B.5 gate status
+
+- [x] browser-stored auth token removed from Platform Analytics production path;
+- [x] forged platform identity headers removed from Platform Analytics production path;
+- [x] Home Overview tenant authority is backend-derived;
+- [x] Home Overview fabricated operational states removed;
+- [x] orchestration failure is surfaced as failure, not success;
+- [x] login tenant metadata is backend-authoritative;
+- [x] tracked TypeScript build artifact removed;
+- [ ] Phase 01 CI GREEN after the final commits;
+- [ ] Phase 02 CI GREEN after the final commits;
+- [ ] complete repository-wide static inventory independently re-run against final `main`;
+- [ ] R1-B.4 live external API workflow executed with real Tenant A/B tokens.
+
+**R1-B.5 implementation status: GREEN for the completed remediation scope; release/CI gate remains pending.**
+
+R1-B overall remains **NOT GREEN** until the remaining CI and live API gates are executed and pass.
