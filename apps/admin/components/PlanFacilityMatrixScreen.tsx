@@ -59,8 +59,6 @@ export function PlanFacilityMatrixScreen() {
     try {
       const res = await fetch('/api/v1/billing/admin/facility-matrix', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
 
@@ -137,8 +135,6 @@ export function PlanFacilityMatrixScreen() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify({ updates }),
       });
