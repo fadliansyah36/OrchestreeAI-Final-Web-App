@@ -48,7 +48,12 @@ import {
   MessageSquare,
   Radio
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/types';
+type HomeTenantContext = {
+  tenant_id: string;
+  membership_id: string | null;
+  display_name?: string | null;
+  legal_name?: string | null;
+};
 
 export interface SourceBreakdownItem {
   channel: string;
@@ -149,7 +154,7 @@ export interface PerformanceOverviewResponse {
 }
 
 interface HomeOverviewScreenProps {
-  tenant: TenantRegistrationResponse | null;
+  tenant: HomeTenantContext | null;
   onNavigateDetail?: (target: string) => void;
   onTriggerAskAI?: (prompt: string) => void;
 }
