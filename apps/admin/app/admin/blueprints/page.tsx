@@ -9,6 +9,7 @@ import { ShieldAlert, ArrowLeft, Boxes, Sparkles } from 'lucide-react';
 
 export default function AdminBlueprintsPage() {
   const { loading, isPlatformAdmin } = useAdminSession();
+  const [catalogView, setCatalogView] = React.useState<'agents' | 'prompts'>('agents');
 
   return (
     <main className="min-h-screen p-6 md:p-8 bg-[#070D18] text-white">
