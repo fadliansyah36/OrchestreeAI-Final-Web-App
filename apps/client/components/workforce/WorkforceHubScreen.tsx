@@ -257,14 +257,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         formData.append('document_title', docTitleToUpload.trim());
       }
 
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_auth_token') || localStorage.getItem('sb-access-token') || ''
-        : '';
-      const headers: Record<string, string> = {
-        'X-Tenant-Id': tenantId,
-        'X-User-Role': testRole,
-        'X-User-Id': tenant?.membership_id || tenant?.user_id || '',
-      };
+      const headers: Record<string, string> = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
