@@ -102,9 +102,7 @@ export function LiveAiCognitiveMonitoringScreen({ apiBaseUrl = '' }: { apiBaseUr
   // 1. Fetch Snapshot & Summary
   const fetchLiveStateData = async () => {
     try {
-      const headers: Record<string, string> = {
-      };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
       const [resStates, resSummary] = await Promise.all([
         fetch(`${apiBaseUrl}/api/v1/admin/ai-agent-live-state`, { headers }),
