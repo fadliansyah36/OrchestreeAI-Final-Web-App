@@ -97,18 +97,9 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
       if (dateRange === 'custom' && customStart && customEnd) {
         url += `&start_date=${customStart}&end_date=${customEnd}`;
       }
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token')
-        : null;
-
       const res = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.analytics.view,platform.admin.manage',
-          'X-MFA-Verified': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
       });
       if (!res.ok) {
         throw new Error(`Gagal memuat ringkasan analitik (${res.status})`);
@@ -127,18 +118,9 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingTenants(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/tenants?sort_by=${tenantSortBy}&order=${tenantSortOrder}&limit=50`;
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token')
-        : null;
-
       const res = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.analytics.view,platform.admin.manage',
-          'X-MFA-Verified': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
         const json = await res.json();
@@ -156,18 +138,9 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingLlm(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/llm-usage?groupBy=${llmGroupBy}&range=${dateRange}`;
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token')
-        : null;
-
       const res = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.analytics.view,platform.admin.manage',
-          'X-MFA-Verified': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
         const json = await res.json();
@@ -186,18 +159,9 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingDetail(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/tenants/${tenantId}/detail`;
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token')
-        : null;
-
       const res = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.analytics.view,platform.admin.manage',
-          'X-MFA-Verified': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
       });
       if (res.ok) {
         const json = await res.json();
@@ -215,21 +179,13 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setIsRefreshing(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/rollup/refresh`;
-      const token = typeof window !== 'undefined'
-        ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token')
-        : null;
-
-      await fetch(url, {
+      const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Roles': 'PLATFORM_SUPERADMIN',
-          'X-User-Capabilities': 'admin.analytics.manage,platform.admin.manage',
-          'X-MFA-Verified': 'true',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
+      if (!res.ok) throw new Error(`Gagal memperbarui rollup (${res.status})`);
       await Promise.all([fetchOverview(), fetchTenants(), fetchLlmUsage()]);
     } catch {
       // Ditangani oleh penyegaran
