@@ -49,26 +49,34 @@ async def get_overview(
 ):
     return get_platform_analytics_overview(
         range_str=range, start_str=start_date, end_str=end_date
-    )\n\nasync def list_tenants_ranking(
+    )
+
+async def list_tenants_ranking(
     sort_by: str = Query("revenue", pattern="^(revenue|credit_usage|staff_count|ai_agent_count|transaction_count)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=200),
     context: AuthenticatedTenantContext = Depends(require_platform_admin),
 ):
     rankings = get_tenant_rankings(sort_by=sort_by, order=order, limit=limit)
-    return {"tenants": rankings, "total": len(rankings)}\n\nasync def get_tenant_detail(
+    return {"tenants": rankings, "total": len(rankings)}
+
+async def get_tenant_detail(
     id: str,
     context: AuthenticatedTenantContext = Depends(require_platform_admin),
 ):
     detail = get_tenant_analytics_detail(id)
     if "error" in detail:
         raise HTTPException(status_code=404, detail=detail["error"])
-    return detail\n\nasync def get_llm_usage(
+    return detail
+
+async def get_llm_usage(
     groupBy: str = Query("provider", pattern="^(provider|model|tenant)$"),
     range: str = Query("30d", pattern="^(7d|30d|90d|custom)$"),
     context: AuthenticatedTenantContext = Depends(require_platform_admin),
 ):
-    return get_llm_usage_breakdown(group_by=groupBy, range_str=range)\n\nasync def refresh_rollup(
+    return get_llm_usage_breakdown(group_by=groupBy, range_str=range)
+
+async def refresh_rollup(
     payload: Optional[AnalyticsRefreshRequest] = None,
     context: AuthenticatedTenantContext = Depends(require_platform_admin),
 ):
@@ -80,7 +88,9 @@ async def get_overview(
         "status": "success",
         "message": "Komputasi rollup berhasil diperbarui.",
         "data": res,
-    }\n\n# WebSocket untuk streaming analitik KPI secara langsung
+    }
+
+# WebSocket untuk streaming analitik KPI secara langsung
 @websocket_router.websocket("/ws/v1/admin/analytics/live")
 async def websocket_analytics_live(websocket: WebSocket):
     await websocket.accept()
