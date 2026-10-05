@@ -63,8 +63,6 @@ export function TenantCreditOverrideScreen() {
     try {
       const res = await fetch('/api/v1/billing/admin/tenant-subscriptions', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
 
@@ -109,8 +107,6 @@ export function TenantCreditOverrideScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify({
           tenant_id: overrideTarget.tenant_id,
@@ -165,8 +161,6 @@ export function TenantCreditOverrideScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify({
           tenant_id: adjustTarget.tenant_id,
