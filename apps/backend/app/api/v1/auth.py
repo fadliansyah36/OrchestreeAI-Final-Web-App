@@ -45,6 +45,7 @@ class AuthSessionResponse(BaseModel):
     tenant_legal_name: Optional[str] = None
     tenant_display_name: Optional[str] = None
     tenant_status: Optional[str] = None
+    tenant_created_at: Optional[str] = None
 
 
 def _auth_base_url() -> str:
@@ -211,7 +212,7 @@ async def session(context: AuthenticatedTenantContext = Depends(get_current_tena
         ).mappings().first()
         tenant = conn.execute(
             sa.text("""
-                SELECT id, legal_name, display_name, status
+                SELECT id, legal_name, display_name, status, created_at
                 FROM tenants
                 WHERE id = :tenant_id
                 LIMIT 1
@@ -225,6 +226,7 @@ async def session(context: AuthenticatedTenantContext = Depends(get_current_tena
         tenant_legal_name = tenant.get("legal_name")
         tenant_display_name = tenant.get("display_name")
         tenant_status = tenant.get("status")
+        tenant_created_at = tenant["created_at"].isoformat() if tenant.get("created_at") else None
 
     return AuthSessionResponse(
         authenticated=True,
@@ -238,6 +240,7 @@ async def session(context: AuthenticatedTenantContext = Depends(get_current_tena
         tenant_legal_name=tenant_legal_name,
         tenant_display_name=tenant_display_name,
         tenant_status=tenant_status,
+        tenant_created_at=tenant_created_at,
     )
 
 
