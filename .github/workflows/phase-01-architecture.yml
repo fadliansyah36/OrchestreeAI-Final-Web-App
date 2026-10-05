@@ -75,7 +75,7 @@ jobs:
 
       - name: R1-B.3 DB access and service-role inventory
         run: |
-          python -m pip install -r apps/backend/requirements.txt
+          python -m pip install -r apps/backend/requirements.txt pytest
           python -m pytest apps/backend/tests/test_r1_b3_db_access_inventory.py -q -s
 
       - name: R1-B.4 API identity and cross-tenant negative suite
