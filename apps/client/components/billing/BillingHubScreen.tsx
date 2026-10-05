@@ -102,7 +102,6 @@ export function BillingHubScreen({
     try {
       const headers: Record<string, string> = {
         'X-Tenant-Id': tenantId,
-        'X-User-Roles': userRole,
       };
 
       const [sRes, tRes, rRes, iRes, pRes, pkgRes, actRes, reconRes] = await Promise.all([
@@ -223,7 +222,6 @@ export function BillingHubScreen({
         headers: {
           'Content-Type': 'application/json',
           'X-Tenant-Id': tenantId,
-          'X-User-Roles': userRole,
         },
         body: JSON.stringify({
           reference_id: invoiceNumber,
