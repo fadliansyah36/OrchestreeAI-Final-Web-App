@@ -61,8 +61,6 @@ export function SubscriptionPlanScreen({ onPlanUpdated }: SubscriptionPlanScreen
     try {
       const res = await fetch('/api/v1/billing/admin/plans', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
       if (!res.ok) {
@@ -117,8 +115,6 @@ export function SubscriptionPlanScreen({ onPlanUpdated }: SubscriptionPlanScreen
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify(payload),
       });
