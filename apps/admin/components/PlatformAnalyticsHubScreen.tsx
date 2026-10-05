@@ -384,7 +384,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
             </div>
             <div className="text-2xl font-black text-white tracking-tight">
               {loadingOverview ? (
-                <SkeletonLoader width="100px" height="32px" />
+                <SkeletonLoader />
               ) : (
                 formatNumber(overview?.kpi.total_transactions || 0)
               )}
@@ -417,7 +417,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
             </div>
             <div className="text-2xl font-black text-white tracking-tight truncate">
               {loadingOverview ? (
-                <SkeletonLoader width="120px" height="32px" />
+                <SkeletonLoader />
               ) : (
                 formatIDR(overview?.kpi.total_revenue_idr || 0)
               )}
@@ -449,7 +449,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
             </div>
             <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-2">
               {loadingOverview ? (
-                <SkeletonLoader width="80px" height="32px" />
+                <SkeletonLoader />
               ) : (
                 <>
                   <span>{formatNumber(overview?.kpi.tenants.total || 0)}</span>
@@ -486,7 +486,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
             </div>
             <div className="text-2xl font-black text-white tracking-tight flex items-baseline gap-3">
               {loadingOverview ? (
-                <SkeletonLoader width="110px" height="32px" />
+                <SkeletonLoader />
               ) : (
                 <>
                   <div className="flex items-center gap-1.5">
@@ -628,7 +628,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
         <div className="h-80 w-full pt-2">
           {loadingOverview ? (
             <div className="h-full flex items-center justify-center">
-              <SkeletonLoader width="100%" height="100%" />
+              <SkeletonLoader />
             </div>
           ) : !overview?.time_series || overview.time_series.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -835,7 +835,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
               {loadingTenants ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-400">
-                    <SkeletonLoader width="100%" height="160px" />
+                    <SkeletonLoader />
                   </td>
                 </tr>
               ) : filteredTenants.length === 0 ? (
@@ -956,7 +956,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
             <div className="h-60 w-full">
               {loadingLlm ? (
                 <div className="h-full flex items-center justify-center">
-                  <SkeletonLoader width="180px" height="180px" />
+                  <SkeletonLoader />
                 </div>
               ) : !llmData?.breakdown || llmData.breakdown.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-slate-500">
@@ -1008,7 +1008,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
                 {loadingLlm ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center">
-                      <SkeletonLoader width="100%" height="120px" />
+                      <SkeletonLoader />
                     </td>
                   </tr>
                 ) : !llmData?.breakdown || llmData.breakdown.length === 0 ? (
@@ -1062,8 +1062,8 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
 
             {loadingDetail ? (
               <div className="py-16 text-center space-y-3">
-                <SkeletonLoader width="60%" height="32px" />
-                <SkeletonLoader width="100%" height="200px" />
+                <SkeletonLoader />
+                <SkeletonLoader />
               </div>
             ) : !tenantDetail || tenantDetail.error ? (
               <div className="py-12">
