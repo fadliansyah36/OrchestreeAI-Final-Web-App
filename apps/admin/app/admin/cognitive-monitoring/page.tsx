@@ -1,25 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useAdminSession } from '../../../lib/useAdminSession';
 import { LiveAiCognitiveMonitoringScreen } from '../../../components/LiveAiCognitiveMonitoringScreen';
 import { EmptyState } from '@orchestree/ui';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 export default function AdminCognitiveMonitoringPage() {
-  const [isAdminAuth, setIsAdminAuth] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token');
-      const isMfa = localStorage.getItem('orchestree_mfa_verified') === 'true';
-      setIsAdminAuth(Boolean(token && isMfa));
-    } catch {
-      setIsAdminAuth(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { loading, isPlatformAdmin } = useAdminSession();
 
   return (
     <main className="min-h-screen bg-[#070D18] text-white">
@@ -37,7 +25,7 @@ export default function AdminCognitiveMonitoringPage() {
         <div className="p-12 text-center text-slate-400 text-sm font-sans">
           Memverifikasi protokol otorisasi Super Admin...
         </div>
-      ) : isAdminAuth ? (
+      ) : isPlatformAdmin ? (
         <LiveAiCognitiveMonitoringScreen />
       ) : (
         <div className="max-w-xl mx-auto pt-16 px-4">
