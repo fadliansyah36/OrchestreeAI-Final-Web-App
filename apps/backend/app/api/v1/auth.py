@@ -13,10 +13,12 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import httpx
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core.config import settings
+from app.core.database import tenant_tx
 from app.core.security import (
     AuthenticatedTenantContext,
     get_current_tenant_context,
@@ -39,6 +41,10 @@ class AuthSessionResponse(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
     is_mfa_verified: bool = False
     app_scope: str = "tenant"
+    membership_id: Optional[str] = None
+    tenant_legal_name: Optional[str] = None
+    tenant_display_name: Optional[str] = None
+    tenant_status: Optional[str] = None
 
 
 def _auth_base_url() -> str:
@@ -184,6 +190,42 @@ async def refresh(request: Request, response: Response) -> AuthSessionResponse:
 
 @router.get("/session", response_model=AuthSessionResponse)
 async def session(context: AuthenticatedTenantContext = Depends(get_current_tenant_context)) -> AuthSessionResponse:
+    membership_id = None
+    tenant_legal_name = None
+    tenant_display_name = None
+    tenant_status = None
+
+    # Enrich the authenticated session from authoritative tenant records.
+    # The browser never supplies tenant metadata or membership identity.
+    with tenant_tx(context.tenant_id, user_id=context.user_id) as conn:
+        membership = conn.execute(
+            sa.text("""
+                SELECT id
+                FROM tenant_memberships
+                WHERE tenant_id = :tenant_id
+                  AND auth_user_id = :user_id
+                ORDER BY created_at ASC
+                LIMIT 1
+            """),
+            {"tenant_id": context.tenant_id, "user_id": context.user_id},
+        ).mappings().first()
+        tenant = conn.execute(
+            sa.text("""
+                SELECT id, legal_name, display_name, status
+                FROM tenants
+                WHERE id = :tenant_id
+                LIMIT 1
+            """),
+            {"tenant_id": context.tenant_id},
+        ).mappings().first()
+
+    if membership:
+        membership_id = str(membership["id"])
+    if tenant:
+        tenant_legal_name = tenant.get("legal_name")
+        tenant_display_name = tenant.get("display_name")
+        tenant_status = tenant.get("status")
+
     return AuthSessionResponse(
         authenticated=True,
         user_id=context.user_id,
@@ -192,6 +234,10 @@ async def session(context: AuthenticatedTenantContext = Depends(get_current_tena
         capabilities=context.capabilities,
         is_mfa_verified=context.is_mfa_verified,
         app_scope=context.app_scope,
+        membership_id=membership_id,
+        tenant_legal_name=tenant_legal_name,
+        tenant_display_name=tenant_display_name,
+        tenant_status=tenant_status,
     )
 
 
