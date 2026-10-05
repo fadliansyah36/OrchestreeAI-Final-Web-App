@@ -178,14 +178,18 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
         throw new Error(sessionData.detail || 'Akun belum memiliki membership tenant aktif.');
       }
 
+      if (!sessionData.tenant_id || !sessionData.membership_id || !sessionData.tenant_display_name) {
+        throw new Error('Sesi terautentikasi belum memiliki metadata tenant yang lengkap dari backend.');
+      }
+
       const tenantPayload: TenantRegistrationResponse = {
         tenant_id: sessionData.tenant_id,
-        legal_name: 'Organisasi Terdaftar',
-        display_name: sessionData.tenant_id,
-        status: 'active',
-        membership_id: sessionData.user_id,
+        legal_name: sessionData.tenant_legal_name || sessionData.tenant_display_name,
+        display_name: sessionData.tenant_display_name,
+        status: sessionData.tenant_status || 'active',
+        membership_id: sessionData.membership_id,
         role: sessionData.roles?.[0] || 'STAFF_HUMAN',
-        owner_full_name: email,
+        owner_full_name: undefined,
         created_at: new Date().toISOString(),
       };
 
