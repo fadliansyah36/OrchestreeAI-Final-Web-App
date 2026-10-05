@@ -1,28 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useAuthSession } from '../../lib/useAuthSession';
 import { HomeOverviewScreen } from '../../components/workforce/HomeOverviewScreen';
 import { Building2, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { EmptyState } from '@orchestree/ui';
 
 export default function OverviewPage() {
-  const [activeTenant, setActiveTenant] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('orchestree_active_tenant');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const token = localStorage.getItem('orchestree_auth_token');
-        setActiveTenant({ ...parsed, token });
-      }
-    } catch (e) {
-      // Ignored
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { session: activeTenant, loading } = useAuthSession();
 
   return (
     <main className="min-h-screen bg-[#0B1220] pb-16 text-white">
