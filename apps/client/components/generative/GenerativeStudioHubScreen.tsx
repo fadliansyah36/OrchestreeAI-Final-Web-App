@@ -1056,10 +1056,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                         onClick={async () => {
                           try {
                             let targetUrl = art.public_url;
-                            const token = localStorage.getItem('orchestree_auth_token') || localStorage.getItem('sb-access-token') || '';
-                            const signRes = await fetch(`/api/v1/storage/download-artifact/${art.id}?expires_seconds=300`, {
-                              headers: token ? { Authorization: `Bearer ${token}` } : {},
-                            });
+                            const signRes = await fetch(`/api/v1/storage/download-artifact/${art.id}?expires_seconds=300`, { credentials: 'include' });
                             if (signRes.ok) {
                               const signData = await signRes.json();
                               if (signData.signed_download_url) {
