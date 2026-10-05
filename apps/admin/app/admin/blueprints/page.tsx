@@ -1,27 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useAdminSession } from '../../../lib/useAdminSession';
 import { AgentBlueprintCatalogScreen } from '../../../components/AgentBlueprintCatalogScreen';
 import { PromptTemplateCuratorScreen } from '../../../components/PromptTemplateCuratorScreen';
 import { EmptyState } from '@orchestree/ui';
 import { ShieldAlert, ArrowLeft, Boxes, Sparkles } from 'lucide-react';
 
 export default function AdminBlueprintsPage() {
-  const [isAdminAuth, setIsAdminAuth] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [catalogView, setCatalogView] = useState<'agents' | 'prompts'>('agents');
-
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token');
-      const isMfa = localStorage.getItem('orchestree_mfa_verified') === 'true';
-      setIsAdminAuth(Boolean(token && isMfa));
-    } catch {
-      setIsAdminAuth(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { loading, isPlatformAdmin } = useAdminSession();
 
   return (
     <main className="min-h-screen p-6 md:p-8 bg-[#070D18] text-white">
@@ -65,7 +52,7 @@ export default function AdminBlueprintsPage() {
 
       {loading ? (
         <div className="p-12 text-center text-slate-400 text-sm">Memverifikasi protokol otorisasi...</div>
-      ) : isAdminAuth ? (
+      ) : isPlatformAdmin ? (
         catalogView === 'agents' ? (
           <AgentBlueprintCatalogScreen />
         ) : (
