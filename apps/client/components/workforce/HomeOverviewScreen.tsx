@@ -168,8 +168,6 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Check-in state
-  const [isCheckedIn, setIsCheckedIn] = useState<boolean>(true);
-  const [checkInTime, setCheckInTime] = useState<string>('08:02');
 
   // Filter & Search Leaderboard
   const [workerFilter, setWorkerFilter] = useState<'all' | 'human' | 'agent'>('all');
@@ -191,7 +189,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
   const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
 
   const recognitionRef = useRef<any>(null);
-  const tenantId = tenant?.tenant_id || (typeof window !== 'undefined' ? localStorage.getItem('orchestree_active_tenant') || '' : '');
+  const tenantId = tenant?.tenant_id || '';
 
   const fetchOverview = useCallback(async (period: string) => {
     setLoading(true);
@@ -290,7 +288,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
         setAiResponseModal((prev) => ({
           ...prev,
           loading: false,
-          reply: data.reply || data.response || data.message || 'Instruksi berhasil diproses oleh orkestrator kecerdasan.'
+          reply: data.reply || data.response || data.message || ''
         }));
       } else {
         setAiResponseModal((prev) => ({
@@ -437,18 +435,6 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
 
         {/* Check-in Pill and Month Selector */}
         <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto shrink-0">
-          <button
-            onClick={() => setIsCheckedIn(!isCheckedIn)}
-            className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 min-h-[40px] rounded-xl text-xs font-semibold border transition-all cursor-pointer flex-1 sm:flex-none ${
-              isCheckedIn
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span className="truncate">{isCheckedIn ? `Presensi Masuk (${checkInTime})` : 'Belum Presensi Masuk'}</span>
-          </button>
-
           <input
             type="month"
             value={selectedPeriod}
@@ -475,29 +461,14 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
               Seluruh pekerja manusia dan pekerja kecerdasan tersinkronisasi. Anda memiliki {tasksAssigned} tugas terdistribusi pada periode berjalan.
             </p>
 
-            {/* Agenda List Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                <span className="text-xs font-medium truncate min-w-0 flex-1">Sinkronisasi Tim Pagi</span>
-                <span className="ml-auto text-[11px] text-slate-300 font-mono shrink-0">09:00</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
-                <span className="text-xs font-medium truncate min-w-0 flex-1">Tinjauan Penjualan & Prospek</span>
-                <span className="ml-auto text-[11px] text-slate-300 font-mono shrink-0">11:30</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                <span className="text-xs font-medium truncate min-w-0 flex-1">Verifikasi Alur Kerja AI</span>
-                <span className="ml-auto text-[11px] text-slate-300 font-mono shrink-0">14:00</span>
-              </div>
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
-                <span className="text-xs font-medium truncate min-w-0 flex-1">Evaluasi Harian Kinerja</span>
-                <span className="ml-auto text-[11px] text-slate-300 font-mono shrink-0">16:30</span>
-              </div>
-            </div>
+            {/* Agenda: only render data supplied by the backend. */}
+            {loading ? (
+              <div className="pt-2 text-xs text-slate-400">Memuat agenda nyata...</div>
+            ) : error ? (
+              <div className="pt-2 text-xs text-rose-300">Agenda tidak tersedia karena layanan kinerja gagal dimuat.</div>
+            ) : (
+              <div className="pt-2 text-xs text-slate-400">Agenda terjadwal belum tersedia dari layanan kinerja.</div>
+            )}
           </div>
 
           {/* Right Column: Radial Ring Progress */}
