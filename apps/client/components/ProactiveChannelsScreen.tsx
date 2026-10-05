@@ -20,11 +20,14 @@ import {
   Flame,
   Users
 } from 'lucide-react';
-import { TenantRegistrationResponse } from '@/types';
+type ProactiveTenantContext = {
+  tenant_id: string;
+  membership_id: string | null;
+};
 import { CollaborationSetupScreen } from './proactive/CollaborationSetupScreen';
 
 interface ProactiveChannelsScreenProps {
-  tenant: TenantRegistrationResponse | null;
+  tenant: ProactiveTenantContext | null;
   onBack: () => void;
 }
 
@@ -33,7 +36,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   onBack,
 }) => {
   const tenantId = tenant?.tenant_id || '';
-  const membershipId = tenant?.membership_id || tenant?.user_id || 'member-001';
+  const membershipId = tenant?.membership_id || '';
 
   // Tabs: 'channels' | 'collaboration' | 'notifications' | 'logs'
   const [activeTab, setActiveTab] = useState<'channels' | 'collaboration' | 'notifications' | 'logs'>('channels');
