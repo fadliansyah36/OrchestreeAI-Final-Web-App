@@ -52,7 +52,7 @@ jobs:
         env:
           APP_ENV: test
           ALLOW_TEST_HARNESS_TOKENS: "false"
-        run: PYTHONPATH=apps/backend pytest -q apps/backend/tests/test_auth_security.py
+        run: PYTHONPATH=apps/backend python -m pytest -q apps/backend/tests/test_auth_security.py
 
       - name: Backend compile verification
         run: python -m compileall -q apps/backend/app
