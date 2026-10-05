@@ -71,11 +71,8 @@ export function PaymentReconciliationScreen() {
   const [detectionReport, setDetectionReport] = useState<any | null>(null);
 
   const getHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('orchestree_admin_token') || localStorage.getItem('sb-access-token') : '';
     return {
       'Content-Type': 'application/json',
-      'X-User-Roles': 'SUPER_ADMIN',
-      'X-MFA-Verified': 'true',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   };
