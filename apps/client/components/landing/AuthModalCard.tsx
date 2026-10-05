@@ -300,23 +300,12 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
         data.message || 'Permohonan bergabung berhasil dikirim ke antrian persetujuan HR.'
       );
 
-      // Auto login as member if valid
+      // A join request is pending HR approval. Do not create a synthetic
+      // tenant membership/session in the browser before the backend approves it.
       if (data.tenant_id) {
-        const staffPayload: TenantRegistrationResponse = {
-          tenant_id: data.tenant_id,
-          legal_name: codeVerification.companyName || 'Organisasi Terdaftar',
-          display_name: codeVerification.companyName || 'Organisasi',
-          status: 'pending_approval',
-          membership_id: data.queue_id || crypto.randomUUID(),
-          role: 'TENANT_MEMBER',
-          owner_full_name: staffFullName.trim(),
-          created_at: new Date().toISOString(),
-        };
-
-        setTimeout(() => {
-          onSuccess(staffPayload);
-          onClose();
-        }, 1200);
+        setSuccessMessage(
+          data.message || 'Permohonan bergabung tersimpan dan menunggu persetujuan HR.'
+        );
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Terjadi galat saat memproses permohonan staff.');
