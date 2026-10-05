@@ -52,8 +52,6 @@ export function CreditTopupPackageScreen() {
     try {
       const res = await fetch('/api/v1/billing/admin/topup-packages', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
 
@@ -121,8 +119,6 @@ export function CreditTopupPackageScreen() {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Roles': 'SUPER_ADMIN',
-              'X-MFA-Verified': 'true',
             },
             body: JSON.stringify(payload),
           })
@@ -130,8 +126,6 @@ export function CreditTopupPackageScreen() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Roles': 'SUPER_ADMIN',
-              'X-MFA-Verified': 'true',
             },
             body: JSON.stringify(payload),
           });
