@@ -190,7 +190,7 @@ export const AuthModalCard: React.FC<AuthModalCardProps> = ({
         membership_id: sessionData.membership_id,
         role: sessionData.roles?.[0] || 'STAFF_HUMAN',
         owner_full_name: undefined,
-        created_at: new Date().toISOString(),
+        created_at: sessionData.tenant_created_at || '',
       };
 
       setSuccessMessage(`Selamat datang kembali, ${email}!`);
