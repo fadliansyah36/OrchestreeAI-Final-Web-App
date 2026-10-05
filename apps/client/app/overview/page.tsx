@@ -33,7 +33,7 @@ export default function OverviewPage() {
           {activeTenant && (
             <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
               <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{activeTenant.display_name || activeTenant.legal_name || 'Organisasi Aktif'}</span>
+              <span>{activeTenant.tenant_display_name || activeTenant.tenant_legal_name || 'Organisasi Aktif'}</span>
             </div>
           )}
         </div>
