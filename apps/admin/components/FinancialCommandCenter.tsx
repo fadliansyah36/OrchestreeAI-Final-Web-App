@@ -106,8 +106,6 @@ export function FinancialCommandCenter() {
     try {
       const res = await fetch('/api/v1/billing/admin/command-center', {
         headers: {
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
       });
 
@@ -152,8 +150,6 @@ export function FinancialCommandCenter() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Roles': 'SUPER_ADMIN',
-          'X-MFA-Verified': 'true',
         },
         body: JSON.stringify({
           tenant_id: overrideModalTenant.tenant_id,
