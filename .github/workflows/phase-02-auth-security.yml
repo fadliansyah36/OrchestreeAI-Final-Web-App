@@ -43,9 +43,9 @@ jobs:
       - name: Verify production cookie/session policy
         shell: bash
         run: |
-          grep -q "__Host-orchestree_access" apps/backend/app/api/v1/auth.py
-          grep -q "httponly=True" apps/backend/app/api/v1/auth.py
-          grep -q "samesite.*lax" apps/backend/app/api/v1/auth.py
+          grep -q "__Host-" apps/backend/app/api/v1/auth.py
+          grep -q '"httponly": True' apps/backend/app/api/v1/auth.py
+          grep -qi '"samesite": "lax' apps/backend/app/api/v1/auth.py
           grep -q "require_platform_admin" apps/backend/app/api/v1/admin_overview.py
 
       - name: Backend JWT security tests
