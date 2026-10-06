@@ -963,9 +963,6 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
             </div>
           </div>
         </div>
-      </div>
-      </div>
-      </div>
       )}
 
       {/* TAB 2: GALERI BERKAS BERSIH (ARTIFACTS) */}
@@ -1182,7 +1179,6 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* TAB 4: TEMPLATES LIBRARY — PUSTAKA TEMPLATE PROMPT ATOMIK */}
