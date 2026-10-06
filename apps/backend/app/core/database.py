@@ -9,7 +9,6 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Dict, Generator, Optional, Tuple, Union
 import uuid
-import re
 from urllib.parse import urlparse, unquote
 
 import sqlalchemy as sa
@@ -36,12 +35,14 @@ _async_engine: Optional[AsyncEngine] = None
 
 
 def get_runtime_database_role() -> str:
-    """Return the deployment-configured non-bypass runtime DB role."""
-    role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
+    """Return the PostgreSQL login identity supplied by DATABASE_URL."""
+    raw_url = os.getenv("DATABASE_URL") or settings.DATABASE_URL
+    if not raw_url:
+        raise DatabaseNotConfiguredError()
+    parsed = urlparse(raw_url)
+    role = unquote(parsed.username or "").strip()
     if not role:
-        raise RuntimeDatabaseRoleError("DATABASE_RUNTIME_ROLE wajib dikonfigurasi di environment runtime.")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role):
-        raise RuntimeDatabaseRoleError("DATABASE_RUNTIME_ROLE memiliki format identifier PostgreSQL yang tidak valid.")
+        raise RuntimeDatabaseRoleError("DATABASE_URL wajib memuat username PostgreSQL.")
     return role
 
 
