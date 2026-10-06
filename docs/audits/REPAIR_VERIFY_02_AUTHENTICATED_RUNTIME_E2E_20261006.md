@@ -131,3 +131,37 @@ The authenticated E2E suite now explicitly verifies:
 
 The real credentialed E2E gate remains required before this repair can be declared GREEN.
 
+## Implementation status — REPAIR-02A
+
+**IMPLEMENTED + MERGED + DEPLOYED**
+
+GitHub:
+- PR #9 merged to `main`.
+- Merge commit: `adfe60e294d44a63950b2cb76913c641ad2b636b`.
+
+Railway:
+- Project: `creative-sparkle`
+- Environment: `production`
+- Service: `@orchestree/api`
+- Deployment: `a8e7adaa-dc4a-4994-9c10-1916b49a055a`
+- Commit: `adfe60e294d44a63950b2cb76913c641ad2b636b`
+- Status: `SUCCESS`
+- `/health/live`: HTTP 200 observed in deployment runtime logs.
+
+Supabase:
+- Project: `OrchestreeDB-Web-PWA`
+- Ref: `szvbcvmvrucqxfikgjlx`
+- No schema/migration mutation was required for REPAIR-02A.
+- Learning RLS state verified live:
+  - `agent_decision_outcomes`: RLS + FORCE RLS
+  - `agent_lesson_learned`: RLS + FORCE RLS
+  - `agent_skill_confidence`: RLS + FORCE RLS
+  - `agent_skill_growth_log`: RLS + FORCE RLS
+- Existing live learning evidence remains: 35 outcomes, 5 lessons, 5 confidence records, 35 growth records.
+
+### Acceptance status
+
+The code repair is deployed successfully.
+
+**REPAIR-02A is not yet declared GREEN**, because the real credentialed authenticated E2E suite has not yet been executed with a non-privileged Supabase Auth test account. That runtime gate remains the next required verification step.
+
