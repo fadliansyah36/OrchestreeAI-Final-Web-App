@@ -70,7 +70,7 @@ export function CreditEstimateConfirm({
       body: JSON.stringify({
         activity_code: params.activity_code,
         complexity_code: params.complexity_code || 'medium',
-        llm_model_id: params.llm_model_id || 'gemini-1.5-pro',
+        llm_model_id: params.llm_model_id || 'openai',
         tool_risk_tier: params.tool_risk_tier || 'none',
         execution_mode: params.execution_mode || 'single_step',
       }),
