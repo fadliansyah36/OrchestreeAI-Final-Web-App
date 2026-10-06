@@ -12,6 +12,7 @@ from .router import (
 )
 
 __all__ = [
+    "GenerativeMediaResponse",
     "LLMProviderAdapter",
     "ModelRouter",
     "ModelRouterRequest",
