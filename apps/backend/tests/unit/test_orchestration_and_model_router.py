@@ -11,9 +11,7 @@ from app.core.model_router.router import (
     ModelRouterRequest,
     ModelRouterResponse,
     NvidiaNimAdapter,
-    OpenRouterAdapter,
-    GeminiAdapter,
-    GptImage2Adapter,
+    OpenAIAdapter,
 )
 from app.skills.f01_mcp.decorators import (
     ToolRegistry,
@@ -37,29 +35,25 @@ from app.core.orchestration.engine import (
 class TestModelRouter:
     def test_adapters_initialization(self):
         router = ModelRouter()
-        assert "nvidia" in router.adapters
-        assert "openrouter" in router.adapters
-        assert "openai" in router.adapters
-        assert "gemini" in router.adapters
+        assert list(router.adapters) == ["openai", "nvidia_nim"]
 
     @pytest.mark.asyncio
     async def test_model_router_fallback(self):
         router = ModelRouter()
-        # Mock nvidia failing, openrouter succeeding
-        router.adapters["nvidia"].generate = AsyncMock(
+        router.adapters["openai"].generate = AsyncMock(
             return_value=ModelRouterResponse(
                 content="",
-                provider_id="nvidia",
-                model_id="test",
+                provider_id="openai",
+                model_id="test-openai",
                 status="failed",
-                error_message="Simulated 429 rate limit",
+                error_message="Simulated primary provider failure",
             )
         )
-        router.adapters["openrouter"].generate = AsyncMock(
+        router.adapters["nvidia_nim"].generate = AsyncMock(
             return_value=ModelRouterResponse(
-                content="Jawaban sukses dari OpenRouter",
-                provider_id="openrouter",
-                model_id="liquid/lfm-2.5-2.6b:free",
+                content="Jawaban sukses dari NVIDIA NIM",
+                provider_id="nvidia_nim",
+                model_id="test-nim",
                 prompt_tokens=10,
                 completion_tokens=20,
                 total_tokens=30,
@@ -75,8 +69,8 @@ class TestModelRouter:
         )
         resp = await router.route(req)
         assert resp.status == "success"
-        assert resp.provider_id == "openrouter"
-        assert resp.content == "Jawaban sukses dari OpenRouter"
+        assert resp.provider_id == "nvidia_nim"
+        assert resp.content == "Jawaban sukses dari NVIDIA NIM"
 
 
 class TestMCPTools:
