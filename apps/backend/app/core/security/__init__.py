@@ -225,7 +225,7 @@ def _membership_context(user_id: str, requested_tenant_id: Optional[str]) -> Aut
 
     tenant_ids = {str(row["tenant_id"]) for row in rows}
     if len(tenant_ids) > 1 and not requested_tenant_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pengguna memiliki beberapa tenant aktif; pilih tenant melalui X-Tenant-Id.")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pengguna memiliki beberapa tenant aktif; server-managed tenant context tidak tersedia pada sesi autentikasi.")
 
     tenant_id = str(next(iter(tenant_ids)))
     roles = sorted({str(row["role_code"]).upper() for row in rows if row.get("role_code")})
