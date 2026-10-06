@@ -155,3 +155,18 @@ class TestOrchestrationEngine:
         assert len(res.nodes_executed) >= 3
         assert "node_classify" in res.nodes_executed
         assert "node_plan" in res.nodes_executed
+
+
+def test_model_router_provider_policy_is_openai_then_nvidia():
+    from app.core.model_router.router import ModelRouter
+
+    router = ModelRouter()
+    assert list(router.adapters) == ["openai", "nvidia_nim"]
+
+
+def test_model_router_does_not_register_retired_providers():
+    from app.core.model_router.router import ModelRouter
+
+    router = ModelRouter()
+    assert "openrouter" not in router.adapters
+    assert "gemini" not in router.adapters
