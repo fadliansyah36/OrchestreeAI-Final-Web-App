@@ -1,8 +1,8 @@
 """Authenticated Runtime E2E Gate.
 
 This suite intentionally requires a real, non-privileged Supabase Auth test
-account. It never manufactures JWTs, tenant headers, service-role tokens, or
-database fixtures.
+account. It never manufactures JWTs, tenant authority, service-role tokens,
+or database fixtures.
 
 Required environment:
     ORCHESTREE_RUNTIME_API_BASE_URL
@@ -11,8 +11,9 @@ Required environment:
 
 Optional:
     ORCHESTREE_E2E_EXPECTED_TENANT_ID
+    ORCHESTREE_E2E_CROSS_TENANT_ID
 
-The workflow dispatch case is opt-in because it can consume real AI credits:
+The real AI/credit slice is opt-in because it can consume real AI credits:
     ORCHESTREE_E2E_RUN_AI=true
 
 Run:
@@ -26,23 +27,32 @@ import os
 import uuid
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
-from urllib.request import Request, build_opener
+from urllib.request import HTTPCookieProcessor, Request, build_opener
+
+import pytest
 
 
 BASE_URL = os.getenv("ORCHESTREE_RUNTIME_API_BASE_URL", "").rstrip("/")
 EMAIL = os.getenv("ORCHESTREE_E2E_EMAIL", "")
 PASSWORD = os.getenv("ORCHESTREE_E2E_PASSWORD", "")
 EXPECTED_TENANT = os.getenv("ORCHESTREE_E2E_EXPECTED_TENANT_ID", "")
+CROSS_TENANT_ID = os.getenv("ORCHESTREE_E2E_CROSS_TENANT_ID", "")
 RUN_AI = os.getenv("ORCHESTREE_E2E_RUN_AI", "").lower() in {"1", "true", "yes"}
 
 
-def _json_request(opener, path, method="GET", body=None):
-    headers = {"Accept": "application/json"}
+def _json_request(opener, path, method="GET", body=None, headers=None):
+    request_headers = {"Accept": "application/json", **(headers or {})}
     data = None
     if body is not None:
-        headers["Content-Type"] = "application/json"
+        request_headers["Content-Type"] = "application/json"
         data = json.dumps(body).encode("utf-8")
-    req = Request(f"{BASE_URL}{path}", data=data, headers=headers, method=method)
+
+    req = Request(
+        f"{BASE_URL}{path}",
+        data=data,
+        headers=request_headers,
+        method=method,
+    )
     try:
         with opener.open(req, timeout=30) as response:
             raw = response.read()
@@ -56,28 +66,31 @@ def _json_request(opener, path, method="GET", body=None):
         return exc.code, payload
 
 
-def _require_env():
+def _require_base_url():
+    if not BASE_URL:
+        pytest.skip("missing ORCHESTREE_RUNTIME_API_BASE_URL")
+
+
+def _require_auth_env():
+    _require_base_url()
     missing = [
         name
         for name, value in (
-            ("ORCHESTREE_RUNTIME_API_BASE_URL", BASE_URL),
             ("ORCHESTREE_E2E_EMAIL", EMAIL),
             ("ORCHESTREE_E2E_PASSWORD", PASSWORD),
         )
         if not value
     ]
     if missing:
-        return False, f"missing required environment: {', '.join(missing)}"
-    return True, ""
+        pytest.skip(f"missing required E2E secret(s): {', '.join(missing)}")
 
 
-def test_authenticated_runtime_tenant_pdp_db_boundary():
-    ok, reason = _require_env()
-    if not ok:
-        import pytest
-        pytest.skip(reason)
+def _new_opener():
+    # The gate must exercise the real HttpOnly session-cookie contract.
+    return build_opener(HTTPCookieProcessor(CookieJar()))
 
-    opener = build_opener()
+
+def _login(opener):
     status, login = _json_request(
         opener,
         "/auth/login",
@@ -86,6 +99,20 @@ def test_authenticated_runtime_tenant_pdp_db_boundary():
     )
     assert status == 200, login
     assert login.get("authenticated") is True
+
+
+def test_unauthenticated_runtime_gate():
+    _require_base_url()
+    opener = _new_opener()
+
+    status, session = _json_request(opener, "/auth/session")
+    assert status == 401, session
+
+
+def test_authenticated_runtime_tenant_pdp_db_boundary():
+    _require_auth_env()
+    opener = _new_opener()
+    _login(opener)
 
     status, session = _json_request(opener, "/auth/session")
     assert status == 200, session
@@ -104,118 +131,92 @@ def test_authenticated_runtime_tenant_pdp_db_boundary():
     assert isinstance(tenant.get("roles"), list)
     assert isinstance(tenant.get("capabilities"), list)
 
+    # Optional proof against a known different tenant. The test never changes
+    # the authenticated tenant; it asks the server to authorize access to a
+    # different tenant resource and expects a default-deny decision.
+    if CROSS_TENANT_ID and CROSS_TENANT_ID != tenant_id:
+        status, denied = _json_request(
+            opener,
+            f"/api/v1/tenant/s/{CROSS_TENANT_ID}/members",
+        )
+        assert status == 403, denied
+
 
 def test_learning_rejects_client_tenant_override():
-    ok, reason = _require_env()
-    if not ok:
-        import pytest
-        pytest.skip(reason)
-
-    opener = build_opener()
-    status, login = _json_request(
-        opener,
-        "/auth/login",
-        method="POST",
-        body={"email": EMAIL, "password": PASSWORD},
-    )
-    assert status == 200, login
+    _require_auth_env()
+    opener = _new_opener()
+    _login(opener)
 
     status, session = _json_request(opener, "/auth/session")
     assert status == 200, session
     tenant_id = session.get("tenant_id")
     assert tenant_id
 
+    learning_path = "/api/v1/learning/outcomes"
+    bogus_tenant = str(uuid.uuid4())
+
     # Query parameters never select the effective tenant. A bogus tenant query
     # must not change the authenticated context or cause cross-tenant access.
-    bogus_tenant = str(uuid.uuid4())
-    status, outcomes = _json_request(opener, f"/learning/outcomes?tenant_id={bogus_tenant}")
+    status, outcomes = _json_request(
+        opener,
+        f"{learning_path}?tenant_id={bogus_tenant}",
+    )
     assert status == 200, outcomes
     assert isinstance(outcomes, (dict, list))
 
-    # A conflicting tenant header is treated as an attempted context switch and
-    # is rejected instead of being accepted as authority.
+    # The authenticated request without any client tenant selector remains
+    # valid and uses the same server-resolved tenant.
+    status, baseline = _json_request(opener, learning_path)
+    assert status == 200, baseline
+    assert isinstance(baseline, (dict, list))
+
+    # A conflicting tenant header is an attempted context switch and must be
+    # rejected rather than accepted as authorization authority. Forged role,
+    # capability and MFA headers must not change that result.
     status, denied = _json_request(
         opener,
-        "/learning/outcomes",
-    )
-    assert status == 200, denied
-
-    req = Request(
-        f"{BASE_URL}/learning/outcomes",
+        learning_path,
         headers={
-            "Accept": "application/json",
             "X-Tenant-Id": bogus_tenant,
             "X-User-Roles": "SUPER_ADMIN",
             "X-User-Capabilities": "learning.outcome.view",
             "X-MFA-Verified": "true",
         },
-        method="GET",
     )
-    try:
-        with opener.open(req, timeout=30) as response:
-            raw = response.read()
-            payload = json.loads(raw) if raw else None
-            status = response.status
-    except HTTPError as exc:
-        raw = exc.read()
-        try:
-            payload = json.loads(raw) if raw else None
-        except json.JSONDecodeError:
-            payload = raw.decode("utf-8", errors="replace")
-        status = exc.code
-    assert status == 403, payload
+    assert status == 403, denied
+
+    # The server-resolved session tenant remains unchanged after the attack.
+    status, session_after = _json_request(opener, "/auth/session")
+    assert status == 200, session_after
+    assert session_after.get("tenant_id") == tenant_id
 
 
 def test_authenticated_runtime_learning_boundary():
-    ok, reason = _require_env()
-    if not ok:
-        import pytest
-        pytest.skip(reason)
+    _require_auth_env()
+    opener = _new_opener()
+    _login(opener)
 
-    opener = build_opener()
-    status, login = _json_request(
-        opener,
-        "/auth/login",
-        method="POST",
-        body={"email": EMAIL, "password": PASSWORD},
-    )
-    assert status == 200, login
-
-    status, outcomes = _json_request(opener, "/learning/outcomes")
-    assert status == 200, outcomes
-    assert isinstance(outcomes, (dict, list))
-
-    status, confidence = _json_request(opener, "/learning/confidence")
-    assert status == 200, confidence
-    assert isinstance(confidence, (dict, list))
-
-    status, lessons = _json_request(opener, "/learning/lessons")
-    assert status == 200, lessons
-    assert isinstance(lessons, (dict, list))
-
-    status, growth = _json_request(opener, "/learning/growth")
-    assert status == 200, growth
-    assert isinstance(growth, (dict, list))
+    for path in (
+        "/api/v1/learning/outcomes",
+        "/api/v1/learning/confidence",
+        "/api/v1/learning/lessons",
+        "/api/v1/learning/growth",
+    ):
+        status, payload = _json_request(opener, path)
+        assert status == 200, payload
+        assert isinstance(payload, (dict, list))
 
 
 def test_authenticated_runtime_ai_vertical_slice_opt_in():
     if not RUN_AI:
-        import pytest
-        pytest.skip("Set ORCHESTREE_E2E_RUN_AI=true to execute the real AI/credit/model-router slice.")
+        pytest.skip(
+            "Set ORCHESTREE_E2E_RUN_AI=true to execute the real "
+            "AI/credit/model-router slice."
+        )
 
-    ok, reason = _require_env()
-    if not ok:
-        import pytest
-        pytest.skip(reason)
-
-    opener = build_opener()
-    status, login = _json_request(
-        opener,
-        "/auth/login",
-        method="POST",
-        body={"email": EMAIL, "password": PASSWORD},
-    )
-    assert status == 200, login
+    _require_auth_env()
+    opener = _new_opener()
+    _login(opener)
 
     status, session = _json_request(opener, "/auth/session")
     assert status == 200, session
