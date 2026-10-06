@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,9 +50,13 @@ class Settings(BaseSettings):
     NVIDIA_NIM_BASE_URL: Optional[str] = None
     NVIDIA_NIM_MODEL: Optional[str] = None
 
-    # Image-generation configuration remains domain-owned.
-    GPT_IMAGE_2_API_KEY: Optional[str] = None
-    GPT_IMAGE_2_API_URL: Optional[str] = None
+    # Canonical OpenAI generative model policy. All generative provider calls
+    # stay behind the single Model Router; the browser never sees these keys.
+    OPENAI_IMAGE_MODEL: Optional[str] = None
+    OPENAI_VIDEO_MODEL: Optional[str] = None
+    OPENAI_CONTENT_MODEL: Optional[str] = None
+    OPENAI_DOCUMENT_MODEL: Optional[str] = None
+    OPENAI_DESIGN_MODEL: Optional[str] = None
 
     TELEGRAM_BOT_TOKEN: Optional[str] = None
     TELEGRAM_OFFICIAL_BOT_TOKEN: Optional[str] = None
