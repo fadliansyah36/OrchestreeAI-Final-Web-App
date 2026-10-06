@@ -324,3 +324,6 @@ Railway deployment:
 Acceptance remains **NOT GREEN** until the credentialed runtime gate passes against the newly deployed Auth implementation.
 
 Allpha Universe remains out of scope and was not touched.
+
+
+<!-- REPAIR-02B post-deploy credentialed gate verification trigger: 2026-10-06 -->
