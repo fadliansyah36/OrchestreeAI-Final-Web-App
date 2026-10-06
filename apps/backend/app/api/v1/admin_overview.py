@@ -19,6 +19,8 @@ from app.authz.pdp import (
     authorize,
 )
 from app.core.database import get_database_engine
+from app.core.model_router.router import get_model_router
+from app.skills.f01_mcp.decorators import get_tool_registry
 from app.core.security import AuthenticatedTenantContext, require_platform_admin
 
 logger = logging.getLogger("orchestree.admin.overview")
@@ -41,20 +43,20 @@ class ProspectMetrics(BaseModel):
 
 
 class TrialSlotMetrics(BaseModel):
-    capacity: int = 36
-    available: int = 36
+    capacity: int = 0
+    available: int = 0
     reserved: int = 0
     allocated: int = 0
-    duration_days: int = 7
+    duration_days: int = 0
 
 
 class LlmMetrics(BaseModel):
-    providers_healthy: int = 4
-    providers_total: int = 4
+    providers_healthy: int = 0
+    providers_total: int = 0
 
 
 class McpMetrics(BaseModel):
-    tools_total: int = 4
+    tools_total: int = 0
 
 
 class AdminHubOverviewResponse(BaseModel):
@@ -174,8 +176,8 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
                 """)
             ).mappings().first()
 
-            slot_capacity = int(slot_row["total_slots"] or 0) if slot_row and slot_row["total_slots"] else 36
-            slot_available = int(slot_row["available_slots"] or 0) if slot_row and slot_row["total_slots"] else 36
+            slot_capacity = int(slot_row["total_slots"] or 0) if slot_row else 0
+            slot_available = int(slot_row["available_slots"] or 0) if slot_row else 0
             slot_reserved = int(slot_row["reserved_slots"] or 0) if slot_row else 0
             slot_allocated = int(slot_row["allocated_slots"] or 0) if slot_row else 0
 
@@ -196,19 +198,24 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
                     available=slot_available,
                     reserved=slot_reserved,
                     allocated=slot_allocated,
-                    duration_days=7,
+                    duration_days=0,
                 ),
-                llm=LlmMetrics(providers_healthy=4, providers_total=4),
-                mcp=McpMetrics(tools_total=4),
+                llm_health = await get_model_router().get_all_providers_health()
+                mcp_tools = get_tool_registry().list_tools()
+                llm=LlmMetrics(
+                    providers_healthy=sum(1 for item in llm_health if item.get("health_status") == "healthy"),
+                    providers_total=len(llm_health),
+                ),
+                mcp=McpMetrics(tools_total=len(mcp_tools)),
             )
     except Exception as exc:
         logger.warning(f"Koneksi basis data gagal/belum tersedia pada get_admin_hub_overview: {exc}")
         return AdminHubOverviewResponse(
             tenants=TenantMetrics(total=0, active=0, trial=0),
             prospects=ProspectMetrics(total=0, selected=0, active_trials=0, scheduled_meetings=0),
-            trial_slots=TrialSlotMetrics(capacity=36, available=36, reserved=0, allocated=0, duration_days=7),
-            llm=LlmMetrics(providers_healthy=4, providers_total=4),
-            mcp=McpMetrics(tools_total=4),
+            trial_slots=TrialSlotMetrics(capacity=0, available=0, reserved=0, allocated=0, duration_days=0),
+            llm=LlmMetrics(providers_healthy=0, providers_total=0),
+            mcp=McpMetrics(tools_total=0),
         )
 
 
