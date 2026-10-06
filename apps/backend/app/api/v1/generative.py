@@ -51,7 +51,7 @@ class GenerativeJobCreate(BaseModel):
     negative_prompt: Optional[str] = None
     aspect_ratio: str = Field(default="1:1")
     style_preset: Optional[str] = None
-    model_used: str = Field(default="gpt-image-2")
+    model_used: Optional[str] = None
     brand_lock_id: Optional[str] = None
     template_id: Optional[str] = None
     credit_cost: float = Field(default=5.0, ge=1.0)
