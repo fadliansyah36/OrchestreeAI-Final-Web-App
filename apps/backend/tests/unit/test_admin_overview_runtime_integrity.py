@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-TARGET = Path(__file__).parents[1] / "app" / "api" / "v1" / "admin_overview.py"
+TARGET = Path(__file__).parents[2] / "app" / "api" / "v1" / "admin_overview.py"
 
 
 def test_admin_overview_dependency_failures_are_not_reported_as_operational():
