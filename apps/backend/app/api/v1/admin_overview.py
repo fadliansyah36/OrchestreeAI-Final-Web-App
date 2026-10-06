@@ -9,7 +9,7 @@ Menyediakan endpoint resmi:
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
@@ -210,14 +210,15 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
                 mcp=McpMetrics(tools_total=len(mcp_tools)),
             )
     except Exception as exc:
-        logger.warning(f"Koneksi basis data gagal/belum tersedia pada get_admin_hub_overview: {exc}")
-        return AdminHubOverviewResponse(
-            tenants=TenantMetrics(total=0, active=0, trial=0),
-            prospects=ProspectMetrics(total=0, selected=0, active_trials=0, scheduled_meetings=0),
-            trial_slots=TrialSlotMetrics(capacity=0, available=0, reserved=0, allocated=0, duration_days=0),
-            llm=LlmMetrics(providers_healthy=0, providers_total=0),
-            mcp=McpMetrics(tools_total=0),
-        )
+        logger.exception("Admin hub overview failed; returning explicit unavailable state.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "ADMIN_HUB_DATA_UNAVAILABLE",
+                "state": "UNAVAILABLE",
+                "message": "Platform overview data is temporarily unavailable.",
+            },
+        ) from exc
 
 
 @root_alias_router.get(
@@ -297,17 +298,15 @@ async def get_financial_command_center_overview(context: AuthenticatedTenantCont
                 ledger_active=True,
             )
     except Exception as exc:
-        logger.warning(f"Koneksi basis data gagal/belum tersedia pada financial command center: {exc}")
-        return FinancialCommandCenterResponse(
-            wallet_balance=0.0,
-            currency="IDR",
-            total_revenue=0.0,
-            circulating_credits=0.0,
-            reserved_credits=0.0,
-            total_invoices_paid=0,
-            status="operational",
-            ledger_active=True,
-        )
+        logger.exception("Financial command center failed; returning explicit unavailable state.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "FINANCIAL_COMMAND_CENTER_UNAVAILABLE",
+                "state": "UNAVAILABLE",
+                "message": "Financial ledger data is temporarily unavailable.",
+            },
+        ) from exc
 
 
 @router.get(
@@ -373,8 +372,15 @@ async def list_admin_tenants(context: AuthenticatedTenantContext = Depends(requi
                 })
             return {"tenants": results, "total": len(results)}
     except Exception as exc:
-        logger.warning(f"Gagal mengambil daftar tenant super admin: {exc}")
-        return {"tenants": [], "total": 0}
+        logger.exception("Admin tenant listing failed; returning explicit unavailable state.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "ADMIN_TENANTS_UNAVAILABLE",
+                "state": "UNAVAILABLE",
+                "message": "Tenant directory data is temporarily unavailable.",
+            },
+        ) from exc
 
 
 @router.get(
@@ -419,7 +425,14 @@ async def get_process_integrity(context: AuthenticatedTenantContext = Depends(re
     "/process-integrity/test-alert",
     summary="Uji Coba Pemicuan Alert Integritas Proses (DoD C.2)",
 )
-async def test_process_integrity_alert(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
+async def test_process_integrity_alert(
+    simulate_scenario: str = Query(
+        default="rogue_process",
+        pattern="^(rogue_process|missing_service)$",
+        description="Controlled test scenario for the process-integrity alert path.",
+    ),
+    context: AuthenticatedTenantContext = Depends(require_platform_admin),
+):
     """
     Mensimulasikan deteksi proses terlarang atau servis resmi terhenti
     untuk membuktikan alert audit_logs & notifikasi terpicu (DoD Bagian C.2).
