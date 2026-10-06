@@ -298,3 +298,29 @@ Acceptance status: **NOT GREEN — credential pair must be corrected/replaced wi
 Do not enable `ORCHESTREE_E2E_RUN_AI=true` until the non-AI authenticated gate passes.
 
 Allpha Universe remains out of scope and was not touched.
+
+## REPAIR-02B Auth-Only Repair — 2026-10-06
+
+After credential rotation, the production Supabase Auth logs were inspected for the credentialed E2E attempts. Supabase recorded `POST /token` with `grant_type=password` and `error_code=invalid_credentials`, confirming the request reached the canonical Auth service and was rejected at credential verification.
+
+Auth hardening was implemented in `apps/backend/app/api/v1/auth.py`:
+- Backend Auth requests now prefer the server-only `SUPABASE_SECRET_KEY`.
+- `SUPABASE_PUBLISHABLE_KEY` and legacy `SUPABASE_ANON_KEY` remain compatibility fallbacks.
+- The secret key is never returned to the browser.
+- No database schema/migration change was required.
+
+PR #12: `fix(auth): harden Supabase server-side login key selection`
+- Head commit: `4111d864fb09f5e780b3ad2fb46648a444111207`
+- Merge commit: `ed649507b6b0b9c2a4793cb49f81a79108343daf`
+
+Railway deployment:
+- Project: `creative-sparkle`
+- Environment: `production`
+- Service: `@orchestree/api`
+- Deployment: `8aeb8261-4172-47b1-8430-fbe14c77f748`
+- Status: **SUCCESS**
+- `GET /health/live`: HTTP 200
+
+Acceptance remains **NOT GREEN** until the credentialed runtime gate passes against the newly deployed Auth implementation.
+
+Allpha Universe remains out of scope and was not touched.
