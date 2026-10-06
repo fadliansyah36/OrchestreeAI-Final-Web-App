@@ -112,8 +112,8 @@ async def get_admin_llm_providers(
     x_mfa_verified: Optional[str] = Header(None, alias="X-MFA-Verified"),
 ):
     """
-    Monitoring kesehatan dan status real-time 4 adapter provider LLM:
-    NVIDIA NIM, OpenRouter, GPT-Image-2, Gemini.
+    Monitoring kesehatan dan status real-time canonical Model Router providers:
+    OpenAI primary dan NVIDIA NIM fallback.
     """
     model_router = get_model_router()
     providers_health = await model_router.get_all_providers_health()
