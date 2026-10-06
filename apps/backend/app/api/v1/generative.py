@@ -30,8 +30,6 @@ router = APIRouter(
     tags=["Generative Studio Hub"],
     dependencies=[
         Depends(require_capability("generative.studio.manage")),
-        Depends(require_capability("workflow.dispatch")),
-        Depends(require_capability("workflow.node.execute")),
         Depends(require_generative_tenant_scope),
     ]
 )
@@ -244,7 +242,15 @@ async def get_job_detail(tenant_id: str, job_id: str):
         raise HTTPException(status_code=500, detail=str(err))
 
 
-@router.post("/jobs", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/jobs",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_capability("workflow.dispatch")),
+        Depends(require_capability("workflow.node.execute")),
+    ],
+)
 async def create_and_execute_job(
     tenant_id: str,
     payload: GenerativeJobCreate,
@@ -471,7 +477,14 @@ async def update_seeding_batch_status(
         raise HTTPException(status_code=400, detail=str(err))
 
 
-@router.post("/seeding-batches/{batch_id}/execute", response_model=Dict[str, Any])
+@router.post(
+    "/seeding-batches/{batch_id}/execute",
+    response_model=Dict[str, Any],
+    dependencies=[
+        Depends(require_capability("workflow.dispatch")),
+        Depends(require_capability("workflow.node.execute")),
+    ],
+)
 async def execute_seeding_batch(
     tenant_id: str,
     batch_id: str,
