@@ -97,10 +97,18 @@ export function AdminSuperHubScreen({
         const data = await res.json();
         setTenants(data.tenants || []);
       } else if (tab === 'llm-routing') {
-        const res = await fetch(`${apiBaseUrl}/api/v1/admin/llm-models`);
+        const res = await fetch(`${apiBaseUrl}/api/v1/admin/llm-providers`);
         if (!res.ok) throw new Error('Gagal memuat aturan routing LLM');
         const data = await res.json();
-        setLlmModels(data.models || []);
+        setLlmModels((data.providers || []).map((p: any) => ({
+          provider: p.display_name,
+          status: p.health_status,
+          model_name: p.id === 'openai' ? 'OpenAI generative + text models (server configured)' : 'NVIDIA NIM fallback (server configured)',
+          tier: p.id === 'openai' ? 'PRIMARY' : 'FALLBACK',
+          avg_latency_ms: p.latency_ms ?? 0,
+          input_cost_per_1k: null,
+          output_cost_per_1k: null,
+        })));
       } else if (tab === 'mcp-governance') {
         const res = await fetch(`${apiBaseUrl}/api/v1/admin/mcp-tools`);
         if (!res.ok) throw new Error('Gagal memuat alat MCP');
@@ -520,7 +528,7 @@ export function AdminSuperHubScreen({
               <div>
                 <h2 className="text-lg font-bold text-white">Hierarki Multi-LLM Model Router Terpadu</h2>
                 <p className="text-xs text-slate-400">
-                  Kebijakan Failover Tunggal: NVIDIA NIM → OpenRouter → Gemini → GPT-Image-2
+                  Kebijakan Model Router: OpenAI Primary → NVIDIA NIM Fallback
                 </p>
               </div>
 
@@ -547,11 +555,11 @@ export function AdminSuperHubScreen({
                       </div>
                       <div>
                         <span className="text-slate-500">Input: </span>
-                        <span>${m.input_cost_per_1k} / 1k</span>
+                        <span>${m.input_cost_per_1k == null ? 'Server configured' : `${m.input_cost_per_1k} / 1k`}</span>
                       </div>
                       <div>
                         <span className="text-slate-500">Output: </span>
-                        <span>${m.output_cost_per_1k} / 1k</span>
+                        <span>${m.output_cost_per_1k == null ? 'Server configured' : `${m.output_cost_per_1k} / 1k`}</span>
                       </div>
                     </div>
                   </div>
