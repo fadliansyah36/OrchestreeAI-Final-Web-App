@@ -10,6 +10,7 @@ except ImportError:
     from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
 from app.domains.billing.credits import InsufficientCreditError
 from app.authz.pdp import require_capability
+from app.core.orchestration.engine import get_orchestration_engine, WorkflowDispatchRequest
 from app.core.security import AuthenticatedTenantContext, get_trusted_request_context
 
 
@@ -27,7 +28,12 @@ def require_generative_tenant_scope(
 router = APIRouter(
     prefix="/tenants/{tenant_id}/generative",
     tags=["Generative Studio Hub"],
-    dependencies=[Depends(require_capability("generative.studio.manage")), Depends(require_generative_tenant_scope)]
+    dependencies=[
+        Depends(require_capability("generative.studio.manage")),
+        Depends(require_capability("workflow.dispatch")),
+        Depends(require_capability("workflow.node.execute")),
+        Depends(require_generative_tenant_scope),
+    ]
 )
 
 
@@ -242,10 +248,36 @@ async def get_job_detail(tenant_id: str, job_id: str):
 async def create_and_execute_job(
     tenant_id: str,
     payload: GenerativeJobCreate,
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
     try:
-        result = ImageRouterService.create_and_execute_job(tenant_id, payload.model_dump())
-        return {"status": "ok", "data": result}
+        orchestration = get_orchestration_engine()
+        workflow_req = WorkflowDispatchRequest(
+            tenant_id=tenant_id,
+            intent_text=f"Generative Studio image generation: {payload.job_type}",
+            actor_id=context.user_id,
+            actor_type=context.actor_type,
+            roles=context.roles,
+            capabilities=context.capabilities,
+            is_mfa_verified=context.is_mfa_verified,
+            execution_context="internal_dashboard",
+            context_data={
+                "workflow_kind": "generative_media",
+                "generative_operation": "image_generation",
+                "generative_job_payload": payload.model_dump(),
+            },
+        )
+        workflow_result = await orchestration.dispatch(workflow_req)
+        if workflow_result.status != "completed":
+            raise RuntimeError(workflow_result.error_message or "Generative workflow did not complete.")
+        generative_output = workflow_result.context_data.get("generative_output", {})
+        result = generative_output.get("result") or workflow_result.output_payload.get("result") or {}
+        return {
+            "status": "ok",
+            "execution_id": workflow_result.execution_id,
+            "workflow_status": workflow_result.status,
+            "data": result,
+        }
     except InsufficientCreditError as err:
         raise HTTPException(status_code=402, detail=str(err))
     except ValueError as err:
@@ -443,18 +475,40 @@ async def update_seeding_batch_status(
 async def execute_seeding_batch(
     tenant_id: str,
     batch_id: str,
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
 ):
     """
-    Mengeksekusi batch seeding template prompt yang telah disetujui (status approved).
-    Memotong kredit riil melalui ledger (tenant_credit_transactions) dan menghasilkan
-    gambar serta template prompt atomik baru ke dalam pustaka platform.
+    Menjalankan batch seeding melalui canonical OrchestrationEngine.
+    Domain service tetap menjadi pemilik operasi bisnis dan Model Router; API hanya transport/auth.
     """
     try:
-        result = ImageRouterService.execute_seeding_batch(
-            batch_id=batch_id,
+        orchestration = get_orchestration_engine()
+        workflow_req = WorkflowDispatchRequest(
             tenant_id=tenant_id,
+            intent_text=f"Generative Studio batch seeding: {batch_id}",
+            actor_id=context.user_id,
+            actor_type=context.actor_type,
+            roles=context.roles,
+            capabilities=context.capabilities,
+            is_mfa_verified=context.is_mfa_verified,
+            execution_context="internal_dashboard",
+            context_data={
+                "workflow_kind": "generative_media",
+                "generative_operation": "batch_seeding",
+                "generative_job_payload": {"batch_id": batch_id},
+            },
         )
-        return {"status": "ok", "data": result}
+        workflow_result = await orchestration.dispatch(workflow_req)
+        if workflow_result.status != "completed":
+            raise RuntimeError(workflow_result.error_message or "Generative batch workflow did not complete.")
+        generative_output = workflow_result.context_data.get("generative_output", {})
+        result = generative_output.get("result") or workflow_result.output_payload.get("result") or {}
+        return {
+            "status": "ok",
+            "execution_id": workflow_result.execution_id,
+            "workflow_status": workflow_result.status,
+            "data": result,
+        }
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
     except Exception as err:
