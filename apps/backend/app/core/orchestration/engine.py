@@ -658,6 +658,8 @@ class OrchestrationEngine:
                         live_status = "retrieving_memory"
                     elif node.type == "TOOL_CALL":
                         live_status = "calling_tool"
+                    elif node.type == "GENERATIVE_MEDIA":
+                        live_status = "generating_image"
                     elif node.type == "HUMAN_APPROVAL":
                         live_status = "waiting_approval"
                     else:
