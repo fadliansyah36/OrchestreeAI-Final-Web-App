@@ -29,3 +29,11 @@ def test_ai_execution_routes_remain_on_canonical_orchestration_boundary():
     assert "get_orchestration_engine" in text
     assert "create_and_execute_job" in text
     assert "execute_seeding_batch" in text
+
+
+def test_billing_api_has_no_database_sql_or_engine_access():
+    text = _text("billing.py")
+    assert "sqlalchemy" not in text
+    assert "sa.text(" not in text
+    assert "get_engine" not in text
+    assert "get_database_engine" not in text
