@@ -176,9 +176,7 @@ def get_database_engine() -> sa.Engine:
                 cursor.execute("SELECT current_user, r.rolbypassrls, r.rolsuper FROM pg_roles r WHERE r.rolname = current_user")
                 row = cursor.fetchone()
                 if not row or row[0] != get_runtime_database_role() or bool(row[1]) or bool(row[2]):
-                    expected_role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
-                    if not expected_role or row[0] != expected_role:
-                        raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan DATABASE_RUNTIME_ROLE NOBYPASSRLS non-superuser.")
+                    raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan identity DATABASE_URL, NOBYPASSRLS, non-superuser.")
             finally:
                 cursor.close()
     return _engine
