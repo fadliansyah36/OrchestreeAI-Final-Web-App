@@ -88,11 +88,27 @@ Required evidence:
 - no fabricated success state;
 - no CI/runtime blocker remains.
 
-## Next canonical product phases after Phase 04
+## Phase 05 — Continuous Learning Core
+**Status: IMPLEMENTATION IN PROGRESS / NOT GREEN**
 
-Once Phase 04 is genuinely GREEN, continue the PRD sequence:
+Implemented/reconciled in this pass:
+- Existing ContinuousLearningEngine remains the single learning engine.
+- Objective outcome verification remains runtime-derived rather than LLM self-evaluation.
+- Confidence scoring, half-life decay, growth ledger, minimum-sample lesson synthesis, and tenant/RLS persistence remain canonical.
+- Learning API persistence was moved behind `app.domains.continuous_learning.repository`; the API is now transport/auth/PDP only.
+- Added Phase 05 architecture regression coverage for the API/domain boundary and tenant-scoped persistence.
+- Live Supabase evidence confirms the four Phase 05 tables exist with RLS enabled and real rows.
+- OrchestrationEngine already invokes the learning hook after workflow node execution; this was retained as the canonical integration point.
 
-- **Phase 05 — Continuous Learning Core**
+Open Phase 05 gates:
+- Live Railway database credentials are incomplete: the Supabase URL/JWKS/publishable/anon values are configured, but a server-side `DATABASE_URL` / service credential cannot be retrieved through the available Supabase connector and must not be guessed.
+- Runtime E2E learning write/read evidence on Railway is therefore pending.
+- Phase 04 GREEN dependency remains open.
+
+## Next canonical product phases after Phase 05
+
+Once Phase 05 is genuinely GREEN and its dependency gates are satisfied, continue the PRD sequence:
+
 - **Phase 06 — Authorization hardening / ABAC**
 - **Phase 07 — Semantic Memory/RAG + Company Brain**
 - **Phase 08 — Billing & Unified AI Credit Ledger**
@@ -103,6 +119,6 @@ Once Phase 04 is genuinely GREEN, continue the PRD sequence:
 - **Phase 13 — Super Admin**
 - **Phase 14–38** continue exactly according to the canonical PRD roadmap.
 
-### Important sequencing rule
+### Sequencing rule
 
-Do **not** jump to Phase 05 merely because individual Phase 05 code exists. Phase 04 is a dependency gate for the Continuous Learning Core, Model Router, MCP execution, and workflow execution. The correct next implementation target is therefore **04R.2**, followed by the live verification gates, unless a new blocker changes the dependency order.
+Phase 05 implementation is being advanced by explicit owner instruction, but it is not declared GREEN until the Phase 04 dependency gate and Phase 05 live runtime evidence are both satisfied.
