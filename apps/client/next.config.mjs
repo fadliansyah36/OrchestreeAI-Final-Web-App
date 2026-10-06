@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
-const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.BACKEND_API_URL || 'http://127.0.0.1:8001';
+const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.BACKEND_API_URL;
+if (!backendApiUrl) {
+  throw new Error('NEXT_PUBLIC_BACKEND_API_URL or BACKEND_API_URL is required; frontend must not guess a backend endpoint.');
+}
 
 const nextConfig = {
   reactStrictMode: true,
