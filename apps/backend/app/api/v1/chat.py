@@ -127,7 +127,7 @@ async def stream_chat_message(
     )
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        total_tokens = 0
+        stream_chunks = 0
         collected_text = []
         last_provider = "unknown"
         last_model = "unknown"
@@ -146,7 +146,7 @@ async def stream_chat_message(
                     raw_tok = chunk.get("token", "")
                     tok = sanitize_ai_output(raw_tok)
                     collected_text.append(tok)
-                    total_tokens += 1
+                    stream_chunks += 1
                     last_provider = chunk.get("provider", last_provider)
                     last_model = chunk.get("model", last_model)
                     yield f"data: {json.dumps({'event': 'token', 'token': tok})}\n\n"
@@ -173,13 +173,13 @@ async def stream_chat_message(
                     metadata={
                         "provider_id": last_provider,
                         "model_id": last_model,
-                        "total_tokens": total_tokens,
+                        "stream_chunks": stream_chunks,
                         "session_id": session_id,
                     },
                 )
 
             # Emit event done
-            yield f"data: {json.dumps({'event': 'done', 'session_id': session_id, 'cost': float(actual_cost), 'tokens': total_tokens, 'provider': last_provider, 'model': last_model})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'session_id': session_id, 'cost': float(actual_cost), 'stream_chunks': stream_chunks, 'provider': last_provider, 'model': last_model})}\n\n"
 
         except Exception as stream_err:
             logger.error(f"Kesalahan fatal pada generator SSE chat: {stream_err}")
