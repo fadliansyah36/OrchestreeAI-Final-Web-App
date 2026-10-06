@@ -442,8 +442,7 @@ async def get_tenant_summary_direct(tenant_id: str):
 @tenant_summary_router.get("/{tenant_id}/subscription/tier", dependencies=[Depends(require_capability("billing.credits.view"))])
 async def get_tenant_subscription_tier(tenant_id: str):
     """Mengambil status tier langganan tenant dari Supabase Postgres."""
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    with billing_db.connection() as conn:
         row = conn.execute(
             billing_sql("Q010"),
             {"tid": tenant_id}
@@ -465,8 +464,7 @@ async def get_tenant_subscription_tier(tenant_id: str):
 async def change_tenant_subscription_tier(tenant_id: str, payload: ChangeSubscriptionTierRequest):
     """Mengubah tier langganan tenant."""
     target_plan_code = payload.plan_code.upper()
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    with billing_db.connection() as conn:
         with conn.begin():
             p_row = conn.execute(
                 billing_sql("Q011"),
@@ -504,8 +502,7 @@ async def list_credit_reservations(
     effective_tenant = tenant_id or x_tenant_id
     if not effective_tenant:
         raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    with billing_db.connection() as conn:
         rows = conn.execute(
             billing_sql("Q013"),
             {"tid": effective_tenant}
@@ -582,8 +579,7 @@ async def download_invoice(
     if not effective_tenant:
         raise HTTPException(status_code=400, detail="Tenant ID wajib disertakan.")
 
-    engine = get_database_engine()
-    with engine.connect() as conn:
+    with billing_db.connection() as conn:
         inv = conn.execute(
             billing_sql("Q014"),
             {"inv": invoice_number, "t": effective_tenant}
