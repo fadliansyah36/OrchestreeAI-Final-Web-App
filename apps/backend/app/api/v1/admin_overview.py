@@ -5,6 +5,7 @@ is delegated to the admin domain service.
 """
 
 from typing import Any, Dict, List, Optional
+import asyncio
 from datetime import datetime, timezone
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -98,7 +99,7 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
 
 
 async def _platform_overview_with_health(health: List[Dict[str, Any]]) -> Dict[str, Any]:
-    data = await __import__("asyncio").to_thread(
+    data = await asyncio.to_thread(
         get_platform_overview_data,
         health,
         get_tool_registry(),
