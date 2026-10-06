@@ -6,6 +6,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch, MagicMock
 
+from app.core.config import settings
 from app.core.model_router.router import (
     ModelRouter,
     ModelRouterRequest,
@@ -36,6 +37,48 @@ class TestModelRouter:
     def test_adapters_initialization(self):
         router = ModelRouter()
         assert list(router.adapters) == ["openai", "nvidia_nim"]
+
+    def test_generation_models_are_server_selected(self):
+        original = {
+            "OPENAI_MODEL": settings.OPENAI_MODEL,
+            "OPENAI_CONTENT_MODEL": settings.OPENAI_CONTENT_MODEL,
+            "OPENAI_DOCUMENT_MODEL": settings.OPENAI_DOCUMENT_MODEL,
+            "OPENAI_DESIGN_MODEL": settings.OPENAI_DESIGN_MODEL,
+        }
+        try:
+            settings.OPENAI_MODEL = "openai-text-default"
+            settings.OPENAI_CONTENT_MODEL = "openai-content"
+            settings.OPENAI_DOCUMENT_MODEL = "openai-document"
+            settings.OPENAI_DESIGN_MODEL = "openai-design"
+            adapter = OpenAIAdapter()
+
+            assert adapter._model(
+                ModelRouterRequest(
+                    tenant_id="tenant",
+                    task_type="content_generation",
+                    prompt="content",
+                    preferred_model="legacy-provider-model",
+                )
+            ) == "openai-content"
+            assert adapter._model(
+                ModelRouterRequest(
+                    tenant_id="tenant",
+                    task_type="document_design",
+                    prompt="document",
+                    preferred_model="legacy-provider-model",
+                )
+            ) == "openai-document"
+            assert adapter._model(
+                ModelRouterRequest(
+                    tenant_id="tenant",
+                    task_type="design_generation",
+                    prompt="design",
+                    preferred_model="legacy-provider-model",
+                )
+            ) == "openai-design"
+        finally:
+            for key, value in original.items():
+                setattr(settings, key, value)
 
     @pytest.mark.asyncio
     async def test_model_router_fallback(self):
