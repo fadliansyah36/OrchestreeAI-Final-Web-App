@@ -58,7 +58,18 @@ def _auth_base_url() -> str:
 
 
 def _auth_api_key() -> str:
-    key = settings.SUPABASE_PUBLISHABLE_KEY or settings.SUPABASE_ANON_KEY
+    """Return the canonical server-side Supabase Auth API key.
+
+    The backend is a trusted server component, so prefer the modern Supabase
+    secret key here. Publishable/anon keys remain compatibility fallbacks for
+    deployments that have not yet provisioned the server secret. Never expose
+    the secret key to the browser.
+    """
+    key = (
+        settings.SUPABASE_SECRET_KEY
+        or settings.SUPABASE_PUBLISHABLE_KEY
+        or settings.SUPABASE_ANON_KEY
+    )
     if not key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
