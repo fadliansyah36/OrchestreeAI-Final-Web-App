@@ -123,7 +123,7 @@ class StartupGate:
         ok, detail, _ = verify_db_connection_and_role()
         return StartupCheckResult(
             step_number=2,
-            name="Koneksi Database (role orchestree_app)",
+            name="Koneksi Database (identity dari DATABASE_URL)",
             status="passed" if ok else "failed",
             detail=detail,
         )
