@@ -77,3 +77,38 @@ def test_admin_uses_canonical_llm_provider_endpoint():
         if "/api/v1/admin/llm-models" in text:
             findings.append(str(path.relative_to(ROOT)))
     assert not findings, "Retired/non-existent /admin/llm-models endpoint is still referenced."
+
+
+def test_generative_execution_enters_orchestration_engine():
+    api_dir = ROOT / "apps" / "backend" / "app" / "api" / "v1"
+    forbidden = (
+        "ImageRouterService.create_and_execute_job(",
+        "ImageRouterService.execute_seeding_batch(",
+    )
+    findings = []
+    for path in sorted(api_dir.glob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for token in forbidden:
+            if token in text:
+                findings.append(f"{path.relative_to(ROOT)} -> {token}")
+    assert not findings, (
+        "Generative execution must enter the canonical OrchestrationEngine; "
+        "API handlers must not execute the domain generator directly:\n"
+        + "\n".join(findings)
+    )
+
+
+def test_orchestration_engine_owns_generative_media_node():
+    engine_path = ROOT / "apps" / "backend" / "app" / "core" / "orchestration" / "engine.py"
+    text = engine_path.read_text(encoding="utf-8")
+    assert "type=\"GENERATIVE_MEDIA\"" in text
+    assert "def _execute_generative_media(" in text
+    assert "ImageRouterService.create_and_execute_job" in text
+    assert "ImageRouterService.execute_seeding_batch" in text
+
+
+def test_workflow_checkpointing_is_fail_closed():
+    engine_path = ROOT / "apps" / "backend" / "app" / "core" / "orchestration" / "engine.py"
+    text = engine_path.read_text(encoding="utf-8")
+    assert "Workflow checkpoint could not be persisted to the canonical database." in text
+    assert "continue with an in-memory execution" not in text
