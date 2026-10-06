@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener
@@ -102,6 +103,67 @@ def test_authenticated_runtime_tenant_pdp_db_boundary():
     assert tenant.get("user_id") == session.get("user_id")
     assert isinstance(tenant.get("roles"), list)
     assert isinstance(tenant.get("capabilities"), list)
+
+
+def test_learning_rejects_client_tenant_override():
+    ok, reason = _require_env()
+    if not ok:
+        import pytest
+        pytest.skip(reason)
+
+    opener = build_opener()
+    status, login = _json_request(
+        opener,
+        "/auth/login",
+        method="POST",
+        body={"email": EMAIL, "password": PASSWORD},
+    )
+    assert status == 200, login
+
+    status, session = _json_request(opener, "/auth/session")
+    assert status == 200, session
+    tenant_id = session.get("tenant_id")
+    assert tenant_id
+
+    # Query parameters never select the effective tenant. A bogus tenant query
+    # must not change the authenticated context or cause cross-tenant access.
+    bogus_tenant = str(uuid.uuid4())
+    status, outcomes = _json_request(opener, f"/learning/outcomes?tenant_id={bogus_tenant}")
+    assert status == 200, outcomes
+    assert isinstance(outcomes, (dict, list))
+
+    # A conflicting tenant header is treated as an attempted context switch and
+    # is rejected instead of being accepted as authority.
+    status, denied = _json_request(
+        opener,
+        "/learning/outcomes",
+    )
+    assert status == 200, denied
+
+    req = Request(
+        f"{BASE_URL}/learning/outcomes",
+        headers={
+            "Accept": "application/json",
+            "X-Tenant-Id": bogus_tenant,
+            "X-User-Roles": "SUPER_ADMIN",
+            "X-User-Capabilities": "learning.outcome.view",
+            "X-MFA-Verified": "true",
+        },
+        method="GET",
+    )
+    try:
+        with opener.open(req, timeout=30) as response:
+            raw = response.read()
+            payload = json.loads(raw) if raw else None
+            status = response.status
+    except HTTPError as exc:
+        raw = exc.read()
+        try:
+            payload = json.loads(raw) if raw else None
+        except json.JSONDecodeError:
+            payload = raw.decode("utf-8", errors="replace")
+        status = exc.code
+    assert status == 403, payload
 
 
 def test_authenticated_runtime_learning_boundary():
