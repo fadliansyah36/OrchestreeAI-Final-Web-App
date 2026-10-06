@@ -12,7 +12,7 @@ import uuid
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import AsyncIterator, Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
@@ -247,6 +247,196 @@ class OrchestrationEngine:
             start_node_id=graph_spec.entry_node,
             initial_context=req.context_data,
         )
+
+    async def stream_llm_workflow(
+        self,
+        req: WorkflowDispatchRequest,
+        *,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        task_type: str = "text_generation",
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Canonical streaming workflow path for Ask AI.
+
+        API handlers remain transport/auth/credit concerns; orchestration owns
+        durable execution state, node authorization, Model Router invocation,
+        checkpointing, and learning telemetry.
+        """
+        execution_id = str(uuid.uuid4())
+        node_id = "node_llm_generate"
+        engine = get_engine()
+
+        subject = SubjectContext(
+            user_id=req.actor_id,
+            tenant_id=req.tenant_id,
+            roles=req.roles,
+            capabilities=req.capabilities,
+            is_mfa_verified=req.is_mfa_verified,
+            actor_type=req.actor_type,
+        )
+        resource = ResourceContext(
+            resource_type="workflow_node",
+            resource_id=node_id,
+            owner_tenant_id=req.tenant_id,
+            attributes={"node_type": "LLM_GENERATE", "node_key": node_id, "task_type": task_type},
+        )
+        decision = authorize(
+            subject=subject,
+            action="workflow.node.llm_generate",
+            resource=resource,
+            context={"execution_id": execution_id},
+            log_audit=True,
+        )
+        if not decision.is_authorized:
+            raise PermissionError(f"PDP Denied eksekusi node '{node_id}': {decision.reason}")
+
+        initial_context = dict(req.context_data or {})
+        initial_context["task_type"] = task_type
+        initial_context["prompt"] = prompt
+
+        async with engine.begin() as conn:
+            await conn.execute(
+                sa.text("SELECT set_config('app.tenant_id', :val, true);"),
+                {"val": req.tenant_id},
+            )
+            await conn.execute(
+                sa.text(
+                    """
+                    INSERT INTO workflow_executions (
+                        id, tenant_id, workflow_definition_id, intent_text,
+                        status, context_data, current_node_id
+                    ) VALUES (
+                        :id, :tenant_id, NULL, :intent_text,
+                        'running', :context_data, :current_node_id
+                    )
+                    """
+                ),
+                {
+                    "id": execution_id,
+                    "tenant_id": req.tenant_id,
+                    "intent_text": req.intent_text,
+                    "context_data": json.dumps(initial_context),
+                    "current_node_id": node_id,
+                },
+            )
+
+        node_run_id = str(uuid.uuid4())
+        await self._save_node_run_start(
+            node_run_id=node_run_id,
+            execution_id=execution_id,
+            tenant_id=req.tenant_id,
+            node_key=node_id,
+            node_type="LLM_GENERATE",
+            input_state=initial_context,
+        )
+
+        yield {"event": "workflow_start", "execution_id": execution_id, "node_id": node_id}
+
+        collected: List[str] = []
+        last_provider = "unknown"
+        last_model = "unknown"
+        started = time.perf_counter()
+
+        try:
+            router_request = ModelRouterRequest(
+                tenant_id=req.tenant_id,
+                task_type=task_type,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                max_tokens=1500,
+                temperature=0.7,
+                workflow_execution_id=execution_id,
+                user_id=req.actor_id,
+            )
+            async for chunk in self.model_router.stream_generate(router_request):
+                event_type = chunk.get("event", "token")
+                if event_type == "token":
+                    token = str(chunk.get("token", ""))
+                    collected.append(token)
+                    last_provider = str(chunk.get("provider", last_provider))
+                    last_model = str(chunk.get("model", last_model))
+                elif event_type == "error":
+                    raise RuntimeError(str(chunk.get("error") or "Model Router streaming failed."))
+                yield chunk
+
+            output = {
+                "content": "".join(collected),
+                "provider": last_provider,
+                "model": last_model,
+                "task_type": task_type,
+            }
+            await self._save_node_run_finish(
+                node_run_id=node_run_id,
+                tenant_id=req.tenant_id,
+                status="completed",
+                output_state=output,
+                error_detail=None,
+            )
+            await self.learning_engine.record_and_learn_node(
+                tenant_id=req.tenant_id,
+                workflow_execution_id=execution_id,
+                node_run_id=node_run_id,
+                node_key=node_id,
+                node_type="LLM_GENERATE",
+                context_input=initial_context,
+                node_output=output,
+                error_detail=None,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+                agent_id=req.actor_id if req.actor_type == "ai_agent" else None,
+            )
+            await self._checkpoint_execution(
+                execution_id=execution_id,
+                tenant_id=req.tenant_id,
+                status="completed",
+                current_node_id=None,
+                context_data={**initial_context, "llm_output": output},
+                output_payload=output,
+            )
+            yield {
+                "event": "workflow_done",
+                "execution_id": execution_id,
+                "provider": last_provider,
+                "model": last_model,
+            }
+        except Exception as exc:
+            error_message = "LLM workflow execution failed."
+            logger.error("Streaming LLM workflow failed.", exc_info=True)
+            await self._save_node_run_finish(
+                node_run_id=node_run_id,
+                tenant_id=req.tenant_id,
+                status="failed",
+                output_state={},
+                error_detail=str(exc),
+            )
+            try:
+                await self.learning_engine.record_and_learn_node(
+                    tenant_id=req.tenant_id,
+                    workflow_execution_id=execution_id,
+                    node_run_id=node_run_id,
+                    node_key=node_id,
+                    node_type="LLM_GENERATE",
+                    context_input=initial_context,
+                    node_output={},
+                    error_detail=str(exc),
+                    latency_ms=(time.perf_counter() - started) * 1000.0,
+                    agent_id=req.actor_id if req.actor_type == "ai_agent" else None,
+                )
+            except Exception:
+                logger.exception("Continuous learning hook failed for LLM workflow error.")
+            await self._checkpoint_execution(
+                execution_id=execution_id,
+                tenant_id=req.tenant_id,
+                status="failed",
+                current_node_id=node_id,
+                context_data=initial_context,
+                output_payload={},
+            )
+            yield {
+                "event": "error",
+                "error": error_message,
+                "execution_id": execution_id,
+            }
 
     async def _resolve_or_get_agent_id(self, tenant_id: str, actor_id: Optional[str]) -> Optional[str]:
         """Menemukan ID agen AI yang valid untuk live state tracking."""
