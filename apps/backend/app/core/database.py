@@ -65,7 +65,7 @@ def format_async_postgres_url(raw_url: Optional[str]) -> Optional[str]:
 
 
 def get_runtime_database_url() -> Optional[str]:
-    """Runtime URL. It must resolve to orchestree_app, never service_role."""
+    """Runtime URL from deployment configuration; never expose a DB role in source."""
     return format_postgres_url(os.getenv("DATABASE_URL") or settings.DATABASE_URL)
 
 
@@ -84,9 +84,14 @@ def _require_runtime_url() -> str:
         raise DatabaseNotConfiguredError()
     parsed = urlparse(url)
     username = unquote(parsed.username or "")
-    if username != "orchestree_app":
+    expected_role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
+    if not expected_role:
         raise RuntimeDatabaseRoleError(
-            "DATABASE_URL runtime wajib menunjuk langsung ke role orchestree_app; service_role/postgres/credential lain dilarang."
+            "DATABASE_RUNTIME_ROLE wajib dikonfigurasi di environment runtime; role database tidak boleh di-hardcode di source code."
+        )
+    if username != expected_role:
+        raise RuntimeDatabaseRoleError(
+            "DATABASE_URL runtime wajib menggunakan role yang sama dengan DATABASE_RUNTIME_ROLE."
         )
     return url
 
@@ -98,7 +103,7 @@ def _assert_runtime_role(conn) -> None:
     """)).mappings().first()
     if not row or row["user_name"] != "orchestree_app" or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
         raise RuntimeDatabaseRoleError(
-            "Runtime DB connection wajib menggunakan role orchestree_app "
+            "Runtime DB connection wajib menggunakan DATABASE_RUNTIME_ROLE "
             "dengan rolbypassrls=false dan rolsuper=false."
         )
 
@@ -157,7 +162,9 @@ def get_database_engine() -> sa.Engine:
                 cursor.execute("SELECT current_user, r.rolbypassrls, r.rolsuper FROM pg_roles r WHERE r.rolname = current_user")
                 row = cursor.fetchone()
                 if not row or row[0] != "orchestree_app" or bool(row[1]) or bool(row[2]):
-                    raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan orchestree_app NOBYPASSRLS non-superuser.")
+                    expected_role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
+                    if not expected_role or row[0] != expected_role:
+                        raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan DATABASE_RUNTIME_ROLE NOBYPASSRLS non-superuser.")
             finally:
                 cursor.close()
     return _engine
