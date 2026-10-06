@@ -46,11 +46,14 @@ def get_database_url() -> str:
         # Fallback URL offline untuk pemeriksaan kompilasi/offline SQL
         return "postgresql://postgres:postgres@localhost:5432/postgres"
 
-    # Penyesuaian protokol driver Postgres untuk SQLAlchemy
+    # Alembic selalu menggunakan SQLAlchemy sinkron; normalisasi setiap
+    # explicit Postgres driver agar asyncpg tidak pernah dimuat oleh engine ini.
     if raw_url.startswith("postgres://"):
         raw_url = raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
-    elif raw_url.startswith("postgresql://") and not raw_url.startswith("postgresql+"):
+    elif raw_url.startswith("postgresql://"):
         raw_url = raw_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    elif raw_url.startswith("postgresql+"):
+        raw_url = "postgresql+psycopg2://" + raw_url.split("://", 1)[1]
 
     return raw_url
 
