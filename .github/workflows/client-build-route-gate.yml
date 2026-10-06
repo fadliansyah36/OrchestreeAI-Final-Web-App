@@ -1,0 +1,74 @@
+name: Client Build & Route Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/client/**"
+      - "packages/**"
+      - "package.json"
+      - ".github/workflows/client-build-route-gate.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/client/**"
+      - "packages/**"
+      - "package.json"
+      - ".github/workflows/client-build-route-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  client-build-route-gate:
+    name: Next.js build + required route manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm install
+
+      - name: Type-check client
+        run: npm run type-check:client
+
+      - name: Build client
+        run: npm run build:client
+
+      - name: Verify required app routes
+        working-directory: apps/client
+        shell: bash
+        run: |
+          test -f .next/server/app-paths-manifest.json
+          node <<'NODE'
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync('.next/server/app-paths-manifest.json', 'utf8'));
+          const required = [
+            '/',
+            '/workforce',
+            '/sales-marketing',
+            '/intelligence',
+            '/enterprise',
+            '/settings',
+            '/integrations',
+          ];
+          const missing = required.filter((route) => {
+            const key = route === '/' ? '/page' : route + '/page';
+            return !Object.prototype.hasOwnProperty.call(manifest, key);
+          });
+          if (missing.length) {
+            console.error('Missing required routes:', missing.join(', '));
+            process.exit(1);
+          }
+          console.log('Required routes present:', required.join(', '));
+          NODE
