@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
-from app.core.model_router.router import get_model_router, ModelRouterRequest
+from app.core.orchestration.engine import get_orchestration_engine, WorkflowDispatchRequest
 from app.core.security import AuthenticatedTenantContext, get_trusted_request_context, wrap_untrusted_external_content, sanitize_ai_output
 from app.domains.billing.credits import reserve_credit, consume_credit, refund_credit
 from app.domains.billing.credit_engine import estimate_credit_cost
@@ -34,8 +34,6 @@ class ChatMessageRequest(BaseModel):
         max_length=2000,
         description="Petunjuk sistem",
     )
-    preferred_provider: Optional[str] = Field(None, max_length=50, description="nvidia, openrouter, gemini")
-    preferred_model: Optional[str] = Field(None, max_length=100, description="Model LLM spesifik")
 
 
 @router.post("/messages", dependencies=[Depends(require_capability("chat.message.create"))])
@@ -77,7 +75,7 @@ async def stream_chat_message(
         estimate = await estimate_credit_cost(
             activity_code="simple_chat",
             complexity_code="medium",
-            llm_model_id=payload.preferred_model or "default",
+            llm_model_id="openai",
             tool_risk_tier=None,
             execution_mode="single_step",
         )
@@ -95,7 +93,7 @@ async def stream_chat_message(
             reference_id=session_id,
             metadata={
                 "user_id": user_id,
-                "provider": payload.preferred_provider,
+                "provider_policy": "openai_primary_nvidia_fallback",
                 "activity_code": "simple_chat",
                 "estimated_cost": float(estimated_cost),
             },
@@ -107,23 +105,23 @@ async def stream_chat_message(
             detail=f"Saldo kredit tidak mencukupi atau dompet kredit bermasalah: {str(e)}",
         )
 
-    # 3. Model Router Stream Generator (Anti-Prompt-Injection & Output Sanitization)
-    router_inst = get_model_router()
+    # 3. Canonical Orchestration workflow -> Model Router stream.
+    orchestration = get_orchestration_engine()
     secure_prompt = wrap_untrusted_external_content(
         content=payload.message,
         source_type="chat_user_input",
         source_id=user_id,
     )
-    req = ModelRouterRequest(
+    workflow_req = WorkflowDispatchRequest(
         tenant_id=tenant_id,
-        task_type="text_generation",
-        prompt=secure_prompt,
-        system_prompt=payload.system_prompt,
-        preferred_provider=payload.preferred_provider,
-        preferred_model=payload.preferred_model,
-        max_tokens=1500,
-        temperature=0.7,
-        user_id=user_id,
+        intent_text=payload.message,
+        actor_id=user_id,
+        actor_type=context.actor_type,
+        roles=context.roles,
+        capabilities=list(set(context.capabilities + ["workflow.node.llm_generate"])),
+        is_mfa_verified=context.is_mfa_verified,
+        execution_context="internal_dashboard",
+        context_data={"session_id": session_id, "chat": True},
     )
 
     async def event_generator() -> AsyncGenerator[str, None]:
@@ -136,9 +134,16 @@ async def stream_chat_message(
         yield f"data: {json.dumps({'event': 'start', 'session_id': session_id, 'reservation_id': reservation.id})}\n\n"
 
         try:
-            async for chunk in router_inst.stream_generate(req):
+            async for chunk in orchestration.stream_llm_workflow(
+                workflow_req,
+                prompt=secure_prompt,
+                system_prompt=payload.system_prompt,
+                task_type="text_generation",
+            ):
                 ev_type = chunk.get("event", "token")
-                if ev_type == "token":
+                if ev_type == "workflow_start":
+                    yield f"data: {json.dumps({'event': 'start', 'session_id': session_id, 'reservation_id': reservation.id, 'execution_id': chunk.get('execution_id')})}\n\n"
+                elif ev_type == "token":
                     raw_tok = chunk.get("token", "")
                     tok = sanitize_ai_output(raw_tok)
                     collected_text.append(tok)
@@ -146,6 +151,9 @@ async def stream_chat_message(
                     last_provider = chunk.get("provider", last_provider)
                     last_model = chunk.get("model", last_model)
                     yield f"data: {json.dumps({'event': 'token', 'token': tok})}\n\n"
+                elif ev_type == "workflow_done":
+                    last_provider = chunk.get("provider", last_provider)
+                    last_model = chunk.get("model", last_model)
                 elif ev_type == "error":
                     err_msg = chunk.get("error", "Error pada stream LLM")
                     yield f"data: {json.dumps({'event': 'error', 'error': err_msg})}\n\n"
