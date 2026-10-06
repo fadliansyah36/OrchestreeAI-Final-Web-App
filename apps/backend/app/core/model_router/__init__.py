@@ -1,25 +1,21 @@
-"""OrchestreeAI Model Router Module (PRD v2.2 Bagian 8.2)"""
+"""Canonical OrchestreeAI Model Router exports."""
 
 from .router import (
+    LLMProviderAdapter,
     ModelRouter,
     ModelRouterRequest,
     ModelRouterResponse,
-    LLMProviderAdapter,
     NvidiaNimAdapter,
-    OpenRouterAdapter,
-    GptImage2Adapter,
-    GeminiAdapter,
+    OpenAIAdapter,
     get_model_router,
 )
 
 __all__ = [
+    "LLMProviderAdapter",
     "ModelRouter",
     "ModelRouterRequest",
     "ModelRouterResponse",
-    "LLMProviderAdapter",
     "NvidiaNimAdapter",
-    "OpenRouterAdapter",
-    "GptImage2Adapter",
-    "GeminiAdapter",
+    "OpenAIAdapter",
     "get_model_router",
 ]
