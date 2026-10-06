@@ -7,6 +7,7 @@ Mengelola eksekusi alur kerja node graph otonom dengan:
 4. Integrasi langsung ke Model Router dan MCP Tool Registry.
 """
 
+import asyncio
 import time
 import uuid
 import json
@@ -151,6 +152,30 @@ class OrchestrationEngine:
         )
 
 
+    def get_generative_media_graph_spec(self, operation: str) -> WorkflowGraphSpec:
+        """Canonical Generative Studio graph; execution remains inside this OrchestrationEngine."""
+        if operation not in {"image_generation", "batch_seeding"}:
+            raise ValueError(f"Unsupported generative workflow operation: {operation}")
+        return WorkflowGraphSpec(
+            entry_node="node_generative_media",
+            nodes=[
+                WorkflowNodeSpec(
+                    id="node_generative_media",
+                    type="GENERATIVE_MEDIA",
+                    label="Generative Studio — Domain Engine Execution",
+                    config={"operation": operation},
+                    next=["node_deliver_generative"],
+                ),
+                WorkflowNodeSpec(
+                    id="node_deliver_generative",
+                    type="DELIVER",
+                    label="Generative Artifact Delivery & Audit Completion",
+                    next=[],
+                ),
+            ],
+        )
+
+
     async def run(self, req: WorkflowDispatchRequest) -> WorkflowDispatchResult:
         """
         Menjalankan alur kerja kognitif otonom (OrchestrationEngine.run).
@@ -170,7 +195,11 @@ class OrchestrationEngine:
 
         # Ambil atau fallback ke graph spec default
         wf_def_id = req.workflow_definition_id
-        if wf_def_id == "onboarding_persona_intake" or req.intent_text == "onboarding_persona_intake":
+        workflow_kind = str((req.context_data or {}).get("workflow_kind") or "")
+        if workflow_kind == "generative_media":
+            operation = str((req.context_data or {}).get("generative_operation") or "")
+            graph_spec = self.get_generative_media_graph_spec(operation)
+        elif wf_def_id == "onboarding_persona_intake" or req.intent_text == "onboarding_persona_intake":
             graph_spec = self.get_onboarding_persona_graph_spec()
         else:
             graph_spec = self.get_default_graph_spec()
@@ -578,7 +607,9 @@ class OrchestrationEngine:
                 attributes={"node_type": node.type, "node_key": node.id},
             )
 
-            node_action = f"workflow.node.{node.type.lower()}"
+            # Generative media is a first-class capability of the existing workflow engine;
+            # reuse the canonical workflow.node.execute policy instead of inventing a second PDP action.
+            node_action = "workflow.node.execute" if node.type == "GENERATIVE_MEDIA" else f"workflow.node.{node.type.lower()}"
             authz_decision = authorize(
                 subject=subject,
                 action=node_action,
@@ -658,6 +689,9 @@ class OrchestrationEngine:
                 elif node.type == "LLM_GENERATE":
                     node_output = await self._execute_llm_generate(req, node, context, execution_id)
                     context["llm_output"] = node_output
+                elif node.type == "GENERATIVE_MEDIA":
+                    node_output = await self._execute_generative_media(req, node, context, execution_id)
+                    context["generative_output"] = node_output
                 elif node.type == "HUMAN_APPROVAL":
                     # Pause eksekusi untuk menunggu otorisasi manusia
                     status = "paused"
@@ -905,6 +939,49 @@ class OrchestrationEngine:
             input_data=tool_input,
         )
 
+    async def _execute_generative_media(
+        self,
+        req: WorkflowDispatchRequest,
+        node: WorkflowNodeSpec,
+        context: Dict[str, Any],
+        execution_id: str,
+    ) -> Dict[str, Any]:
+        """Execute Generative Studio through the existing domain engine and Model Router path."""
+        operation = str(node.config.get("operation") or context.get("generative_operation") or "")
+        payload = context.get("generative_job_payload") or {}
+        if not isinstance(payload, dict):
+            raise ValueError("Generative workflow payload must be an object.")
+
+        # The domain service owns prompt composition, credit ledger, validation,
+        # metadata stripping, artifact persistence and the canonical Model Router call.
+        # The orchestration engine owns the durable workflow boundary around it.
+        from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
+
+        if operation == "image_generation":
+            result = await asyncio.to_thread(
+                ImageRouterService.create_and_execute_job,
+                req.tenant_id,
+                payload,
+            )
+        elif operation == "batch_seeding":
+            batch_id = str(payload.get("batch_id") or "")
+            if not batch_id:
+                raise ValueError("batch_id wajib disertakan untuk batch seeding.")
+            result = await asyncio.to_thread(
+                ImageRouterService.execute_seeding_batch,
+                batch_id=batch_id,
+                tenant_id=req.tenant_id,
+            )
+        else:
+            raise ValueError(f"Unsupported generative workflow operation: {operation}")
+
+        return {
+            "operation": operation,
+            "execution_id": execution_id,
+            "result": result,
+        }
+
+
     async def _execute_llm_generate(
         self, req: WorkflowDispatchRequest, node: WorkflowNodeSpec, context: Dict[str, Any], execution_id: str
     ) -> Dict[str, Any]:
@@ -957,6 +1034,18 @@ class OrchestrationEngine:
         """Menyusun hasil akhir penyampaian (Delivery)."""
         tool_result = context.get("tool_result", {})
         classification = context.get("classification", {})
+        generative_output = context.get("generative_output", {})
+
+        if generative_output:
+            return {
+                "success": True,
+                "message": "Generative Studio workflow completed successfully.",
+                "status": "completed",
+                "operation": generative_output.get("operation"),
+                "result": generative_output.get("result", {}),
+                "execution_id": context.get("execution_id"),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
 
         if context.get("session_id") or req.workflow_definition_id == "onboarding_persona_intake":
             return {
@@ -1147,7 +1236,8 @@ class OrchestrationEngine:
                     },
                 )
         except Exception as e:
-            logger.warning(f"Failed to update workflow_executions checkpoint: {e}")
+            logger.error("Canonical workflow checkpoint failed; refusing to continue without durable state.", exc_info=True)
+            raise RuntimeError("Workflow checkpoint could not be persisted to the canonical database.") from e
 
     async def _save_node_run_start(
         self,
