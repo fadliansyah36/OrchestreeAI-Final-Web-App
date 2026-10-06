@@ -89,7 +89,15 @@ class OpenAIAdapter(LLMProviderAdapter):
         self.base_url = (settings.OPENAI_BASE_URL or "").rstrip("/")
 
     def _model(self, request: ModelRouterRequest) -> str:
-        return request.preferred_model or self.default_model
+        # Provider/model selection is server-controlled. Callers cannot select
+        # retired or arbitrary provider models through preferred_model.
+        task_models = {
+            "content_generation": settings.OPENAI_CONTENT_MODEL,
+            "document_generation": settings.OPENAI_DOCUMENT_MODEL,
+            "document_design": settings.OPENAI_DOCUMENT_MODEL,
+            "design_generation": settings.OPENAI_DESIGN_MODEL,
+        }
+        return task_models.get(request.task_type) or self.default_model
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -332,6 +340,21 @@ class NvidiaNimAdapter(LLMProviderAdapter):
             }
 
 
+
+class GenerativeMediaResponse(BaseModel):
+    """Provider-neutral result for non-text assets routed through ModelRouter."""
+
+    status: str
+    provider_id: str
+    model_id: str
+    media_type: str
+    mime_type: Optional[str] = None
+    content_bytes: Optional[bytes] = None
+    remote_job_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    error_message: Optional[str] = None
+
+
 class ModelRouter:
     """
     The only canonical LLM gateway.
@@ -394,8 +417,8 @@ class ModelRouter:
                     await self._log_usage(request, cached_res)
                     return cached_res
 
-                if tokenopt_context and not request.preferred_model:
-                    request.preferred_model = tokenopt_context.get("selected_model")
+                # F.01-TOKENOPT may optimize prompt/cost metadata, but provider
+                # and model policy remain server-controlled by this router.
             except Exception as opt_err:
                 logger.warning("F.01-TOKENOPT intercept failed: %s", opt_err)
 
@@ -563,6 +586,337 @@ class ModelRouter:
                 }
             )
         return results
+
+
+    def _openai_base_url(self) -> str:
+        return (settings.OPENAI_BASE_URL or "").rstrip("/")
+
+    def _require_openai_generation_config(self, model: Optional[str]) -> tuple[str, str]:
+        base_url = self._openai_base_url()
+        api_key = settings.OPENAI_API_KEY or ""
+        if not api_key or not base_url or not model:
+            raise RuntimeError("OpenAI generative provider is not configured.")
+        return api_key, base_url
+
+    def generate_image_sync(
+        self,
+        *,
+        prompt: str,
+        tenant_id: Optional[str] = None,
+        workflow_execution_id: Optional[str] = None,
+        aspect_ratio: str = "1:1",
+    ) -> GenerativeMediaResponse:
+        """Route image/design rendering through the canonical OpenAI gateway."""
+        model = settings.OPENAI_IMAGE_MODEL
+        api_key, base_url = self._require_openai_generation_config(model)
+
+        size_by_ratio = {
+            "1:1": "1024x1024",
+            "4:3": "1536x1024",
+            "3:2": "1536x1024",
+            "16:9": "1536x1024",
+            "9:16": "1024x1536",
+        }
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size_by_ratio.get(aspect_ratio, "1024x1024"),
+        }
+
+        started = time.perf_counter()
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(
+                    f"{base_url}/images/generations",
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                )
+                latency_ms = int((time.perf_counter() - started) * 1000)
+
+                if response.status_code >= 400:
+                    logger.error("OpenAI image generation failed with status %s", response.status_code)
+                    return GenerativeMediaResponse(
+                        status="failed",
+                        provider_id="openai",
+                        model_id=model,
+                        media_type="image",
+                        error_message="OpenAI image generation request failed.",
+                        metadata={"status_code": response.status_code, "latency_ms": latency_ms},
+                    )
+
+                data = response.json()
+                item = (data.get("data") or [{}])[0]
+                content_bytes: Optional[bytes] = None
+
+                if item.get("b64_json"):
+                    import base64
+                    content_bytes = base64.b64decode(item["b64_json"])
+                elif item.get("url"):
+                    image_response = client.get(item["url"], timeout=120.0)
+                    image_response.raise_for_status()
+                    content_bytes = image_response.content
+
+                if not content_bytes:
+                    return GenerativeMediaResponse(
+                        status="failed",
+                        provider_id="openai",
+                        model_id=model,
+                        media_type="image",
+                        error_message="OpenAI image generation returned no image content.",
+                        metadata={"latency_ms": latency_ms},
+                    )
+
+                result = GenerativeMediaResponse(
+                    status="success",
+                    provider_id="openai",
+                    model_id=model,
+                    media_type="image",
+                    mime_type="image/png",
+                    content_bytes=content_bytes,
+                    metadata={
+                        "latency_ms": latency_ms,
+                        "size": payload["size"],
+                    },
+                )
+                self._log_media_usage_sync(
+                    tenant_id=tenant_id,
+                    workflow_execution_id=workflow_execution_id,
+                    provider_id="openai",
+                    model_id=model,
+                    latency_ms=latency_ms,
+                    status="success",
+                )
+                return result
+        except Exception:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            logger.exception("OpenAI image generation request failed")
+            self._log_media_usage_sync(
+                tenant_id=tenant_id,
+                workflow_execution_id=workflow_execution_id,
+                provider_id="openai",
+                model_id=model,
+                latency_ms=latency_ms,
+                status="failed",
+            )
+            return GenerativeMediaResponse(
+                status="failed",
+                provider_id="openai",
+                model_id=model,
+                media_type="image",
+                error_message="OpenAI image generation could not be completed.",
+                metadata={"latency_ms": latency_ms},
+            )
+
+    def create_video_sync(
+        self,
+        *,
+        prompt: str,
+        seconds: str = "4",
+        size: str = "1280x720",
+        tenant_id: Optional[str] = None,
+        workflow_execution_id: Optional[str] = None,
+    ) -> GenerativeMediaResponse:
+        """Create an OpenAI Sora video job behind the canonical Model Router."""
+        model = settings.OPENAI_VIDEO_MODEL
+        api_key, base_url = self._require_openai_generation_config(model)
+        started = time.perf_counter()
+
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(
+                    f"{base_url}/videos",
+                    data={
+                        "model": model,
+                        "prompt": prompt,
+                        "seconds": seconds,
+                        "size": size,
+                    },
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            if response.status_code >= 400:
+                logger.error("OpenAI video generation failed with status %s", response.status_code)
+                self._log_media_usage_sync(
+                    tenant_id=tenant_id,
+                    workflow_execution_id=workflow_execution_id,
+                    provider_id="openai",
+                    model_id=model,
+                    latency_ms=latency_ms,
+                    status="failed",
+                )
+                return GenerativeMediaResponse(
+                    status="failed",
+                    provider_id="openai",
+                    model_id=model,
+                    media_type="video",
+                    error_message="OpenAI video generation request failed.",
+                    metadata={"status_code": response.status_code, "latency_ms": latency_ms},
+                )
+
+            data = response.json()
+            self._log_media_usage_sync(
+                tenant_id=tenant_id,
+                workflow_execution_id=workflow_execution_id,
+                provider_id="openai",
+                model_id=model,
+                latency_ms=latency_ms,
+                status="accepted",
+            )
+            return GenerativeMediaResponse(
+                status=str(data.get("status") or "queued"),
+                provider_id="openai",
+                model_id=model,
+                media_type="video",
+                remote_job_id=data.get("id"),
+                metadata={
+                    "latency_ms": latency_ms,
+                    "progress": data.get("progress"),
+                    "size": data.get("size"),
+                    "seconds": data.get("seconds"),
+                },
+            )
+        except Exception:
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            logger.exception("OpenAI video generation request failed")
+            self._log_media_usage_sync(
+                tenant_id=tenant_id,
+                workflow_execution_id=workflow_execution_id,
+                provider_id="openai",
+                model_id=model,
+                latency_ms=latency_ms,
+                status="failed",
+            )
+            return GenerativeMediaResponse(
+                status="failed",
+                provider_id="openai",
+                model_id=model,
+                media_type="video",
+                error_message="OpenAI video generation could not be completed.",
+                metadata={"latency_ms": latency_ms},
+            )
+
+    def retrieve_video_sync(self, video_id: str) -> GenerativeMediaResponse:
+        model = settings.OPENAI_VIDEO_MODEL or "unconfigured"
+        api_key, base_url = self._require_openai_generation_config(settings.OPENAI_VIDEO_MODEL)
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(
+                    f"{base_url}/videos/{video_id}",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+            if response.status_code >= 400:
+                return GenerativeMediaResponse(
+                    status="failed",
+                    provider_id="openai",
+                    model_id=model,
+                    media_type="video",
+                    remote_job_id=video_id,
+                    error_message="OpenAI video status request failed.",
+                )
+            data = response.json()
+            return GenerativeMediaResponse(
+                status=str(data.get("status") or "unknown"),
+                provider_id="openai",
+                model_id=str(data.get("model") or model),
+                media_type="video",
+                remote_job_id=video_id,
+                metadata=data,
+            )
+        except Exception:
+            logger.exception("OpenAI video status request failed")
+            return GenerativeMediaResponse(
+                status="failed",
+                provider_id="openai",
+                model_id=model,
+                media_type="video",
+                remote_job_id=video_id,
+                error_message="OpenAI video status request could not be completed.",
+            )
+
+    def download_video_sync(self, video_id: str) -> GenerativeMediaResponse:
+        model = settings.OPENAI_VIDEO_MODEL or "unconfigured"
+        api_key, base_url = self._require_openai_generation_config(settings.OPENAI_VIDEO_MODEL)
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                response = client.get(
+                    f"{base_url}/videos/{video_id}/content",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+            if response.status_code >= 400:
+                return GenerativeMediaResponse(
+                    status="failed",
+                    provider_id="openai",
+                    model_id=model,
+                    media_type="video",
+                    remote_job_id=video_id,
+                    error_message="OpenAI video download failed.",
+                )
+            return GenerativeMediaResponse(
+                status="success",
+                provider_id="openai",
+                model_id=model,
+                media_type="video",
+                mime_type="video/mp4",
+                content_bytes=response.content,
+                remote_job_id=video_id,
+            )
+        except Exception:
+            logger.exception("OpenAI video download failed")
+            return GenerativeMediaResponse(
+                status="failed",
+                provider_id="openai",
+                model_id=model,
+                media_type="video",
+                remote_job_id=video_id,
+                error_message="OpenAI video download could not be completed.",
+            )
+
+    def _log_media_usage_sync(
+        self,
+        *,
+        tenant_id: Optional[str],
+        workflow_execution_id: Optional[str],
+        provider_id: str,
+        model_id: str,
+        latency_ms: int,
+        status: str,
+    ) -> None:
+        if not tenant_id:
+            return
+        try:
+            from app.core.database import get_database_engine
+
+            engine = get_database_engine()
+            with engine.begin() as conn:
+                conn.execute(
+                    sa.text(
+                        """
+                        INSERT INTO llm_usage_logs (
+                            tenant_id, workflow_execution_id, provider_id,
+                            model_id, prompt_tokens, completion_tokens,
+                            total_tokens, latency_ms, status
+                        ) VALUES (
+                            :tenant_id, :workflow_execution_id, :provider_id,
+                            :model_id, 0, 0, 0, :latency_ms, :status
+                        )
+                        """
+                    ),
+                    {
+                        "tenant_id": tenant_id,
+                        "workflow_execution_id": workflow_execution_id,
+                        "provider_id": provider_id,
+                        "model_id": model_id,
+                        "latency_ms": latency_ms,
+                        "status": status,
+                    },
+                )
+        except Exception:
+            logger.exception("Failed to record generative media usage telemetry")
 
     async def stream_generate(self, request: ModelRouterRequest) -> AsyncIterator[Dict[str, Any]]:
         for provider_id in ("openai", "nvidia_nim"):
