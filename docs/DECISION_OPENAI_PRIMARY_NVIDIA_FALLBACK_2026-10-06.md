@@ -83,3 +83,17 @@ The change is not considered production GREEN until:
 - no OpenRouter/Gemini provider remains registered in the canonical router;
 - no provider credential is exposed to browser code;
 - existing AGENTS.md security and tenant-isolation gates remain GREEN.
+
+## Generative Studio / Multimodal extension
+
+The same canonical Model Router now owns OpenAI generative model dispatch for the Web PWA:
+
+- **Image / visual design:** `OPENAI_IMAGE_MODEL` through the OpenAI Images API.
+- **Video:** `OPENAI_VIDEO_MODEL` through the OpenAI Videos API (Sora family); video jobs remain asynchronous and are retrieved/downloaded through the same gateway.
+- **Content:** `OPENAI_CONTENT_MODEL` through the OpenAI Responses API.
+- **Document generation / document design:** `OPENAI_DOCUMENT_MODEL` through the OpenAI Responses API.
+- **Design planning / structured design generation:** `OPENAI_DESIGN_MODEL` through the OpenAI Responses API when the output is text/structure; visual design rendering uses `OPENAI_IMAGE_MODEL`.
+
+These are routing capabilities of the existing Model Router, not separate provider routers. Generative Studio domains must not call OpenAI provider endpoints directly.
+
+The browser may request a generation intent/type, but cannot select an arbitrary provider or model. Model IDs and credentials remain server-side.
