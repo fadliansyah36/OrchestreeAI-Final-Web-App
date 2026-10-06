@@ -225,7 +225,7 @@ def _membership_context(user_id: str, requested_tenant_id: Optional[str]) -> Aut
 
     tenant_ids = {str(row["tenant_id"]) for row in rows}
     if len(tenant_ids) > 1 and not requested_tenant_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pengguna memiliki beberapa tenant aktif; pilih tenant melalui X-Tenant-Id.")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pengguna memiliki beberapa tenant aktif; server-managed tenant context tidak tersedia pada sesi autentikasi.")
 
     tenant_id = str(next(iter(tenant_ids)))
     roles = sorted({str(row["role_code"]).upper() for row in rows if row.get("role_code")})
@@ -253,6 +253,13 @@ async def get_current_tenant_context(
     authorization: Optional[str] = Header(None),
     x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-Id"),
 ) -> AuthenticatedTenantContext:
+    """Resolve tenant context exclusively from authenticated server-side identity.
+
+    X-Tenant-Id is never an authority source. The only tenant selector accepted
+    by this resolver is the server-managed Supabase app_metadata.tenant_id claim.
+    If a request supplies X-Tenant-Id, it may only repeat the already-resolved
+    tenant; a different value is rejected rather than switching context.
+    """
     token = _extract_bearer_or_cookie(request, authorization)
     if is_token_revoked(token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token sesi telah dicabut.")
@@ -264,6 +271,11 @@ async def get_current_tenant_context(
         user_id, tenant_id = parts[1], parts[2]
         roles = [r.strip().upper() for r in (parts[3] if len(parts) > 3 else "STAFF_HUMAN").split(",") if r.strip()]
         is_mfa = "mfa" in token.lower()
+        if x_tenant_id and str(x_tenant_id) != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="X-Tenant-Id tidak dapat mengganti tenant context yang telah diautentikasi.",
+            )
         return AuthenticatedTenantContext(
             user_id=user_id,
             tenant_id=tenant_id,
@@ -275,8 +287,19 @@ async def get_current_tenant_context(
 
     payload = _verify_supabase_jwt(token)
     user_id = str(payload["sub"])
-    requested_tenant = x_tenant_id or payload.get("app_metadata", {}).get("tenant_id")
-    context = _membership_context(user_id, str(requested_tenant) if requested_tenant else None)
+
+    # Tenant authority comes only from the verified JWT server-managed claims
+    # and the authoritative tenant_memberships table. Client headers never select
+    # the effective tenant context.
+    jwt_tenant = payload.get("app_metadata", {}).get("tenant_id")
+    context = _membership_context(user_id, str(jwt_tenant) if jwt_tenant else None)
+
+    if x_tenant_id and str(x_tenant_id) != context.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="X-Tenant-Id tidak dapat mengganti tenant context yang telah diautentikasi.",
+        )
+
     context.is_mfa_verified = payload.get("aal") == "aal2"
     return context
 
