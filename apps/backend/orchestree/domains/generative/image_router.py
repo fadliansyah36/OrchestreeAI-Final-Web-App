@@ -353,6 +353,7 @@ class ImageRouterService:
             aspect_ratio=aspect_ratio,
             tenant_id=tenant_id,
             job_id=job_id,
+            workflow_execution_id=payload.get("workflow_execution_id"),
         )
 
         # 5. Image Validation Gate
@@ -525,6 +526,7 @@ class ImageRouterService:
         aspect_ratio: str,
         tenant_id: str,
         job_id: str,
+        workflow_execution_id: Optional[str] = None,
     ) -> bytes:
         """
         Generate a real image through the single canonical Model Router.
@@ -536,7 +538,7 @@ class ImageRouterService:
             prompt=prompt,
             aspect_ratio=aspect_ratio,
             tenant_id=tenant_id,
-            workflow_execution_id=job_id,
+            workflow_execution_id=workflow_execution_id or job_id,
         )
         if result.status != "success" or not result.content_bytes:
             raise RuntimeError(result.error_message or "OpenAI image generation failed.")
@@ -833,7 +835,12 @@ class ImageRouterService:
             return dict(row._mapping)
 
     @staticmethod
-    def execute_seeding_batch(batch_id: str, tenant_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
+    def execute_seeding_batch(
+        batch_id: str,
+        tenant_id: str,
+        user_id: Optional[str] = None,
+        workflow_execution_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Mengeksekusi batch seeding template prompt yang telah disetujui (approved):
         1. Memvalidasi status batch adalah 'approved'.
@@ -909,6 +916,7 @@ class ImageRouterService:
                     "style_preset": style_code,
                     "model_used": "gpt-image-2",
                     "credit_cost": 5.0,
+                    "workflow_execution_id": workflow_execution_id,
                 }
 
                 gen_job = ImageRouterService.create_and_execute_job(tenant_id, job_payload)
