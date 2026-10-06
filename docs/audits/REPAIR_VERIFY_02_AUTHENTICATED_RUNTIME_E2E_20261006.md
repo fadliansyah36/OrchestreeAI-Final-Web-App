@@ -90,3 +90,44 @@ ORCHESTREE_E2E_RUN_AI=true
 ```
 
 That second run is the gate for real orchestration/model-router/credit execution.
+
+## REPAIR-02A — Tenant Context Hardening
+
+Implemented on the authenticated runtime repair branch.
+
+### Canonical enforcement
+
+All Continuous Learning endpoints now derive tenant/user/role/capability/MFA context from:
+
+`get_trusted_request_context()`
+→ verified Supabase JWT
+→ server-managed `app_metadata.tenant_id`
+→ authoritative `tenant_memberships`
+→ PDP
+→ tenant repository.
+
+The Learning API no longer accepts `tenant_id`, `X-User-Roles`, `X-User-Capabilities`, `X-MFA-Verified`, or `X-User-Id` as authorization authority.
+
+Human feedback also derives `actor_id` from the authenticated user context.
+
+### Anti-spoofing behavior
+
+`X-Tenant-Id` is not an authority source. If supplied, it may only repeat the already-resolved tenant. A conflicting value is rejected with HTTP 403.
+
+A `tenant_id` query parameter is not consumed by Learning endpoints and therefore cannot switch the effective tenant.
+
+### Database / migration impact
+
+No Supabase schema or migration change is required for REPAIR-02A. The existing tenant membership and RLS architecture remains the canonical persistence boundary.
+
+### Regression evidence added
+
+The authenticated E2E suite now explicitly verifies:
+
+- authenticated Learning access succeeds without a tenant query parameter;
+- a bogus `tenant_id` query cannot change the effective tenant;
+- a conflicting `X-Tenant-Id` is rejected;
+- forged role/capability/MFA headers do not grant access.
+
+The real credentialed E2E gate remains required before this repair can be declared GREEN.
+
