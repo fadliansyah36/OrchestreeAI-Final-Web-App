@@ -135,7 +135,6 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
   const [negativePrompt, setNegativePrompt] = useState<string>('blurry, low quality, artifacts, watermark');
   const [aspectRatio, setAspectRatio] = useState<string>('1:1');
   const [stylePreset, setStylePreset] = useState<string>('Commercial Studio Photography');
-  const [modelUsed, setModelUsed] = useState<string>('gpt-image-2');
   const [selectedBrandLockId, setSelectedBrandLockId] = useState<string>('');
   const [forceFailForTest, setForceFailForTest] = useState<boolean>(false);
   const [showEstimateConfirm, setShowEstimateConfirm] = useState<boolean>(false);
@@ -284,7 +283,6 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
           negative_prompt: negativePrompt.trim() || undefined,
           aspect_ratio: aspectRatio,
           style_preset: stylePreset,
-          model_used: modelUsed,
           brand_lock_id: selectedBrandLockId || undefined,
           template_id: selectedTemplateId || undefined,
           credit_cost: 5.0,
@@ -622,10 +620,10 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-400 mb-1">LLM Generation Gateway</label>
                   <div className="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300">
-                    OpenAI (Primary) → NVIDIA NIM (Fallback)
+                    OpenAI Generative Model Router
                   </div>
                   <p className="mt-1 text-[10px] text-slate-500">
-                    Provider dipilih oleh backend canonical Model Router. Browser tidak memilih atau menerima API key provider.
+                    Image/design memakai model OpenAI yang dikonfigurasi server. Content/document/video memakai jalur OpenAI generative yang sama; browser tidak memilih model/provider atau menerima API key.
                   </p>
                 </div>
               </div>
@@ -1459,7 +1457,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
           activity_code: 'generative_visual',
           activity_name: 'Studio Visual & Kreasi Gambar AI',
           complexity_code: 'high',
-          llm_model_id: modelUsed,
+          llm_model_id: 'openai',
           tool_risk_tier: 'medium',
           execution_mode: 'single_step',
           reference_id: `gen-job-${Date.now()}`,
