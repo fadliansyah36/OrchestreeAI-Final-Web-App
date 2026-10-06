@@ -15,7 +15,7 @@ Dokumen ini dibuat sebagai respons langsung atas insiden nyata: AI Agent Coding 
 | Penyimpanan data domain saat startup/runtime | Query langsung ke Supabase Postgres via `orchestree_app` role | **In-memory store dalam bentuk apapun** sebagai pengganti/"fallback" database (`Map()`, `new Map()`, array/object JS/Python sebagai penyimpanan entitas bisnis, "ephemeral store", "safe fallback store", dsb.) |
 | Cache/antrian saja (bukan data utama) | Redis (Celery broker, rate-limit, semantic cache) | Redis dipakai sebagai *primary datastore* pengganti Postgres |
 | Auth | **Supabase Auth** (JWT/JWKS, MFA) | Passport.js, NextAuth di luar Supabase, Firebase Auth, sistem auth custom buatan sendiri |
-| LLM | **NVIDIA NIM → OpenRouter → Gemini → GPT-Image-2**, seluruhnya lewat **satu Model Router** | Pemanggilan langsung SDK provider (mis. `@google/genai` dipanggil bebas di luar Model Router) tanpa melalui Model Router, Credit Ledger, dan `authorize()` |
+| LLM | **OpenAI primary → NVIDIA NIM fallback** for text/reasoning, plus OpenAI image/video/content/document/design generation through **one Model Router** | Pemanggilan langsung SDK provider (mis. `@google/genai` dipanggil bebas di luar Model Router) tanpa melalui Model Router, Credit Ledger, dan `authorize()` |
 | Frontend (`apps/client`, `apps/admin`) | **Next.js App Router + React**, sesuai `packages/ui`/`packages/design-tokens` | Proyek Vite React SPA terpisah, Create React App, Remix, atau framework frontend lain menggantikan Next.js yang sudah ditetapkan |
 | Realtime | Supabase Realtime + WebSocket FastAPI | Framework/provider realtime lain tanpa persetujuan eksplisit |
 
@@ -55,7 +55,7 @@ AI Agent Coding **wajib mencantumkan hasil checklist berikut secara eksplisit** 
 - [ ] Tidak ada `Map()`, objek/array in-memory, atau *store* sejenis dipakai untuk menyimpan entitas data bisnis (users, tenants, tasks, dst.) — penggunaan struktur in-memory hanya boleh untuk hal non-bisnis yang murni transien di satu proses (mis. debounce timer), dan harus disebutkan eksplisit sebagai pengecualian yang dipahami, bukan disembunyikan dalam istilah "safe fallback".
 - [ ] `DATABASE_URL`/`SUPABASE_URL` yang dipakai mengarah ke proyek Supabase nyata (host mengandung domain Supabase resmi atau host proyek Supabase CLI lokal) — bukan Cloud SQL, RDS, atau file SQLite lokal.
 - [ ] Tidak ada kalimat di laporan yang menyarankan provider database/cloud lain sebagai langkah berikutnya.
-- [ ] Seluruh pemanggilan LLM (termasuk Gemini) melewati Model Router tunggal (Bagian E.2 PRD v2.2 / Bagian J Prompt Fase 4), bukan dipanggil langsung dari kode fitur.
+- [ ] Seluruh pemanggilan LLM dan generative-model calls melewati Model Router tunggal (Bagian E.2 PRD v2.2 / Bagian J Prompt Fase 4), bukan dipanggil langsung dari kode fitur.
 - [ ] CI Content Gate (pemindaian kata terlarang) sudah dijalankan dan lulus, mencakup juga istilah baru: `in-memory fallback`, `memorystore`, `cloud sql`, `cloudsql`.
 - [ ] Apakah ada data apapun yang bisa tampil di UI SEBELUM/TANPA request backend berhasil? (jawaban harus TIDAK, dibuktikan uji matikan backend sepenuhnya lalu buka aplikasi).
 
