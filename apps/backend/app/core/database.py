@@ -106,7 +106,7 @@ def _require_runtime_url() -> str:
     username = unquote(parsed.username or "")
     expected_role = get_runtime_database_role()
     if username != expected_role:
-        raise RuntimeDatabaseRoleError("DATABASE_URL runtime wajib menggunakan DATABASE_RUNTIME_ROLE.")
+        raise RuntimeDatabaseRoleError("DATABASE_URL runtime identity tidak konsisten dengan username DATABASE_URL.")
     return url
 
 
@@ -117,8 +117,8 @@ def _assert_runtime_role(conn) -> None:
     """)).mappings().first()
     if not row or row["user_name"] != get_runtime_database_role() or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
         raise RuntimeDatabaseRoleError(
-            "Runtime DB connection wajib menggunakan DATABASE_RUNTIME_ROLE "
-            "dengan rolbypassrls=false dan rolsuper=false."
+            "Runtime DB connection wajib menggunakan identity DATABASE_URL dengan "
+            "rolbypassrls=false (NOBYPASSRLS) dan rolsuper=false (non-superuser)."
         )
 
 
@@ -303,10 +303,10 @@ def verify_db_connection_and_role(target_url: Optional[str] = None) -> Tuple[boo
                 FROM pg_roles r WHERE r.rolname = current_user
             """)).mappings().first()
             if not row or row["user_name"] != get_runtime_database_role() or row["rolbypassrls"] or row["rolsuper"]:
-                return False, "Runtime DB wajib menggunakan DATABASE_RUNTIME_ROLE dengan rolbypassrls=false dan rolsuper=false.", dict(row or {})
-            return True, "Runtime DB role terverifikasi (NOBYPASSRLS, non-superuser).", dict(row)
+                return False, "Runtime DB identity dari DATABASE_URL tidak memenuhi NOBYPASSRLS/non-superuser.", {"configured_role": get_runtime_database_role(), **dict(row or {})}
+            return True, "Runtime DB identity dari DATABASE_URL terverifikasi (NOBYPASSRLS, non-superuser).", {"configured_role": get_runtime_database_role(), **dict(row)}
     except Exception as exc:
-        return False, f"Gagal menghubungkan ke database: {str(exc)}", {}
+        return False, f"Gagal menghubungkan ke database sebagai identity DATABASE_URL: {str(exc)}", {"configured_role": get_runtime_database_role()}
 
 
 def verify_rls_table_enforcement(target_url: Optional[str] = None) -> Tuple[bool, str, Dict[str, object]]:
