@@ -5,6 +5,7 @@ This module contains no provider logic.
 """
 
 from app.core.model_router.router import (
+    GenerativeMediaResponse,
     LLMProviderAdapter,
     ModelRouter,
     ModelRouterRequest,
@@ -15,6 +16,7 @@ from app.core.model_router.router import (
 )
 
 __all__ = [
+    "GenerativeMediaResponse",
     "LLMProviderAdapter",
     "ModelRouter",
     "ModelRouterRequest",
