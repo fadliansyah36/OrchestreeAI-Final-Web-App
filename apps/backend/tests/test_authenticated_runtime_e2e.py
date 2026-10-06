@@ -93,7 +93,7 @@ def _new_opener():
 def _login(opener):
     status, login = _json_request(
         opener,
-        "/auth/login",
+        "/api/v1/auth/login",
         method="POST",
         body={"email": EMAIL, "password": PASSWORD},
     )
@@ -105,7 +105,7 @@ def test_unauthenticated_runtime_gate():
     _require_base_url()
     opener = _new_opener()
 
-    status, session = _json_request(opener, "/auth/session")
+    status, session = _json_request(opener, "/api/v1/auth/session")
     assert status == 401, session
 
 
@@ -114,7 +114,7 @@ def test_authenticated_runtime_tenant_pdp_db_boundary():
     opener = _new_opener()
     _login(opener)
 
-    status, session = _json_request(opener, "/auth/session")
+    status, session = _json_request(opener, "/api/v1/auth/session")
     assert status == 200, session
     assert session.get("authenticated") is True
     assert session.get("user_id")
@@ -147,7 +147,7 @@ def test_learning_rejects_client_tenant_override():
     opener = _new_opener()
     _login(opener)
 
-    status, session = _json_request(opener, "/auth/session")
+    status, session = _json_request(opener, "/api/v1/auth/session")
     assert status == 200, session
     tenant_id = session.get("tenant_id")
     assert tenant_id
@@ -186,7 +186,7 @@ def test_learning_rejects_client_tenant_override():
     assert status == 403, denied
 
     # The server-resolved session tenant remains unchanged after the attack.
-    status, session_after = _json_request(opener, "/auth/session")
+    status, session_after = _json_request(opener, "/api/v1/auth/session")
     assert status == 200, session_after
     assert session_after.get("tenant_id") == tenant_id
 
@@ -218,7 +218,7 @@ def test_authenticated_runtime_ai_vertical_slice_opt_in():
     opener = _new_opener()
     _login(opener)
 
-    status, session = _json_request(opener, "/auth/session")
+    status, session = _json_request(opener, "/api/v1/auth/session")
     assert status == 200, session
     tenant_id = session.get("tenant_id")
     assert tenant_id
