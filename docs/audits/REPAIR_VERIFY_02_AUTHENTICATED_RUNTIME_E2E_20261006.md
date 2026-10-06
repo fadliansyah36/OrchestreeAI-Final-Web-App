@@ -235,3 +235,37 @@ Supabase: `OrchestreeDB-Web-PWA`, ref `szvbcvmvrucqxfikgjlx`
 Railway: `creative-sparkle` / production / `@orchestree/api`
 
 Allpha Universe is explicitly out of scope and was not touched.
+
+## Post-merge deployment evidence — REPAIR-02B
+
+GitHub:
+- PR #10 merged to `main`.
+- Merge commit: `ea528b68ffb6cfd7a173d664e4d1341aa6a6b5d7`.
+
+Railway:
+- Project: `creative-sparkle`.
+- Environment: `production`.
+- Service: `@orchestree/api`.
+- Deployment: `ac8b37dd-664a-4d94-8ae9-0a624e2f278f`.
+- Commit: `ea528b68ffb6cfd7a173d664e4d1341aa6a6b5d7`.
+- Status: `SUCCESS`.
+- Replica: `1/1`.
+- `/health/live`: HTTP 200 in deployment logs.
+- Startup: Uvicorn running and application startup complete.
+
+Supabase:
+- Project: `OrchestreeDB-Web-PWA`.
+- Ref: `szvbcvmvrucqxfikgjlx`.
+- No schema/migration change was applied for REPAIR-02B.
+- Live migration head remains `20261006141011 grant_orchestree_runtime_application_privileges`.
+- Continuous Learning tables remain RLS + FORCE RLS enabled.
+
+Acceptance:
+- Production runtime deployment is healthy.
+- The authenticated credentialed gate has not yet been executed because the required non-privileged E2E credentials are not available to this session.
+- Therefore REPAIR-02B remains **NOT GREEN / BLOCKED ON CREDENTIAL ACQUISITION**, not blocked on deployment.
+
+Next action:
+- Provision the dedicated E2E GitHub Actions secrets with a non-privileged Supabase Auth test account, run the manual workflow with `run_ai=false`, and only after Gates A-C pass run `run_ai=true` for the real AI/credit/model-router slice.
+
+Allpha Universe remains out of scope and was not touched.
