@@ -22,9 +22,9 @@ The current branch is completing the integrity and boundary work required before
 - Add regression coverage.
 
 ### 04R.2 — Canonical API → Domain Boundary
-**Status: NEXT**
+**Status: IN PROGRESS — core boundary refactored; billing boundary remains open**
 
-Refactor remaining API routers that contain direct SQL/domain logic into existing domain services/repositories.
+Refactor remaining API routers that contain direct SQL/domain logic into existing domain services/repositories. The first completed slice moves Admin Platform Overview and Orchestration execution-history reads behind domain services; billing still contains substantial SQL-backed API handlers and remains the blocking scope for closing 04R.2.
 
 Rules:
 - do not create a second service layer;
@@ -40,7 +40,7 @@ Priority candidates identified by the current PR:
 - other API modules identified by architecture scan.
 
 ### 04R.3 — Workflow Catalog Reconciliation
-**Status: BLOCKED ON LIVE EVIDENCE**
+**Status: BLOCKED UNTIL 04R.2 IS CLOSED + LIVE EVIDENCE**
 
 - Reconcile the live `workflow_definitions` catalog with the PRD-required workflow surface.
 - Ensure code-defined special graphs remain extensions of the canonical OrchestrationEngine, not parallel engines.
