@@ -233,10 +233,6 @@ class CreditModelCostFactorRepo:
         defaults = {
             "meta-llama/llama-3.1-70b-instruct": 1.2,
             "meta-llama/llama-3.1-8b-instruct": 0.8,
-            "gemini-1.5-pro": 1.5,
-            "gemini-1.5-flash": 0.7,
-            "gemini-2.5-flash": 0.75,
-            "gemini-2.5-pro": 1.6,
             "gpt-4o": 2.0,
             "gpt-4o-mini": 0.6,
             "default": 1.0,
