@@ -181,6 +181,9 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
             slot_reserved = int(slot_row["reserved_slots"] or 0) if slot_row else 0
             slot_allocated = int(slot_row["allocated_slots"] or 0) if slot_row else 0
 
+            llm_health = await get_model_router().get_all_providers_health()
+            mcp_tools = get_tool_registry().list_tools()
+
             return AdminHubOverviewResponse(
                 tenants=TenantMetrics(
                     total=total_tenants,
@@ -200,8 +203,6 @@ async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(r
                     allocated=slot_allocated,
                     duration_days=0,
                 ),
-                llm_health = await get_model_router().get_all_providers_health()
-                mcp_tools = get_tool_registry().list_tools()
                 llm=LlmMetrics(
                     providers_healthy=sum(1 for item in llm_health if item.get("health_status") == "healthy"),
                     providers_total=len(llm_health),
