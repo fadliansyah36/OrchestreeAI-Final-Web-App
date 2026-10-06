@@ -1,9 +1,7 @@
-"""
-Admin Overview & Platform Hub Router (PRD v2.2 Bagian 14 & 18).
-Menyediakan endpoint resmi:
-- GET /api/v1/admin/hub-overview (Metrik platform global: tenant, prospek, trial slots, LLM, MCP)
-- GET /api/v1/financial-command-center (Agregasi finansial & rekonsiliasi saldo ledger)
-- GET /api/v1/admin/tenants (Daftar seluruh organisasi untuk Super Admin)
+"""Admin Overview & Platform Hub API router.
+
+FastAPI owns transport, authentication and PDP decisions. Platform data access
+is delegated to the admin domain service.
 """
 
 from typing import Any, Dict, List, Optional
@@ -11,17 +9,16 @@ from datetime import datetime, timezone
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-import sqlalchemy as sa
 
-from app.authz.pdp import (
-    ResourceContext,
-    SubjectContext,
-    authorize,
-)
-from app.core.database import get_database_engine
+from app.authz.pdp import ResourceContext, SubjectContext, authorize
 from app.core.model_router.router import get_model_router
 from app.skills.f01_mcp.decorators import get_tool_registry
 from app.core.security import AuthenticatedTenantContext, require_platform_admin
+from app.domains.admin.platform_overview import (
+    get_platform_overview_data,
+    get_financial_command_center_data,
+    list_platform_tenants,
+)
 
 logger = logging.getLogger("orchestree.admin.overview")
 
@@ -80,307 +77,69 @@ class FinancialCommandCenterResponse(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-class AdminTenantItem(BaseModel):
-    id: str
-    legal_name: str
-    display_name: str
-    status: str
-    plan_code: Optional[str] = None
-    created_at: str
-
-
-@router.get(
-    "/hub-overview",
-    response_model=AdminHubOverviewResponse,
-    summary="Ringkasan Platform Global Super Admin (Casing Fixed)",
-)
-@root_alias_router.get(
-    "/api/v1/admin/hub-overview",
-    response_model=AdminHubOverviewResponse,
-    include_in_schema=False,
-)
+@router.get("/hub-overview", response_model=AdminHubOverviewResponse)
+@root_alias_router.get("/api/v1/admin/hub-overview", response_model=AdminHubOverviewResponse, include_in_schema=False)
 async def get_admin_hub_overview(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
-    """
-    Mengembalikan statistik ringkasan operasional platform global untuk Konsol Super Admin.
-    Penegakan izin via Unified PDP (authorize) dan verifikasi wajib MFA (PRD v2.2 Bagian 3.5 & 18.2).
-    """
-
-    roles = context.roles
-    capabilities = context.capabilities
-    is_mfa = context.is_mfa_verified
-
-    subject = SubjectContext(
-        roles=roles,
-        capabilities=capabilities,
-        tenant_id="global",
-        actor_type="user",
-        is_mfa_verified=is_mfa,
+    decision = authorize(
+        subject=SubjectContext(roles=context.roles, capabilities=context.capabilities, tenant_id="global",
+                              actor_type="user", is_mfa_verified=context.is_mfa_verified),
+        action="admin.hub.view",
+        resource=ResourceContext(resource_type="admin_hub_overview", resource_id="global", owner_tenant_id="global"),
     )
-    resource = ResourceContext(
-        resource_type="admin_hub_overview",
-        resource_id="global",
-        owner_tenant_id="global",
-    )
-
-    decision = authorize(subject=subject, action="admin.hub.view", resource=resource)
     if not decision.is_authorized:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Akses ditolak: {decision.reason}",
-        )
-
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Akses ditolak: {decision.reason}")
     try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            # 1. Query Tenant dengan penanganan casing standar LOWER()
-            tenant_row = conn.execute(
-                sa.text("""
-                    SELECT
-                      COUNT(*) AS total_tenants,
-                      COUNT(*) FILTER (WHERE LOWER(status) = 'active') AS active_tenants,
-                      COUNT(*) FILTER (WHERE LOWER(status) = 'trial') AS trial_tenants
-                    FROM tenants;
-                """)
-            ).mappings().first()
-
-            total_tenants = int(tenant_row["total_tenants"] or 0) if tenant_row else 0
-            active_tenants = int(tenant_row["active_tenants"] or 0) if tenant_row else 0
-            trial_tenants = int(tenant_row["trial_tenants"] or 0) if tenant_row else 0
-
-            # 2. Query Prospects
-            prospect_row = conn.execute(
-                sa.text("""
-                    SELECT
-                      COUNT(*) AS total_prospects,
-                      COUNT(*) FILTER (WHERE UPPER(COALESCE(trial_status, '')) = 'SELECTED') AS selected_prospects,
-                      COUNT(*) FILTER (WHERE UPPER(COALESCE(trial_status, '')) IN ('SELECTED', 'ACTIVE_TRIAL')) AS active_trials,
-                      COUNT(*) FILTER (WHERE scheduled_meeting_date IS NOT NULL) AS scheduled_meetings
-                    FROM prospects;
-                """)
-            ).mappings().first()
-
-            total_prospects = int(prospect_row["total_prospects"] or 0) if prospect_row else 0
-            selected_prospects = int(prospect_row["selected_prospects"] or 0) if prospect_row else 0
-            active_trials = int(prospect_row["active_trials"] or 0) if prospect_row else 0
-            scheduled_meetings = int(prospect_row["scheduled_meetings"] or 0) if prospect_row else 0
-
-            # 3. Query Trial Slots
-            slot_row = conn.execute(
-                sa.text("""
-                    SELECT
-                      COUNT(*) AS total_slots,
-                      COUNT(*) FILTER (WHERE LOWER(status) = 'available') AS available_slots,
-                      COUNT(*) FILTER (WHERE LOWER(status) = 'reserved') AS reserved_slots,
-                      COUNT(*) FILTER (WHERE LOWER(status) = 'allocated') AS allocated_slots
-                    FROM trial_slots;
-                """)
-            ).mappings().first()
-
-            slot_capacity = int(slot_row["total_slots"] or 0) if slot_row else 0
-            slot_available = int(slot_row["available_slots"] or 0) if slot_row else 0
-            slot_reserved = int(slot_row["reserved_slots"] or 0) if slot_row else 0
-            slot_allocated = int(slot_row["allocated_slots"] or 0) if slot_row else 0
-
-            llm_health = await get_model_router().get_all_providers_health()
-            mcp_tools = get_tool_registry().list_tools()
-
-            return AdminHubOverviewResponse(
-                tenants=TenantMetrics(
-                    total=total_tenants,
-                    active=active_tenants,
-                    trial=trial_tenants,
-                ),
-                prospects=ProspectMetrics(
-                    total=total_prospects,
-                    selected=selected_prospects,
-                    active_trials=active_trials,
-                    scheduled_meetings=scheduled_meetings,
-                ),
-                trial_slots=TrialSlotMetrics(
-                    capacity=slot_capacity,
-                    available=slot_available,
-                    reserved=slot_reserved,
-                    allocated=slot_allocated,
-                    duration_days=0,
-                ),
-                llm=LlmMetrics(
-                    providers_healthy=sum(1 for item in llm_health if item.get("health_status") == "healthy"),
-                    providers_total=len(llm_health),
-                ),
-                mcp=McpMetrics(tools_total=len(mcp_tools)),
-            )
+        health = await get_model_router().get_all_providers_health()
+        data = await _platform_overview_with_health(health)
+        return AdminHubOverviewResponse(**data)
     except Exception as exc:
-        logger.exception("Admin hub overview failed; returning explicit unavailable state.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "ADMIN_HUB_DATA_UNAVAILABLE",
-                "state": "UNAVAILABLE",
-                "message": "Platform overview data is temporarily unavailable.",
-            },
-        ) from exc
+        logger.exception("Admin hub overview failed.")
+        raise HTTPException(status_code=503, detail={"code":"ADMIN_HUB_DATA_UNAVAILABLE","state":"UNAVAILABLE","message":"Platform overview data is temporarily unavailable."}) from exc
 
 
-@root_alias_router.get(
-    "/api/v1/financial-command-center",
-    response_model=FinancialCommandCenterResponse,
-    summary="Financial Command Center Aggregation",
-)
-@root_alias_router.get(
-    "/financial-command-center",
-    response_model=FinancialCommandCenterResponse,
-    include_in_schema=False,
-)
+async def _platform_overview_with_health(health: List[Dict[str, Any]]) -> Dict[str, Any]:
+    data = await __import__("asyncio").to_thread(
+        get_platform_overview_data,
+        health,
+        get_tool_registry(),
+    )
+    return data
+
+
+@root_alias_router.get("/api/v1/financial-command-center", response_model=FinancialCommandCenterResponse)
+@root_alias_router.get("/financial-command-center", response_model=FinancialCommandCenterResponse, include_in_schema=False)
 async def get_financial_command_center_overview(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
-    """
-    Mengembalikan ringkasan saldo ledger dan total revenue platform untuk Super Admin (Wajib MFA).
-    """
-
-    roles = context.roles
-    capabilities = context.capabilities
-    is_mfa = context.is_mfa_verified
-
-    subject = SubjectContext(
-        roles=roles,
-        capabilities=capabilities,
-        tenant_id="global",
-        actor_type="user",
-        is_mfa_verified=is_mfa,
+    decision = authorize(
+        subject=SubjectContext(roles=context.roles, capabilities=context.capabilities, tenant_id="global",
+                              actor_type="user", is_mfa_verified=context.is_mfa_verified),
+        action="admin.financial.view",
+        resource=ResourceContext(resource_type="financial_command_center", resource_id="global", owner_tenant_id="global"),
     )
-    resource = ResourceContext(
-        resource_type="financial_command_center",
-        resource_id="global",
-        owner_tenant_id="global",
-    )
-
-    decision = authorize(subject=subject, action="admin.financial.view", resource=resource)
     if not decision.is_authorized:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Akses ditolak: {decision.reason}",
-        )
-
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Akses ditolak: {decision.reason}")
     try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            wallet_row = conn.execute(
-                sa.text("""
-                    SELECT
-                      COALESCE(SUM(balance), 0) AS total_balance,
-                      COALESCE(SUM(reserved_balance), 0) AS total_reserved
-                    FROM tenant_credit_wallet;
-                """)
-            ).mappings().first()
-
-            rev_row = conn.execute(
-                sa.text("""
-                    SELECT
-                      COUNT(*) AS total_invoices_paid,
-                      COALESCE(SUM(amount), 0) AS total_revenue
-                    FROM invoices
-                    WHERE LOWER(status) = 'paid';
-                """)
-            ).mappings().first()
-
-            wallet_balance = float(wallet_row["total_balance"]) if wallet_row else 0.0
-            reserved_balance = float(wallet_row["total_reserved"]) if wallet_row else 0.0
-            total_revenue = float(rev_row["total_revenue"]) if rev_row else 0.0
-            paid_count = int(rev_row["total_invoices_paid"]) if rev_row else 0
-
-            return FinancialCommandCenterResponse(
-                wallet_balance=wallet_balance,
-                currency="IDR",
-                total_revenue=total_revenue,
-                circulating_credits=wallet_balance,
-                reserved_credits=reserved_balance,
-                total_invoices_paid=paid_count,
-                status="operational",
-                ledger_active=True,
-            )
+        return FinancialCommandCenterResponse(**await __import__("asyncio").to_thread(get_financial_command_center_data))
     except Exception as exc:
-        logger.exception("Financial command center failed; returning explicit unavailable state.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "FINANCIAL_COMMAND_CENTER_UNAVAILABLE",
-                "state": "UNAVAILABLE",
-                "message": "Financial ledger data is temporarily unavailable.",
-            },
-        ) from exc
+        logger.exception("Financial command center failed.")
+        raise HTTPException(status_code=503, detail={"code":"FINANCIAL_COMMAND_CENTER_UNAVAILABLE","state":"UNAVAILABLE","message":"Financial ledger data is temporarily unavailable."}) from exc
 
 
-@router.get(
-    "/tenants",
-    summary="Daftar Organisasi Tenant untuk Super Admin",
-)
-@root_alias_router.get(
-    "/api/v1/admin/tenants",
-    include_in_schema=False,
-)
+@router.get("/tenants")
+@root_alias_router.get("/api/v1/admin/tenants", include_in_schema=False)
 async def list_admin_tenants(context: AuthenticatedTenantContext = Depends(require_platform_admin)):
-    """
-    Mengembalikan daftar seluruh organisasi tenant untuk Super Admin Hub (Wajib MFA).
-    """
-
-    roles = context.roles
-    capabilities = context.capabilities
-    is_mfa = context.is_mfa_verified
-
-    subject = SubjectContext(
-        roles=roles,
-        capabilities=capabilities,
-        tenant_id="global",
-        actor_type="user",
-        is_mfa_verified=is_mfa,
+    decision = authorize(
+        subject=SubjectContext(roles=context.roles, capabilities=context.capabilities, tenant_id="global",
+                              actor_type="user", is_mfa_verified=context.is_mfa_verified),
+        action="platform.admin.manage",
+        resource=ResourceContext(resource_type="tenants", resource_id="global", owner_tenant_id="global"),
     )
-    resource = ResourceContext(
-        resource_type="tenants",
-        resource_id="global",
-        owner_tenant_id="global",
-    )
-
-    decision = authorize(subject=subject, action="platform.admin.manage", resource=resource)
     if not decision.is_authorized:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Akses ditolak: {decision.reason}",
-        )
-
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Akses ditolak: {decision.reason}")
     try:
-        engine = get_database_engine()
-        with engine.connect() as conn:
-            rows = conn.execute(
-                sa.text("""
-                    SELECT t.id, t.legal_name, t.display_name, t.status, t.created_at,
-                           p.plan_code
-                    FROM tenants t
-                    LEFT JOIN subscription_plans p ON p.id = t.subscription_plan_id
-                    ORDER BY t.created_at DESC
-                    LIMIT 200;
-                """)
-            ).mappings().all()
-
-            results = []
-            for r in rows:
-                results.append({
-                    "id": str(r["id"]),
-                    "legal_name": r["legal_name"],
-                    "display_name": r["display_name"],
-                    "status": str(r["status"]).lower(),
-                    "plan_code": r["plan_code"],
-                    "created_at": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
-                })
-            return {"tenants": results, "total": len(results)}
+        return await __import__("asyncio").to_thread(list_platform_tenants)
     except Exception as exc:
-        logger.exception("Admin tenant listing failed; returning explicit unavailable state.")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "ADMIN_TENANTS_UNAVAILABLE",
-                "state": "UNAVAILABLE",
-                "message": "Tenant directory data is temporarily unavailable.",
-            },
-        ) from exc
+        logger.exception("Admin tenant listing failed.")
+        raise HTTPException(status_code=503, detail={"code":"ADMIN_TENANTS_UNAVAILABLE","state":"UNAVAILABLE","message":"Tenant directory data is temporarily unavailable."}) from exc
 
 
 @router.get(
