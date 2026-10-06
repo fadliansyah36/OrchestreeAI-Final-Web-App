@@ -410,7 +410,7 @@ class ModelRouter:
                 est = await estimate_credit_cost(
                     activity_code=act_code,
                     complexity_code=comp_code,
-                    llm_model_id=request.preferred_model or settings.OPENAI_MODEL or "unconfigured",
+                    llm_model_id=settings.OPENAI_MODEL or "unconfigured",
                     tool_risk_tier=None,
                     execution_mode="single_step",
                 )
