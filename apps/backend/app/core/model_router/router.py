@@ -362,7 +362,7 @@ class ModelRouter:
     Text/reasoning chain:
         OpenAI -> NVIDIA NIM
 
-    The browser cannot select a provider. OpenRouter and Gemini are not
+    The browser cannot select a provider. Retired external providers are not
     registered in this router.
     """
 
