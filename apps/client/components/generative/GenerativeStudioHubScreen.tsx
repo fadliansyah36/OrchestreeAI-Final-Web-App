@@ -619,16 +619,14 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Mesin Model Router</label>
-                  <select
-                    value={modelUsed}
-                    onChange={(e) => setModelUsed(e.target.value)}
-                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="gpt-image-2">GPT-Image-2 (Prioritas 1 - Standard)</option>
-                    <option value="nvidia-sd-3.5">NVIDIA NIM: SD 3.5 Large (Fallback)</option>
-                    <option value="openrouter-flux">OpenRouter: Flux 1 Schnell (Fallback)</option>
-                  </select>
+                  <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">LLM Generation Gateway</label>
+                  <div className="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300">
+                    OpenAI (Primary) → NVIDIA NIM (Fallback)
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Provider dipilih oleh backend canonical Model Router. Browser tidak memilih atau menerima API key provider.
+                  </p>
                 </div>
               </div>
 
