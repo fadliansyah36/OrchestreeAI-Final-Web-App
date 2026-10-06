@@ -162,8 +162,10 @@ async def stream_chat_message(
                         reservation = None
                     return
 
-            # Konsumsi kredit aktual
-            actual_cost = max(Decimal("1.0000"), Decimal(str(total_tokens)) * Decimal("0.0050"))
+            # Streaming adapters currently expose token deltas but not a provider-billed
+            # usage payload. Until real usage is returned, consume the already reserved
+            # estimate rather than inventing a token price in the API layer.
+            actual_cost = estimated_cost
             if reservation:
                 await consume_credit(
                     reservation_id=reservation.id,
