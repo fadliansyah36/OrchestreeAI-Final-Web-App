@@ -7,10 +7,9 @@ Endpoints:
 import uuid
 import json
 import logging
-import asyncio
 from decimal import Decimal
 from typing import Optional, Dict, Any, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -118,7 +117,7 @@ async def stream_chat_message(
         actor_id=user_id,
         actor_type=context.actor_type,
         roles=context.roles,
-        capabilities=list(set(context.capabilities + ["workflow.node.llm_generate"])),
+        capabilities=context.capabilities,
         is_mfa_verified=context.is_mfa_verified,
         execution_context="internal_dashboard",
         context_data={"session_id": session_id, "chat": True},
@@ -129,9 +128,6 @@ async def stream_chat_message(
         collected_text = []
         last_provider = "unknown"
         last_model = "unknown"
-
-        # Emit event start
-        yield f"data: {json.dumps({'event': 'start', 'session_id': session_id, 'reservation_id': reservation.id})}\n\n"
 
         try:
             async for chunk in orchestration.stream_llm_workflow(
