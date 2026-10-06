@@ -1,8 +1,8 @@
 """Canonical runtime database boundary for OrchestreeAI.
 
 All tenant data access MUST use the tenant transaction helpers in this module.
-Runtime connections are fail-closed: they must execute as the deployment-configured non-bypass role and
-must not be a service_role/superuser/bypass-RLS connection.
+Runtime connections are fail-closed: they must execute as the non-superuser, NOBYPASSRLS login identity supplied by DATABASE_URL
+and must not be a service_role/superuser/bypass-RLS connection.
 """
 
 import os
@@ -129,8 +129,8 @@ async def _assert_async_runtime_role(conn: AsyncConnection) -> None:
     """))).mappings().first()
     if not row or row["user_name"] != get_runtime_database_role() or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
         raise RuntimeDatabaseRoleError(
-            "Runtime DB connection wajib menggunakan DATABASE_RUNTIME_ROLE "
-            "dengan rolbypassrls=false dan rolsuper=false."
+            "Runtime DB connection wajib menggunakan identity DATABASE_URL dengan "
+            "rolbypassrls=false dan rolsuper=false."
         )
 
 
