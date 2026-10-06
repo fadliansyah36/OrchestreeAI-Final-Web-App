@@ -23,7 +23,7 @@ from app.domains.billing.credits import (
     refund_credit,
     InsufficientCreditError,
 )
-from apps.backend.orchestree.skills.f01_img.skill import (
+from orchestree.skills.f01_img.skill import (
     UniversalPromptComposer,
     ImageValidationGate,
     MetadataStripper,
