@@ -29,10 +29,8 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Header, Query, Request, status
 from pydantic import BaseModel, Field, ConfigDict
 import httpx
-import sqlalchemy as sa
 
 from app.core.config import settings
-from app.core.database import get_engine
 from app.authz.pdp import (
     authorize,
     SubjectContext,
@@ -58,6 +56,7 @@ from app.domains.billing.credit_engine import (
     InsufficientCreditException,
 )
 from app.domains.billing.lifecycle import process_invoice_settlement
+from app.domains.billing.persistence import billing_db, billing_sql
 
 logger = logging.getLogger("orchestree.api.billing")
 
@@ -213,33 +212,12 @@ async def list_subscription_plans():
     TRIAL, STARTER, PROFESSIONAL, ENTERPRISE, CUSTOM.
     Termasuk matriks hak akses 21 fasilitas platform (plan_facility_matrix).
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT
-                p.id,
-                p.plan_code,
-                p.tier_level,
-                p.display_name,
-                p.monthly_price_idr,
-                p.ai_credit_allowance,
-                p.human_staff_limit,
-                p.ai_agent_limit,
-                p.is_trial,
-                p.trial_duration_days,
-                p.is_custom_quote,
-                p.display_order,
-                p.currency
-            FROM subscription_plans p
-            ORDER BY p.display_order ASC, p.tier_level ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q001"))
         plan_rows = res.fetchall()
 
         # Ambil matriks fasilitas
-        matrix_res = await conn.execute(sa.text("""
-            SELECT plan_id, facility_key, level
-            FROM plan_facility_matrix;
-        """))
+        matrix_res = await conn.execute(billing_sql("Q002"))
         matrix_rows = matrix_res.fetchall()
         matrix_map: Dict[str, Dict[str, str]] = {}
         for r in matrix_rows:
@@ -274,13 +252,8 @@ async def list_subscription_plans():
 @router.get("/facilities", dependencies=[Depends(public_endpoint("billing.catalog.view"))])
 async def list_facility_catalog():
     """Katalog 21 Fasilitas Platform OrchestreeAI."""
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT id, facility_key, display_name, display_order
-            FROM plan_facility_catalog
-            ORDER BY display_order ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q003"))
         rows = res.fetchall()
 
     return [
@@ -297,14 +270,8 @@ async def list_facility_catalog():
 @router.get("/topup-packages", dependencies=[Depends(public_endpoint("billing.catalog.view"))])
 async def list_topup_packages():
     """Daftar Paket Top-Up Kredit AI Resmi (Micro, Standar, Pro, Enterprise)."""
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT id, name, credit_amount, price_idr, validity_days, is_active
-            FROM credit_topup_packages
-            WHERE is_active = true
-            ORDER BY price_idr ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q004"))
         rows = res.fetchall()
 
     return [
@@ -323,13 +290,8 @@ async def list_topup_packages():
 @router.get("/activity-types", dependencies=[Depends(public_endpoint("billing.catalog.view"))])
 async def list_activity_types():
     """18 Baseline Metering Jenis Aktivitas AI OrchestreeAI."""
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT id, activity_code, display_name, base_work_unit_min, base_work_unit_max
-            FROM ai_activity_types
-            ORDER BY base_work_unit_min ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q005"))
         rows = res.fetchall()
 
     return [
@@ -347,12 +309,11 @@ async def list_activity_types():
 @router.get("/factors", dependencies=[Depends(public_endpoint("billing.catalog.view"))])
 async def list_credit_factors():
     """Faktor Pengali Formula Biaya Kredit AI (Kompleksitas, Model LLM, Tool Risk Tier, Mode Eksekusi)."""
-    engine = get_engine()
-    async with engine.begin() as conn:
-        comp_res = await conn.execute(sa.text("SELECT complexity_code, multiplier FROM credit_complexity_factors;"))
-        model_res = await conn.execute(sa.text("SELECT model_code, multiplier FROM credit_model_cost_factors;"))
-        tool_res = await conn.execute(sa.text("SELECT risk_tier, multiplier FROM credit_tool_factors;"))
-        exec_res = await conn.execute(sa.text("SELECT execution_mode, multiplier FROM credit_execution_factors;"))
+    async with billing_db.transaction() as conn:
+        comp_res = await conn.execute(billing_sql("Q006"))
+        model_res = await conn.execute(billing_sql("Q007"))
+        tool_res = await conn.execute(billing_sql("Q008"))
+        exec_res = await conn.execute(billing_sql("Q009"))
 
         return {
             "complexity_factors": {r[0]: float(r[1]) for r in comp_res.fetchall()},
@@ -484,12 +445,7 @@ async def get_tenant_subscription_tier(tenant_id: str):
     engine = get_database_engine()
     with engine.connect() as conn:
         row = conn.execute(
-            sa.text("""
-                SELECT t.id, t.name, t.subscription_plan_id, p.plan_code, p.name as plan_name, p.tier_level
-                FROM tenants t
-                LEFT JOIN subscription_plans p ON t.subscription_plan_id = p.id
-                WHERE t.id = :tid;
-            """),
+            billing_sql("Q010"),
             {"tid": tenant_id}
         ).fetchone()
         if not row:
@@ -513,14 +469,14 @@ async def change_tenant_subscription_tier(tenant_id: str, payload: ChangeSubscri
     with engine.connect() as conn:
         with conn.begin():
             p_row = conn.execute(
-                sa.text("SELECT id, plan_code, name, tier_level FROM subscription_plans WHERE plan_code = :pcode;"),
+                billing_sql("Q011"),
                 {"pcode": target_plan_code}
             ).fetchone()
             if not p_row:
                 raise HTTPException(status_code=404, detail=f"Paket langganan '{target_plan_code}' tidak ditemukan.")
 
             conn.execute(
-                sa.text("UPDATE tenants SET subscription_plan_id = :pid, updated_at = now() WHERE id = :tid;"),
+                billing_sql("Q012"),
                 {"pid": p_row.id, "tid": tenant_id}
             )
             return {
@@ -551,12 +507,7 @@ async def list_credit_reservations(
     engine = get_database_engine()
     with engine.connect() as conn:
         rows = conn.execute(
-            sa.text("""
-                SELECT id, tenant_id, estimated_cost, actual_cost, status, reference_type, reference_id, created_at
-                FROM credit_reservations
-                WHERE tenant_id = :tid
-                ORDER BY created_at DESC LIMIT 50;
-            """),
+            billing_sql("Q013"),
             {"tid": effective_tenant}
         ).fetchall()
         return [
@@ -634,12 +585,7 @@ async def download_invoice(
     engine = get_database_engine()
     with engine.connect() as conn:
         inv = conn.execute(
-            sa.text("""
-                SELECT id, invoice_number, amount, currency, status, payment_gateway,
-                       payment_reference, items, created_at, paid_at
-                FROM invoices
-                WHERE invoice_number = :inv AND tenant_id = :t
-            """),
+            billing_sql("Q014"),
             {"inv": invoice_number, "t": effective_tenant}
         ).mappings().first()
 
@@ -649,10 +595,7 @@ async def download_invoice(
         # Catat audit log unduhan
         try:
             conn.execute(
-                sa.text("""
-                    INSERT INTO audit_logs (tenant_id, actor_type, action, resource_type, resource_id, payload_after)
-                    VALUES (:t, 'system', 'invoice.downloaded', 'invoices', :id, :payload)
-                """),
+                billing_sql("Q015"),
                 {
                     "t": effective_tenant,
                     "id": str(inv["id"]),
@@ -808,22 +751,12 @@ async def create_topup_invoice(
                     payment_url = snap_data.get("redirect_url", payment_url)
         except Exception as e:
             logger.warning(f"Gagal memanggil Midtrans Snap API, menggunakan fallback URL: {e}")
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         await conn.execute(
-            sa.text("SELECT set_config('app.tenant_id', :val, true);"),
+            billing_sql("Q016"),
             {"val": effective_tenant},
         )
-        await conn.execute(sa.text("""
-            INSERT INTO invoices (
-                id, tenant_id, invoice_number, amount, currency, status,
-                payment_gateway, payment_reference, payment_url, items
-            ) VALUES (
-                :id, :tenant_id, :invoice_number, :amount, 'IDR', 'pending',
-                :gateway, :order_id, :payment_url, :items
-            );
-        """), {
+        await conn.execute(billing_sql("Q017"), {
             "id": invoice_id,
             "tenant_id": effective_tenant,
             "invoice_number": order_id,
@@ -911,17 +844,7 @@ async def log_billing_audit(
             act_uuid = None
 
     await conn.execute(
-        sa.text("""
-            INSERT INTO audit_logs (
-                id, tenant_id, actor_type, actor_id, action,
-                resource_type, resource_id, payload_before, payload_after,
-                request_id, created_at
-            ) VALUES (
-                :id, :tid, 'human_user', :aid, :action,
-                :rtype, :rid, :p_before, :p_after,
-                :req_id, now()
-            );
-        """),
+        billing_sql("Q018"),
         {
             "id": str(uuid.uuid4()),
             "tid": t_uuid,
@@ -945,16 +868,8 @@ async def admin_list_subscription_plans():
     """
     CRUD Subscription Plans: Daftar 5 paket komersial resmi (Trial, Starter, Professional, Enterprise, Custom).
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT
-                id, plan_code, display_name, monthly_price_idr, price_monthly,
-                ai_credit_allowance, human_staff_limit, ai_agent_limit,
-                is_trial, trial_duration_days, is_custom_quote, display_order, currency
-            FROM subscription_plans
-            ORDER BY display_order ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q019"))
         rows = res.fetchall()
 
     plans = []
@@ -987,10 +902,9 @@ async def admin_update_subscription_plan(
     Perubahan harga TIDAK mengubah invoice/faktur tenant siklus berjalan karena invoice menyimpan snapshot harga riil.
     Tercatat di Audit Ledger.
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr_res = await conn.execute(
-            sa.text("SELECT id, plan_code, display_name, monthly_price_idr, ai_credit_allowance FROM subscription_plans WHERE id = :id;"),
+            billing_sql("Q020"),
             {"id": plan_id},
         )
         curr = curr_res.fetchone()
@@ -1038,7 +952,7 @@ async def admin_update_subscription_plan(
 
         if updates:
             sql = f"UPDATE subscription_plans SET {', '.join(updates)} WHERE id = :id;"
-            await conn.execute(sa.text(sql), params)
+            await billing_db.execute_dynamic(conn, sql, params)
 
         # Log audit
         await log_billing_audit(
@@ -1062,26 +976,14 @@ async def admin_get_facility_matrix():
     """
     Mengambil katalog fasilitas, daftar paket, dan seluruh matriks hak akses paket komersial.
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
-        cat_res = await conn.execute(sa.text("""
-            SELECT id, facility_key, display_name, display_order
-            FROM plan_facility_catalog
-            ORDER BY display_order ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        cat_res = await conn.execute(billing_sql("Q003"))
         catalog_rows = cat_res.fetchall()
 
-        plan_res = await conn.execute(sa.text("""
-            SELECT id, plan_code, display_name, display_order
-            FROM subscription_plans
-            ORDER BY display_order ASC;
-        """))
+        plan_res = await conn.execute(billing_sql("Q021"))
         plan_rows = plan_res.fetchall()
 
-        mat_res = await conn.execute(sa.text("""
-            SELECT plan_id, facility_key, level
-            FROM plan_facility_matrix;
-        """))
+        mat_res = await conn.execute(billing_sql("Q002"))
         matrix_rows = mat_res.fetchall()
 
     catalog = [{"id": str(r[0]), "facility_key": r[1], "display_name": r[2], "display_order": r[3]} for r in catalog_rows]
@@ -1113,17 +1015,10 @@ async def admin_update_facility_matrix(payload: FacilityMatrixBatchUpdatePayload
     for cell in payload.updates:
         if cell.level not in valid_levels:
             raise HTTPException(status_code=400, detail=f"Tingkat akses '{cell.level}' tidak valid.")
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         for cell in payload.updates:
             await conn.execute(
-                sa.text("""
-                    INSERT INTO plan_facility_matrix (plan_id, facility_key, level)
-                    VALUES (:pid, :fkey, :lvl)
-                    ON CONFLICT (plan_id, facility_key)
-                    DO UPDATE SET level = EXCLUDED.level;
-                """),
+                billing_sql("Q022"),
                 {"pid": cell.plan_id, "fkey": cell.facility_key, "lvl": cell.level},
             )
 
@@ -1156,13 +1051,8 @@ async def admin_get_formula_factors():
     - Faktor MCP tool risk tier (credit_tool_factors)
     - Faktor mode eksekusi (credit_execution_factors)
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
-        act_res = await conn.execute(sa.text("""
-            SELECT id, activity_code, display_name, base_work_unit_min, base_work_unit_max
-            FROM ai_activity_types
-            ORDER BY activity_code ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        act_res = await conn.execute(billing_sql("Q023"))
         activities = [
             {
                 "id": str(r[0]),
@@ -1174,21 +1064,13 @@ async def admin_get_formula_factors():
             for r in act_res.fetchall()
         ]
 
-        comp_res = await conn.execute(sa.text("""
-            SELECT id, complexity_code, multiplier
-            FROM credit_complexity_factors
-            ORDER BY multiplier ASC;
-        """))
+        comp_res = await conn.execute(billing_sql("Q024"))
         complexities = [
             {"id": str(r[0]), "complexity_code": r[1], "multiplier": float(r[2])}
             for r in comp_res.fetchall()
         ]
 
-        mod_res = await conn.execute(sa.text("""
-            SELECT id, model_code, llm_model_id, multiplier
-            FROM credit_model_cost_factors
-            ORDER BY multiplier ASC;
-        """))
+        mod_res = await conn.execute(billing_sql("Q025"))
         models = [
             {
                 "id": str(r[0]),
@@ -1199,21 +1081,13 @@ async def admin_get_formula_factors():
             for r in mod_res.fetchall()
         ]
 
-        tool_res = await conn.execute(sa.text("""
-            SELECT id, risk_tier, multiplier
-            FROM credit_tool_factors
-            ORDER BY multiplier ASC;
-        """))
+        tool_res = await conn.execute(billing_sql("Q026"))
         tools = [
             {"id": str(r[0]), "risk_tier": r[1], "multiplier": float(r[2])}
             for r in tool_res.fetchall()
         ]
 
-        exec_res = await conn.execute(sa.text("""
-            SELECT id, execution_mode, multiplier
-            FROM credit_execution_factors
-            ORDER BY multiplier ASC;
-        """))
+        exec_res = await conn.execute(billing_sql("Q027"))
         executions = [
             {"id": str(r[0]), "execution_mode": r[1], "multiplier": float(r[2])}
             for r in exec_res.fetchall()
@@ -1233,11 +1107,9 @@ async def admin_update_activity_type(item_id: str, payload: ActivityTypeUpdatePa
     """Update baseline metering aktivitas AI. Wajib tercatat di Audit Ledger."""
     if payload.base_work_unit_min > payload.base_work_unit_max:
         raise HTTPException(status_code=400, detail="base_work_unit_min tidak boleh lebih besar dari base_work_unit_max.")
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr_res = await conn.execute(
-            sa.text("SELECT id, activity_code, display_name, base_work_unit_min, base_work_unit_max FROM ai_activity_types WHERE id = :id;"),
+            billing_sql("Q028"),
             {"id": item_id},
         )
         curr = curr_res.fetchone()
@@ -1253,13 +1125,7 @@ async def admin_update_activity_type(item_id: str, payload: ActivityTypeUpdatePa
         }
 
         await conn.execute(
-            sa.text("""
-                UPDATE ai_activity_types
-                SET display_name = coalesce(:dname, display_name),
-                    base_work_unit_min = :bmin,
-                    base_work_unit_max = :bmax
-                WHERE id = :id;
-            """),
+            billing_sql("Q029"),
             {
                 "id": item_id,
                 "dname": payload.display_name,
@@ -1283,10 +1149,9 @@ async def admin_update_activity_type(item_id: str, payload: ActivityTypeUpdatePa
 @router.put("/admin/formula-factors/complexity/{item_id}", dependencies=[Depends(require_capability("billing.formula.manage"))])
 async def admin_update_complexity_factor(item_id: str, payload: FactorMultiplierUpdatePayload):
     """Update multiplier kompleksitas. Wajib tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, complexity_code, multiplier FROM credit_complexity_factors WHERE id = :id;"),
+            billing_sql("Q030"),
             {"id": item_id},
         )).fetchone()
         if not curr:
@@ -1294,7 +1159,7 @@ async def admin_update_complexity_factor(item_id: str, payload: FactorMultiplier
 
         before_data = {"id": str(curr[0]), "complexity_code": curr[1], "multiplier": float(curr[2])}
         await conn.execute(
-            sa.text("UPDATE credit_complexity_factors SET multiplier = :mult WHERE id = :id;"),
+            billing_sql("Q031"),
             {"id": item_id, "mult": payload.multiplier},
         )
         await log_billing_audit(
@@ -1311,10 +1176,9 @@ async def admin_update_complexity_factor(item_id: str, payload: FactorMultiplier
 @router.put("/admin/formula-factors/model/{item_id}", dependencies=[Depends(require_capability("billing.formula.manage"))])
 async def admin_update_model_cost_factor(item_id: str, payload: FactorMultiplierUpdatePayload):
     """Update multiplier model AI. Wajib tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, model_code, multiplier FROM credit_model_cost_factors WHERE id = :id;"),
+            billing_sql("Q032"),
             {"id": item_id},
         )).fetchone()
         if not curr:
@@ -1322,7 +1186,7 @@ async def admin_update_model_cost_factor(item_id: str, payload: FactorMultiplier
 
         before_data = {"id": str(curr[0]), "model_code": curr[1], "multiplier": float(curr[2])}
         await conn.execute(
-            sa.text("UPDATE credit_model_cost_factors SET multiplier = :mult WHERE id = :id;"),
+            billing_sql("Q033"),
             {"id": item_id, "mult": payload.multiplier},
         )
         await log_billing_audit(
@@ -1339,10 +1203,9 @@ async def admin_update_model_cost_factor(item_id: str, payload: FactorMultiplier
 @router.put("/admin/formula-factors/tool/{item_id}", dependencies=[Depends(require_capability("billing.formula.manage"))])
 async def admin_update_tool_factor(item_id: str, payload: FactorMultiplierUpdatePayload):
     """Update multiplier alat MCP. Wajib tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, risk_tier, multiplier FROM credit_tool_factors WHERE id = :id;"),
+            billing_sql("Q034"),
             {"id": item_id},
         )).fetchone()
         if not curr:
@@ -1350,7 +1213,7 @@ async def admin_update_tool_factor(item_id: str, payload: FactorMultiplierUpdate
 
         before_data = {"id": str(curr[0]), "risk_tier": curr[1], "multiplier": float(curr[2])}
         await conn.execute(
-            sa.text("UPDATE credit_tool_factors SET multiplier = :mult WHERE id = :id;"),
+            billing_sql("Q035"),
             {"id": item_id, "mult": payload.multiplier},
         )
         await log_billing_audit(
@@ -1367,10 +1230,9 @@ async def admin_update_tool_factor(item_id: str, payload: FactorMultiplierUpdate
 @router.put("/admin/formula-factors/execution/{item_id}", dependencies=[Depends(require_capability("billing.formula.manage"))])
 async def admin_update_execution_factor(item_id: str, payload: FactorMultiplierUpdatePayload):
     """Update multiplier mode eksekusi. Wajib tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, execution_mode, multiplier FROM credit_execution_factors WHERE id = :id;"),
+            billing_sql("Q036"),
             {"id": item_id},
         )).fetchone()
         if not curr:
@@ -1378,7 +1240,7 @@ async def admin_update_execution_factor(item_id: str, payload: FactorMultiplierU
 
         before_data = {"id": str(curr[0]), "execution_mode": curr[1], "multiplier": float(curr[2])}
         await conn.execute(
-            sa.text("UPDATE credit_execution_factors SET multiplier = :mult WHERE id = :id;"),
+            billing_sql("Q037"),
             {"id": item_id, "mult": payload.multiplier},
         )
         await log_billing_audit(
@@ -1415,13 +1277,8 @@ async def admin_test_estimate_formula(payload: TestCreditEstimatePayload):
 @router.get("/admin/topup-packages", dependencies=[Depends(require_capability("billing.plans.manage"))])
 async def admin_list_topup_packages():
     """CRUD Paket Top-Up Kredit: Menampilkan seluruh paket dari credit_topup_packages."""
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT id, name, credit_amount, price_idr, validity_days, is_active
-            FROM credit_topup_packages
-            ORDER BY price_idr ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q038"))
         rows = res.fetchall()
 
     packages = [
@@ -1441,14 +1298,10 @@ async def admin_list_topup_packages():
 @router.post("/admin/topup-packages", dependencies=[Depends(require_capability("billing.plans.manage"))])
 async def admin_create_topup_package(payload: CreditTopupPackagePayload):
     """Menambahkan paket top-up baru ke katalog resmi. Tercatat di Audit Ledger."""
-    engine = get_engine()
     pkg_id = str(uuid.uuid4())
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         await conn.execute(
-            sa.text("""
-                INSERT INTO credit_topup_packages (id, name, credit_amount, price_idr, validity_days, is_active)
-                VALUES (:id, :name, :credits, :price, :vdays, :active);
-            """),
+            billing_sql("Q039"),
             {
                 "id": pkg_id,
                 "name": payload.name,
@@ -1471,25 +1324,16 @@ async def admin_create_topup_package(payload: CreditTopupPackagePayload):
 @router.put("/admin/topup-packages/{package_id}", dependencies=[Depends(require_capability("billing.plans.manage"))])
 async def admin_update_topup_package(package_id: str, payload: CreditTopupPackagePayload):
     """Memperbarui paket top-up yang ada. Tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, name FROM credit_topup_packages WHERE id = :id;"),
+            billing_sql("Q040"),
             {"id": package_id},
         )).fetchone()
         if not curr:
             raise HTTPException(status_code=404, detail="Paket top-up tidak ditemukan.")
 
         await conn.execute(
-            sa.text("""
-                UPDATE credit_topup_packages
-                SET name = :name,
-                    credit_amount = :credits,
-                    price_idr = :price,
-                    validity_days = :vdays,
-                    is_active = :active
-                WHERE id = :id;
-            """),
+            billing_sql("Q041"),
             {
                 "id": package_id,
                 "name": payload.name,
@@ -1512,17 +1356,16 @@ async def admin_update_topup_package(package_id: str, payload: CreditTopupPackag
 @router.delete("/admin/topup-packages/{package_id}", dependencies=[Depends(require_capability("billing.plans.manage"))])
 async def admin_delete_topup_package(package_id: str):
     """Menonaktifkan paket top-up. Tercatat di Audit Ledger."""
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         curr = (await conn.execute(
-            sa.text("SELECT id, name FROM credit_topup_packages WHERE id = :id;"),
+            billing_sql("Q040"),
             {"id": package_id},
         )).fetchone()
         if not curr:
             raise HTTPException(status_code=404, detail="Paket top-up tidak ditemukan.")
 
         await conn.execute(
-            sa.text("UPDATE credit_topup_packages SET is_active = false WHERE id = :id;"),
+            billing_sql("Q042"),
             {"id": package_id},
         )
         await log_billing_audit(
@@ -1545,28 +1388,8 @@ async def admin_list_tenant_subscriptions():
     Menampilkan daftar tenant beserta detail langganan aktif, status unlimited override,
     dan saldo kredit (balance, reserved, available).
     """
-    engine = get_engine()
-    async with engine.begin() as conn:
-        res = await conn.execute(sa.text("""
-            SELECT
-                t.id as tenant_id,
-                coalesce(t.display_name, t.legal_name) as tenant_name,
-                coalesce(p.plan_code, 'NONE') as plan_code,
-                coalesce(p.display_name, 'Belum Berlangganan') as plan_name,
-                coalesce(s.status, 'inactive') as subscription_status,
-                coalesce(s.is_unlimited_override, false) as is_unlimited_override,
-                s.unlimited_reason,
-                coalesce(w.balance, 0) as balance,
-                coalesce(w.reserved_balance, 0) as reserved_balance,
-                coalesce(w.balance - w.reserved_balance, 0) as available_balance,
-                w.updated_at,
-                coalesce(t.is_founder_account, false) as is_founder_account
-            FROM tenants t
-            LEFT JOIN tenant_subscriptions s ON s.tenant_id = t.id AND s.status IN ('active', 'trialing')
-            LEFT JOIN subscription_plans p ON s.plan_id = p.id
-            LEFT JOIN tenant_credit_wallet w ON w.tenant_id = t.id
-            ORDER BY w.balance DESC, t.display_name ASC;
-        """))
+    async with billing_db.transaction() as conn:
+        res = await conn.execute(billing_sql("Q043"))
         rows = res.fetchall()
 
     tenants = [
@@ -1617,15 +1440,9 @@ async def set_tenant_unlimited_override(
             status_code=400,
             detail="Alasan (unlimited_reason) wajib diisi bila is_unlimited_override diaktifkan.",
         )
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         res = await conn.execute(
-            sa.text("""
-                SELECT id FROM tenant_subscriptions
-                WHERE tenant_id = :tid AND status IN ('active', 'trialing')
-                ORDER BY created_at DESC LIMIT 1;
-            """),
+            billing_sql("Q044"),
             {"tid": payload.tenant_id},
         )
         row = res.fetchone()
@@ -1633,12 +1450,7 @@ async def set_tenant_unlimited_override(
         if row:
             sub_id = str(row[0])
             await conn.execute(
-                sa.text("""
-                    UPDATE tenant_subscriptions
-                    SET is_unlimited_override = :unlim,
-                        unlimited_reason = :reason
-                    WHERE id = :id;
-                """),
+                billing_sql("Q045"),
                 {
                     "unlim": payload.is_unlimited_override,
                     "reason": payload.unlimited_reason if payload.is_unlimited_override else None,
@@ -1646,20 +1458,12 @@ async def set_tenant_unlimited_override(
                 },
             )
         else:
-            p_res = await conn.execute(sa.text("SELECT id FROM subscription_plans WHERE plan_code = 'ENTERPRISE' LIMIT 1;"))
+            p_res = await conn.execute(billing_sql("Q046"))
             p_row = p_res.fetchone()
             plan_id = str(p_row[0]) if p_row else str(uuid.uuid4())
 
             await conn.execute(
-                sa.text("""
-                    INSERT INTO tenant_subscriptions (
-                        id, tenant_id, plan_id, billing_cycle_start, billing_cycle_end,
-                        status, is_unlimited_override, unlimited_reason
-                    ) VALUES (
-                        :id, :tid, :pid, now(), now() + interval '365 days',
-                        'active', :unlim, :reason
-                    );
-                """),
+                billing_sql("Q047"),
                 {
                     "id": str(uuid.uuid4()),
                     "tid": payload.tenant_id,
@@ -1708,22 +1512,17 @@ async def admin_manual_credit_adjustment(payload: ManualCreditAdjustmentPayload)
     """
     if not payload.reason or not payload.reason.strip():
         raise HTTPException(status_code=400, detail="Alasan penyesuaian manual kredit wajib diisi.")
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         # Cek / inisialisasi wallet
         w_res = await conn.execute(
-            sa.text("SELECT id, balance FROM tenant_credit_wallet WHERE tenant_id = :tid FOR UPDATE;"),
+            billing_sql("Q048"),
             {"tid": payload.tenant_id},
         )
         w_row = w_res.fetchone()
         if not w_row:
             w_id = str(uuid.uuid4())
             await conn.execute(
-                sa.text("""
-                    INSERT INTO tenant_credit_wallet (id, tenant_id, balance, reserved_balance, currency)
-                    VALUES (:id, :tid, :bal, 0, 'IDR');
-                """),
+                billing_sql("Q049"),
                 {"id": w_id, "tid": payload.tenant_id, "bal": payload.amount},
             )
             old_bal = 0.0
@@ -1732,39 +1531,21 @@ async def admin_manual_credit_adjustment(payload: ManualCreditAdjustmentPayload)
             old_bal = float(w_row[1])
             new_bal = old_bal + float(payload.amount)
             await conn.execute(
-                sa.text("""
-                    UPDATE tenant_credit_wallet
-                    SET balance = balance + :amt, updated_at = now()
-                    WHERE tenant_id = :tid;
-                """),
+                billing_sql("Q050"),
                 {"amt": payload.amount, "tid": payload.tenant_id},
             )
 
         # Catat ke credit_allocations
         alloc_id = str(uuid.uuid4())
         await conn.execute(
-            sa.text("""
-                INSERT INTO credit_allocations (
-                    id, tenant_id, source_type, source_reference_id,
-                    credit_amount, created_at
-                ) VALUES (
-                    :id, :tid, 'manual_adjustment', :ref,
-                    :amt, now()
-                );
-            """),
+            billing_sql("Q051"),
             {"id": alloc_id, "tid": payload.tenant_id, "ref": None, "amt": payload.amount},
         )
 
         # Catat mutasi transaksi kredit
         tx_id = str(uuid.uuid4())
         await conn.execute(
-            sa.text("""
-                INSERT INTO tenant_credit_transactions (
-                    id, tenant_id, transaction_type, amount, balance_after, description, reference_id, created_at
-                ) VALUES (
-                    :id, :tid, 'adjustment', :amt, :after, :desc, :ref, now()
-                );
-            """),
+            billing_sql("Q052"),
             {
                 "id": tx_id,
                 "tid": payload.tenant_id,
@@ -1840,50 +1621,21 @@ async def get_financial_command_center(
     decision = authorize(subject=subject, action="admin.financial.view", resource=resource)
     if not decision.is_authorized:
         raise HTTPException(status_code=403, detail=f"Akses ditolak: {decision.reason}")
-
-    engine = get_engine()
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         # 1. Agregat Wallet
-        wallet_agg = await conn.execute(sa.text("""
-            SELECT
-                count(*) as total_tenants,
-                coalesce(sum(balance), 0) as total_circulating_balance,
-                coalesce(sum(reserved_balance), 0) as total_reserved_balance
-            FROM tenant_credit_wallet;
-        """))
+        wallet_agg = await conn.execute(billing_sql("Q053"))
         w_row = wallet_agg.fetchone()
 
         # 2. Agregat Invoices Lunas
-        rev_agg = await conn.execute(sa.text("""
-            SELECT
-                count(*) as total_invoices,
-                coalesce(sum(amount), 0) as total_revenue
-            FROM invoices
-            WHERE status = 'paid';
-        """))
+        rev_agg = await conn.execute(billing_sql("Q054"))
         r_row = rev_agg.fetchone()
 
         # 3. MRR (Monthly Recurring Revenue) dari tenant aktif
-        mrr_res = await conn.execute(sa.text("""
-            SELECT coalesce(sum(p.monthly_price_idr), 0)
-            FROM tenant_subscriptions s
-            JOIN subscription_plans p ON s.plan_id = p.id
-            WHERE s.status IN ('active', 'trialing');
-        """))
+        mrr_res = await conn.execute(billing_sql("Q055"))
         mrr_val = float(mrr_res.fetchone()[0])
 
         # 4. Distribusi Tenant per Paket
-        dist_res = await conn.execute(sa.text("""
-            SELECT
-                p.plan_code,
-                p.display_name,
-                p.display_order,
-                coalesce(count(s.id), 0) as tenant_count
-            FROM subscription_plans p
-            LEFT JOIN tenant_subscriptions s ON s.plan_id = p.id AND s.status IN ('active', 'trialing')
-            GROUP BY p.id, p.plan_code, p.display_name, p.display_order
-            ORDER BY p.display_order ASC;
-        """))
+        dist_res = await conn.execute(billing_sql("Q056"))
         plan_distribution = [
             {
                 "plan_code": r[0],
@@ -1895,19 +1647,7 @@ async def get_financial_command_center(
         ]
 
         # 5. Top Consumer Kredit (10 organisasi terbesar)
-        consumers_res = await conn.execute(sa.text("""
-            SELECT
-                t.id as tenant_id,
-                t.name as tenant_name,
-                coalesce(sum(tx.amount), 0) as total_consumed,
-                coalesce(w.balance, 0) as current_balance
-            FROM tenants t
-            LEFT JOIN tenant_credit_transactions tx ON tx.tenant_id = t.id AND tx.transaction_type = 'usage'
-            LEFT JOIN tenant_credit_wallet w ON w.tenant_id = t.id
-            GROUP BY t.id, t.name, w.balance
-            ORDER BY total_consumed DESC
-            LIMIT 10;
-        """))
+        consumers_res = await conn.execute(billing_sql("Q057"))
         top_consumers = [
             {
                 "tenant_id": str(r[0]),
@@ -1919,37 +1659,18 @@ async def get_financial_command_center(
         ]
 
         # 6. Proyeksi Revenue dari Allocations & Invoices
-        alloc_res = await conn.execute(sa.text("""
-            SELECT
-                source_type,
-                coalesce(sum(credit_amount), 0) as total_credits,
-                count(*) as count
-            FROM credit_allocations
-            GROUP BY source_type;
-        """))
+        alloc_res = await conn.execute(billing_sql("Q058"))
         allocations_summary = {
             r[0]: {"total_credits": float(r[1]), "count": int(r[2])}
             for r in alloc_res.fetchall()
         }
 
         # 7. Daftar Wallet Tenant
-        wallets_res = await conn.execute(sa.text("""
-            SELECT w.id, w.tenant_id, t.name as tenant_name, w.balance, w.reserved_balance,
-                   (w.balance - w.reserved_balance) as available_balance, w.currency, w.updated_at
-            FROM tenant_credit_wallet w
-            LEFT JOIN tenants t ON t.id = w.tenant_id
-            ORDER BY w.balance DESC
-            LIMIT 50;
-        """))
+        wallets_res = await conn.execute(billing_sql("Q059"))
         wallet_rows = wallets_res.fetchall()
 
         # 8. Log Rekonsiliasi Webhook
-        recon_res = await conn.execute(sa.text("""
-            SELECT id, tenant_id, invoice_id, payment_gateway, event_type, signature_verified, status, created_at
-            FROM payment_reconciliation_log
-            ORDER BY created_at DESC
-            LIMIT 30;
-        """))
+        recon_res = await conn.execute(billing_sql("Q060"))
         recon_rows = recon_res.fetchall()
 
     return {
@@ -2187,14 +1908,13 @@ async def tenant_report_payment(
     ref_id = payload.reference_id.strip()
 
     # Cari apakah ref_id merujuk ke invoice atau order
-    engine = get_engine()
     inv_id = None
     order_id = None
     internal_before = "pending"
 
-    async with engine.begin() as conn:
+    async with billing_db.transaction() as conn:
         r_inv = await conn.execute(
-            sa.text("SELECT id, status FROM invoices WHERE invoice_number = :ref AND tenant_id = :t LIMIT 1;"),
+            billing_sql("Q061"),
             {"ref": ref_id, "t": tenant_id},
         )
         row_inv = r_inv.mappings().first()
@@ -2204,7 +1924,7 @@ async def tenant_report_payment(
 
         if not inv_id:
             r_ord = await conn.execute(
-                sa.text("SELECT id, payment_status FROM orders WHERE order_number = :ref AND tenant_id = :t LIMIT 1;"),
+                billing_sql("Q062"),
                 {"ref": ref_id, "t": tenant_id},
             )
             row_ord = r_ord.mappings().first()
