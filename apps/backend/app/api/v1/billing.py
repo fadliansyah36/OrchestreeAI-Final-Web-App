@@ -197,7 +197,7 @@ class ManualCreditAdjustmentPayload(StrictBillingRequestModel):
 class TestCreditEstimatePayload(StrictBillingRequestModel):
     activity_code: str = Field(..., min_length=2, max_length=100)
     complexity_code: str = Field("medium", max_length=50)
-    model_identifier: str = Field("gemini-1.5-flash", max_length=100)
+    model_identifier: str = Field("default", max_length=100)
     tool_risk_tier: Optional[str] = Field(None, max_length=50)
     execution_mode: str = Field("single_step", max_length=50)
 
