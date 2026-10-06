@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Sparkles,
   Layers,
@@ -170,7 +171,9 @@ export function PromptTemplateCuratorScreen({ tenantId: propTenantId }: PromptTe
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [activeTenantId, setActiveTenantId] = useState<string>(propTenantId || '');
+  const searchParams = useSearchParams();
+  const queryTenantId = searchParams.get('tenant_id');
+  const [activeTenantId, setActiveTenantId] = useState<string>(propTenantId || queryTenantId || '');
 
   // Filters & Search
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -243,16 +246,10 @@ export function PromptTemplateCuratorScreen({ tenantId: propTenantId }: PromptTe
       setActiveTenantId(propTenantId);
       return;
     }
-    try {
-      const stored = localStorage.getItem('orchestree_active_tenant') || localStorage.getItem('orchestree_current_tenant');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.tenant_id || parsed?.id) {
-          setActiveTenantId(parsed.tenant_id || parsed.id);
-          return;
-        }
-      }
-    } catch {}
+    if (queryTenantId) {
+      setActiveTenantId(queryTenantId);
+      return;
+    }
 
     fetch('/api/v1/admin/tenants')
       .then((res) => (res.ok ? res.json() : null))
@@ -263,7 +260,7 @@ export function PromptTemplateCuratorScreen({ tenantId: propTenantId }: PromptTe
         }
       })
       .catch(() => {});
-  }, [propTenantId]);
+  }, [propTenantId, queryTenantId]);
 
   const fetchData = async () => {
     if (!activeTenantId) {
