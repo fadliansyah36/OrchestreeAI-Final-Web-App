@@ -71,6 +71,16 @@ Priority candidates identified by the current PR:
 - Run cross-tenant authorization tests.
 - Verify no privileged frontend path exists.
 
+### REPAIR/VERIFY-01 — Runtime Functional API Gate
+**Status: PARTIAL GREEN / live runtime boundary verified; authenticated E2E pending**
+
+- Railway deployment `596faef5-7cbd-4159-b2f4-b377b04f1021` starts successfully and `/health/live` returns HTTP 200.
+- Public HTTP routing and FastAPI validation boundaries were exercised against the live Railway service.
+- Protected orchestration dispatch rejects unauthenticated requests with HTTP 401.
+- Obsolete `DATABASE_RUNTIME_ROLE` test/documentation references were removed; runtime identity is derived from `DATABASE_URL`.
+- A reusable live API gate was added at `apps/backend/tests/test_runtime_functional_api_gate.py`.
+- Authenticated tenant/workflow E2E is not declared GREEN without a real Supabase Auth JWT; no fake credentials are permitted.
+
 ### 04R.7 — Phase 04 GREEN Gate
 **Status: PENDING**
 
