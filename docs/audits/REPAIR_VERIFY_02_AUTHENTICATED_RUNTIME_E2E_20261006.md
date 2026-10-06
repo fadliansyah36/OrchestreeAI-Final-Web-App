@@ -269,3 +269,32 @@ Next action:
 - Provision the dedicated E2E GitHub Actions secrets with a non-privileged Supabase Auth test account, run the manual workflow with `run_ai=false`, and only after Gates A-C pass run `run_ai=true` for the real AI/credit/model-router slice.
 
 Allpha Universe remains out of scope and was not touched.
+## REPAIR-02B Credentialed Runtime E2E Execution — 2026-10-06
+
+GitHub Actions run executed with repository Actions secrets present and `ORCHESTREE_E2E_RUN_AI=false`.
+
+Run: `37492899559`
+Job: `112369914108`
+Result: **FAILURE**
+
+Evidence:
+- Secret presence gate passed for `ORCHESTREE_E2E_EMAIL` and `ORCHESTREE_E2E_PASSWORD`.
+- The unauthenticated gate passed: `/api/v1/auth/session` returned the expected `401`.
+- The credentialed login reached the real Railway API but returned `401 Invalid login credentials`.
+- Result: `3 failed, 1 passed, 1 skipped`.
+- The AI/credit/model-router slice was correctly skipped because `ORCHESTREE_E2E_RUN_AI=false`.
+
+Root cause classification:
+- The application route is reachable and authentication boundary is active.
+- The supplied GitHub Actions credential pair does not authenticate against the canonical Supabase Auth runtime.
+- This is a credential/test-account issue, not evidence of a tenant-context bypass or database RLS failure.
+
+Corrective code changes included in this execution branch:
+- Canonical auth routes are `/api/v1/auth/login` and `/api/v1/auth/session`.
+- Workflow checks out the triggering commit for PR execution instead of forcing `main`.
+
+Acceptance status: **NOT GREEN — credential pair must be corrected/replaced with a valid non-privileged Supabase Auth test account.**
+
+Do not enable `ORCHESTREE_E2E_RUN_AI=true` until the non-AI authenticated gate passes.
+
+Allpha Universe remains out of scope and was not touched.
