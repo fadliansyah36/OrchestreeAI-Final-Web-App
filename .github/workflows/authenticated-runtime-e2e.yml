@@ -1,0 +1,54 @@
+name: Authenticated Runtime E2E Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_ai:
+        description: "Run the real AI/credit/Model Router vertical slice"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-runtime-e2e:
+    name: Supabase Auth → Tenant → PDP/RLS → Learning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ORCHESTREE_RUNTIME_API_BASE_URL: https://orchestreeapi-production.up.railway.app
+      ORCHESTREE_E2E_EMAIL: ${{ secrets.ORCHESTREE_E2E_EMAIL }}
+      ORCHESTREE_E2E_PASSWORD: ${{ secrets.ORCHESTREE_E2E_PASSWORD }}
+      ORCHESTREE_E2E_EXPECTED_TENANT_ID: ${{ secrets.ORCHESTREE_E2E_EXPECTED_TENANT_ID }}
+      ORCHESTREE_E2E_CROSS_TENANT_ID: ${{ secrets.ORCHESTREE_E2E_CROSS_TENANT_ID }}
+      ORCHESTREE_E2E_RUN_AI: ${{ inputs.run_ai }}
+    steps:
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend test dependencies
+        working-directory: apps/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pytest>=8.3.0"
+
+      - name: Verify E2E secrets are present
+        shell: bash
+        run: |
+          test -n "$ORCHESTREE_E2E_EMAIL" || { echo "Missing GitHub Actions secret ORCHESTREE_E2E_EMAIL"; exit 1; }
+          test -n "$ORCHESTREE_E2E_PASSWORD" || { echo "Missing GitHub Actions secret ORCHESTREE_E2E_PASSWORD"; exit 1; }
+
+      - name: Run authenticated runtime gate
+        working-directory: apps/backend
+        run: |
+          pytest -q tests/test_authenticated_runtime_e2e.py -rs

@@ -165,3 +165,73 @@ The code repair is deployed successfully.
 
 **REPAIR-02A is not yet declared GREEN**, because the real credentialed authenticated E2E suite has not yet been executed with a non-privileged Supabase Auth test account. That runtime gate remains the next required verification step.
 
+
+## REPAIR-02B — Authenticated Runtime E2E Gate implementation
+
+Date: 2026-10-06
+
+### Implementation completed
+
+The permanent authenticated runtime gate has been hardened and made runnable against the canonical Railway API:
+
+- `apps/backend/tests/test_authenticated_runtime_e2e.py`
+  - uses a real CookieJar + HTTPCookieProcessor so the test actually preserves the HttpOnly session cookie returned by `/auth/login`;
+  - verifies unauthenticated `/auth/session` returns `401`;
+  - verifies real login → `/auth/session` → server-resolved tenant → `/api/v1/tenant/context`;
+  - verifies the canonical `/api/v1/learning/*` paths;
+  - verifies a bogus `?tenant_id=` query cannot switch tenant context;
+  - verifies conflicting `X-Tenant-Id` plus forged role/capability/MFA headers are rejected with `403`;
+  - verifies the authenticated session tenant remains unchanged after the spoof attempt;
+  - optionally verifies access to a supplied different tenant is denied via `ORCHESTREE_E2E_CROSS_TENANT_ID`;
+  - keeps the real AI/credit/model-router slice opt-in via `ORCHESTREE_E2E_RUN_AI=true`.
+- `.github/workflows/authenticated-runtime-e2e.yml`
+  - manual `workflow_dispatch` only;
+  - canonical Railway API base URL;
+  - credentials are GitHub Actions secrets only;
+  - fails closed when E2E credentials are missing;
+  - optional real AI slice is explicit and opt-in.
+
+### Important correction discovered during REPAIR-02B
+
+The previous test file had two false-positive risks:
+
+1. it called `/learning/*` even though the canonical router is `/api/v1/learning/*`;
+2. it constructed a CookieJar but did not install an HTTPCookieProcessor, so the login session cookie was not actually carried into subsequent requests.
+
+Both are corrected in this repair.
+
+### Supabase / migration
+
+No schema change is required for REPAIR-02B.
+
+The gate exercises the existing Supabase Auth + tenant membership + RLS boundary. No privileged test identity, fake JWT, service-role token, or database fixture is introduced.
+
+### Credential gate
+
+The production application must not receive or store a human test-user password.
+
+The real credentialed run remains blocked until the dedicated GitHub Actions secrets are provisioned with a non-privileged Supabase Auth test account:
+
+- `ORCHESTREE_E2E_EMAIL`
+- `ORCHESTREE_E2E_PASSWORD`
+
+Optional:
+
+- `ORCHESTREE_E2E_EXPECTED_TENANT_ID`
+- `ORCHESTREE_E2E_CROSS_TENANT_ID`
+
+Therefore this implementation is **READY FOR CREDENTIALED EXECUTION but NOT GREEN yet**.
+
+### AI slice
+
+The workflow defaults to `run_ai=false`. The AI slice must only be executed after the non-AI authenticated gate passes because it may reserve/consume real AI credits and invoke the real Model Router.
+
+### Canonical binding
+
+GitHub: `urbanrealty36-ops/OrchestreeAI-Final-Web-App-1`, branch `repair/02b-authenticated-runtime-e2e-gate`
+
+Supabase: `OrchestreeDB-Web-PWA`, ref `szvbcvmvrucqxfikgjlx`
+
+Railway: `creative-sparkle` / production / `@orchestree/api`
+
+Allpha Universe is explicitly out of scope and was not touched.
