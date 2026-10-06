@@ -35,13 +35,33 @@ _async_engine: Optional[AsyncEngine] = None
 
 
 def format_postgres_url(raw_url: Optional[str]) -> Optional[str]:
+    """Normalize a Postgres URL for SQLAlchemy's synchronous psycopg2 engine.
+
+    DATABASE_URL may be supplied with an explicit SQLAlchemy driver scheme.
+    The canonical sync engine must never accidentally load asyncpg, because
+    its connection arguments and execution model differ from psycopg2.
+    """
     if not raw_url:
         return None
+
     if raw_url.startswith("postgres://"):
         return raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
-    if raw_url.startswith("postgresql://") and not raw_url.startswith("postgresql+"):
+
+    if raw_url.startswith("postgresql://"):
         return raw_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+    if raw_url.startswith("postgresql+"):
+        return "postgresql+psycopg2://" + raw_url.split("://", 1)[1]
+
     return raw_url
+
+
+def format_async_postgres_url(raw_url: Optional[str]) -> Optional[str]:
+    """Normalize a Postgres URL for SQLAlchemy's asyncpg engine."""
+    sync_url = format_postgres_url(raw_url)
+    if not sync_url:
+        return None
+    return sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
 
 
 def get_runtime_database_url() -> Optional[str]:
@@ -148,9 +168,7 @@ def get_async_database_engine() -> AsyncEngine:
     global _async_engine
     if _async_engine is None:
         raw_url = _require_runtime_url()
-        async_url = raw_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
-        if async_url.startswith("postgresql://"):
-            async_url = async_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        async_url = format_async_postgres_url(raw_url)
         async_url = async_url.replace("sslmode=", "ssl=")
         _async_engine = create_async_engine(async_url, pool_pre_ping=True, pool_size=10, max_overflow=20, connect_args={"timeout": 5})
     return _async_engine
