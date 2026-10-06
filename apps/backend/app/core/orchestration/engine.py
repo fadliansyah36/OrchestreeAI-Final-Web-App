@@ -578,6 +578,7 @@ class OrchestrationEngine:
         current_node_id: Optional[str] = start_node_id
         context = dict(initial_context)
         context["intent_text"] = req.intent_text
+        context["execution_id"] = execution_id
         nodes_executed = []
         final_output: Dict[str, Any] = {}
         status = "running"
@@ -958,6 +959,7 @@ class OrchestrationEngine:
         from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
 
         if operation == "image_generation":
+            payload = {**payload, "workflow_execution_id": execution_id}
             result = await asyncio.to_thread(
                 ImageRouterService.create_and_execute_job,
                 req.tenant_id,
@@ -971,6 +973,7 @@ class OrchestrationEngine:
                 ImageRouterService.execute_seeding_batch,
                 batch_id=batch_id,
                 tenant_id=req.tenant_id,
+                workflow_execution_id=execution_id,
             )
         else:
             raise ValueError(f"Unsupported generative workflow operation: {operation}")
