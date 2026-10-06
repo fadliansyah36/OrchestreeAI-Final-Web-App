@@ -9,13 +9,12 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Query, Depends
 from pydantic import BaseModel, Field
 
-from app.authz.pdp import authorize, SubjectContext, ResourceContext, require_capability
+from app.authz.pdp import authorize, SubjectContext, ResourceContext
 from app.domains.continuous_learning.repository import get_continuous_learning_repository
 
 router = APIRouter(
     prefix="/api/v1/learning",
     tags=["Continuous Learning"],
-    dependencies=[Depends(require_capability("learning.reflections.manage"))],
 )
 
 
