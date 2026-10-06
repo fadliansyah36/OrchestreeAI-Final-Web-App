@@ -80,8 +80,11 @@ async def stream_chat_message(
         )
         estimated_cost = Decimal(str(estimate.final_estimate))
     except Exception as est_err:
-        logger.warning(f"Gagal kalkulasi estimasi kredit kustom, fallback ke default: {est_err}")
-        estimated_cost = Decimal("15.0000")
+        logger.error("Credit estimation failed; refusing to execute chat without a real estimate.", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Credit estimation service is unavailable.",
+        ) from est_err
 
     reservation = None
     try:
