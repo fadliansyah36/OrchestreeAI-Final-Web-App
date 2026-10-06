@@ -10,11 +10,24 @@ except ImportError:
     from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
 from app.domains.billing.credits import InsufficientCreditError
 from app.authz.pdp import require_capability
+from app.core.security import AuthenticatedTenantContext, get_trusted_request_context
+
+
+
+def require_generative_tenant_scope(
+    tenant_id: str,
+    context: AuthenticatedTenantContext = Depends(get_trusted_request_context),
+) -> AuthenticatedTenantContext:
+    """Prevent caller-controlled tenant_id from crossing the tenant boundary."""
+    global_roles = {"SUPER_ADMIN", "PLATFORM_SUPER_ADMIN", "PLATFORM_SUPERADMIN"}
+    if context.tenant_id != tenant_id and not (set(context.roles) & global_roles):
+        raise HTTPException(status_code=403, detail="Tenant context tidak sesuai dengan sesi terautentikasi.")
+    return context
 
 router = APIRouter(
     prefix="/tenants/{tenant_id}/generative",
     tags=["Generative Studio Hub"],
-    dependencies=[Depends(require_capability("generative.studio.manage"))]
+    dependencies=[Depends(require_capability("generative.studio.manage")), Depends(require_generative_tenant_scope)]
 )
 
 
