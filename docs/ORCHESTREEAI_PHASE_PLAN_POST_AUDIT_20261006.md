@@ -22,9 +22,9 @@ The current branch is completing the integrity and boundary work required before
 - Add regression coverage.
 
 ### 04R.2 — Canonical API → Domain Boundary
-**Status: IN PROGRESS — core boundary refactored; billing boundary remains open**
+**Status: IN PROGRESS — Admin/Orchestration + Billing persistence boundary refactored; remaining API routers still open**
 
-Refactor remaining API routers that contain direct SQL/domain logic into existing domain services/repositories. The first completed slice moves Admin Platform Overview and Orchestration execution-history reads behind domain services; billing still contains substantial SQL-backed API handlers and remains the blocking scope for closing 04R.2.
+Refactor remaining API routers that contain direct SQL/domain logic into existing domain services/repositories. The first completed slice moves Admin Platform Overview and Orchestration execution-history reads behind domain services; billing persistence is now behind `app.domains.billing.persistence`; however, the repository-wide API/domain boundary is still open because additional API routers (`agentcat`, `collaboration`, `commerce`, `crm`, `integrations`, `intelligence`, `kanban_and_attendance`, `learning`, `marketing`, `memory`, `omnichannel`, `onboarding`, `proactive`, `prospects`, `public`, `sales`, `selection`, `service`, `storage`, `tenant`, `tokenopt`, `webhooks`, `workforce`, plus `auth`) still contain direct persistence access.
 
 Rules:
 - do not create a second service layer;
