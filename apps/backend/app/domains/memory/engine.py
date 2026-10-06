@@ -3,7 +3,7 @@ OrchestreeAI Memory & Hybrid Search Engine (PRD v2.2 Bagian 8.4)
 Komponen Inti:
 1. Hybrid Search (pgvector kNN HNSW + tsvector full-text + Reciprocal Rank Fusion / RRF).
 2. Grounding Pipeline yang difilter otorisasi RLS + ABAC sebelum disuntikkan ke prompt LLM.
-3. Memory Ingestion & Chunking dengan vector embedding 1536 dimensi (Gemini Embedding).
+3. Memory Ingestion & Chunking dengan vector embedding 1536 dimensi melalui OpenAI Embeddings via canonical Model Router.
 4. Memory Consolidator: Job terjadwal untuk peluruhan (decay) confidence memori seiring waktu.
 """
 
@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 import sqlalchemy as sa
 
 from app.core.database import tenant_tx_async
+from app.core.config import settings
 from app.core.model_router.router import get_model_router
 from app.authz.pdp import authorize, SubjectContext, ResourceContext
 
@@ -154,7 +155,7 @@ class HybridMemoryEngine:
                         "chunk_index": idx,
                         "chunk_content": chunk_text,
                         "embedding": vector_str,
-                        "model_name": "gemini-embedding-001",
+                        "model_name": settings.OPENAI_EMBEDDING_MODEL or "unconfigured",
                         "token_count": len(chunk_text.split()),
                         "metadata": json.dumps({"source_doc_title": doc_in.title}),
                     },
