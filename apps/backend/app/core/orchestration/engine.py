@@ -283,7 +283,7 @@ class OrchestrationEngine:
         )
         decision = authorize(
             subject=subject,
-            action="workflow.node.llm_generate",
+            action="workflow.node.execute",
             resource=resource,
             context={"execution_id": execution_id},
             log_audit=True,
