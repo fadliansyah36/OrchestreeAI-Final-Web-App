@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 try:
     from orchestree.domains.generative.image_router import ImageRouterService
 except ImportError:
-    from apps.backend.orchestree.domains.generative.image_router import ImageRouterService
+    from orchestree.domains.generative.image_router import ImageRouterService
 from app.domains.billing.credits import InsufficientCreditError
 from app.authz.pdp import require_capability
 from app.core.orchestration.engine import get_orchestration_engine, WorkflowDispatchRequest
