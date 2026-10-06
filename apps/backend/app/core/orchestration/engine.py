@@ -232,7 +232,11 @@ class OrchestrationEngine:
                     },
                 )
         except Exception as e:
-            logger.warning(f"Simpan checkpoint awal DB gagal, melanjutkan in-memory checkpoint: {e}")
+            # Durable workflow state is a correctness/security boundary. Never
+            # continue with an in-memory execution when the canonical database
+            # checkpoint cannot be persisted.
+            logger.error("Initial workflow checkpoint failed; aborting execution.", exc_info=True)
+            raise RuntimeError("Workflow checkpoint could not be persisted to the canonical database.") from e
 
         # Jalankan loop eksekusi graf
         return await self._run_graph(
