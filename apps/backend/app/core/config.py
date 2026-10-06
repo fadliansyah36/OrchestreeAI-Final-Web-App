@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
     DATABASE_DIRECT_URL: Optional[str] = None
     DATABASE_URL_MIGRATOR: Optional[str] = None
+    DATABASE_RUNTIME_ROLE: Optional[str] = None
     REDIS_URL: Optional[str] = None
 
     KMS_PROVIDER: Optional[str] = None
