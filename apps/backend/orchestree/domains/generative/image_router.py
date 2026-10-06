@@ -1,7 +1,7 @@
 """Generative Studio Image Router & Workforce Visual Skill (PRD v2.2 Bagian 11.10, 13.2)
 
 Arsitektur:
-- Model Router: GPT-Image-2 (Prioritas 1) -> Fallback NVIDIA NIM / OpenRouter Image
+- Model Router: OpenAI image model (server-configured) via the canonical Model Router
 - Universal Prompt Composer dengan integrasi Brand Asset Locks
 - Image Validation Gate dengan penegakan kepatuhan palet warna brand terkunci
 - Metadata Stripping Gate: Retrofit menyeluruh untuk seluruh berkas hasil generasi
@@ -16,6 +16,7 @@ import sqlalchemy as sa
 
 from app.core.config import settings
 from app.core.database import tenant_tx
+from app.core.model_router import get_model_router
 from app.domains.billing.credits import (
     reserve_credit,
     consume_credit,
@@ -265,7 +266,9 @@ class ImageRouterService:
         job_type = payload.get("job_type", "IMAGE_GENERATION")
         aspect_ratio = payload.get("aspect_ratio", "1:1")
         style_preset = payload.get("style_preset")
-        model_selection = payload.get("model_used", "gpt-image-2")
+        # The browser may provide a display hint, but the executable model is
+        # always selected server-side by the canonical Model Router.
+        model_selection = settings.OPENAI_IMAGE_MODEL or "unconfigured"
         credit_cost = float(payload.get("credit_cost", ImageRouterService.DEFAULT_CREDIT_COST))
         force_fail_for_test = bool(payload.get("force_fail_for_test", False))
 
@@ -345,7 +348,7 @@ class ImageRouterService:
 
         # 4. Model Router Dispatch
         # Menjalankan generasi visual nyata melalui Model Router GPT-Image-2 (Prioritas Tunggal)
-        raw_image_bytes = ImageRouterService._generate_via_gpt_image_2(
+        raw_image_bytes = ImageRouterService._generate_via_openai_image(
             prompt=composed_prompt,
             aspect_ratio=aspect_ratio,
             tenant_id=tenant_id,
@@ -517,103 +520,27 @@ class ImageRouterService:
         return ImageRouterService.get_job_detail(tenant_id, job_id)
 
     @staticmethod
-    def _generate_via_gpt_image_2(
+    def _generate_via_openai_image(
         prompt: str,
         aspect_ratio: str,
         tenant_id: str,
         job_id: str,
     ) -> bytes:
         """
-        Menjalankan generasi visual nyata melalui Model Router GPT-Image-2
-        secara resmi menggunakan API Key yang dikonfigurasi (GPT_IMAGE_2_API_KEY).
-        Dilarang keras menggunakan fallback visual palsu atau tiruan tanpa koneksi.
+        Generate a real image through the single canonical Model Router.
+
+        Provider credentials, endpoint, and model are server-side only.
+        There is no direct provider SDK/API call in the Generative Studio domain.
         """
-        import os
-        import time
-        import httpx
-        from app.core.config import settings
-
-        api_key = os.getenv("GPT_IMAGE_2_API_KEY") or getattr(settings, "GPT_IMAGE_2_API_KEY", "")
-        endpoint_url = os.getenv("GPT_IMAGE_2_API_URL") or getattr(settings, "GPT_IMAGE_2_API_URL", "https://api.apimart.ai/v1/images/generations")
-
-        if not api_key:
-            raise RuntimeError("GPT_IMAGE_2_API_KEY belum dikonfigurasi di environment.")
-
-        payload = {
-            "model": "gpt-image-2",
-            "prompt": prompt,
-            "n": 1,
-            "size": "1024x1024",
-        }
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-
-        start_time = time.perf_counter()
-        with httpx.Client(timeout=60.0) as client:
-            resp = client.post(endpoint_url, json=payload, headers=headers)
-            latency_ms = int((time.perf_counter() - start_time) * 1000)
-
-            if resp.status_code != 200:
-                err_msg = f"GPT-Image-2 API error ({resp.status_code}): {resp.text}"
-                try:
-                    from app.core.database import get_database_engine
-                    eng = get_database_engine()
-                    with eng.begin() as conn:
-                        conn.execute(
-                            sa.text("""
-                                INSERT INTO llm_usage_logs (
-                                    tenant_id, workflow_execution_id, provider_id,
-                                    model_id, prompt_tokens, completion_tokens,
-                                    total_tokens, latency_ms, status
-                                ) VALUES (
-                                    :t_id, :w_id, 'openai', 'gpt-image-2',
-                                    0, 0, 0, :lat, 'failed'
-                                )
-                            """),
-                            {"t_id": tenant_id, "w_id": job_id, "lat": latency_ms}
-                        )
-                except Exception:
-                    pass
-                raise RuntimeError(err_msg)
-
-            data = resp.json()
-            img_data = data.get("data", [{}])[0]
-            img_url = img_data.get("url")
-            b64_json = img_data.get("b64_json")
-
-            try:
-                from app.core.database import get_database_engine
-                eng = get_database_engine()
-                with eng.begin() as conn:
-                    conn.execute(
-                        sa.text("""
-                            INSERT INTO llm_usage_logs (
-                                tenant_id, workflow_execution_id, provider_id,
-                                model_id, prompt_tokens, completion_tokens,
-                                total_tokens, latency_ms, status
-                            ) VALUES (
-                                :t_id, :w_id, 'openai', 'gpt-image-2',
-                                100, 100, 200, :lat, 'success'
-                            )
-                        """),
-                        {"t_id": tenant_id, "w_id": job_id, "lat": latency_ms}
-                    )
-            except Exception:
-                pass
-
-            if b64_json:
-                import base64
-                return base64.b64decode(b64_json)
-
-            if img_url:
-                img_resp = client.get(img_url, timeout=60.0)
-                if img_resp.status_code == 200:
-                    return img_resp.content
-                raise RuntimeError(f"Gagal mengunduh gambar hasil GPT-Image-2 dari {img_url}: status {img_resp.status_code}")
-
-            raise RuntimeError("GPT-Image-2 tidak mengembalikan URL atau b64_json gambar yang valid.")
+        result = get_model_router().generate_image_sync(
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            tenant_id=tenant_id,
+            workflow_execution_id=job_id,
+        )
+        if result.status != "success" or not result.content_bytes:
+            raise RuntimeError(result.error_message or "OpenAI image generation failed.")
+        return result.content_bytes
 
     @staticmethod
     def list_artifacts(tenant_id: str, verified_only: bool = True) -> List[Dict[str, Any]]:
@@ -1492,7 +1419,7 @@ class ImageRouterService:
             "negative_prompt": composed_data["negative_prompt"],
             "aspect_ratio": overrides.get("recommended_aspect_ratio") or tpl.get("recommended_aspect_ratio", "1:1"),
             "style_preset": overrides.get("style_reference_field") or tpl.get("style_reference_field"),
-            "model_used": overrides.get("model_used", "gpt-image-2"),
+            "model_used": settings.OPENAI_IMAGE_MODEL or "unconfigured",
             "brand_lock_id": brand_lock_id,
             "credit_cost": 5.0,
         }
