@@ -33,3 +33,25 @@ def test_postgres_url_preserves_credentials_and_query_options():
     assert normalized.startswith("postgresql+psycopg2://orchestree_app:p%40ss@example.test:5432/postgres")
     assert "sslmode=require" in normalized
     assert "application_name=orchestree" in normalized
+
+
+def test_runtime_database_role_is_deployment_configured(monkeypatch):
+    from app.core.database import _require_runtime_url
+
+    monkeypatch.setenv("DATABASE_RUNTIME_ROLE", "runtime_role")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://runtime_role:secret@example.test:5432/postgres")
+
+    assert _require_runtime_url().startswith("postgresql+psycopg2://runtime_role:")
+
+
+def test_runtime_database_role_mismatch_fails_closed(monkeypatch):
+    from app.core.database import _require_runtime_url, RuntimeDatabaseRoleError
+
+    monkeypatch.setenv("DATABASE_RUNTIME_ROLE", "runtime_role")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://other_role:secret@example.test:5432/postgres")
+
+    try:
+        _require_runtime_url()
+    except RuntimeDatabaseRoleError:
+        return
+    raise AssertionError("runtime DB role mismatch must fail closed")

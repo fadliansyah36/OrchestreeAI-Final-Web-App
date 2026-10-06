@@ -1,7 +1,7 @@
 """Canonical runtime database boundary for OrchestreeAI.
 
 All tenant data access MUST use the tenant transaction helpers in this module.
-Runtime connections are fail-closed: they must execute as orchestree_app and
+Runtime connections are fail-closed: they must execute as the deployment-configured non-bypass role and
 must not be a service_role/superuser/bypass-RLS connection.
 """
 
@@ -9,6 +9,7 @@ import os
 from contextlib import asynccontextmanager, contextmanager
 from typing import AsyncGenerator, Dict, Generator, Optional, Tuple, Union
 import uuid
+import re
 from urllib.parse import urlparse, unquote
 
 import sqlalchemy as sa
@@ -32,6 +33,24 @@ class RuntimeDatabaseRoleError(RuntimeError):
 
 _engine: Optional[sa.Engine] = None
 _async_engine: Optional[AsyncEngine] = None
+
+
+def get_runtime_database_role() -> str:
+    """Return the deployment-configured non-bypass runtime DB role."""
+    role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
+    if not role:
+        raise RuntimeDatabaseRoleError("DATABASE_RUNTIME_ROLE wajib dikonfigurasi di environment runtime.")
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", role):
+        raise RuntimeDatabaseRoleError("DATABASE_RUNTIME_ROLE memiliki format identifier PostgreSQL yang tidak valid.")
+    return role
+
+
+def _set_local_runtime_role(conn) -> None:
+    conn.execute(text(f"SET LOCAL ROLE \"{get_runtime_database_role()}\";"))
+
+
+async def _set_local_runtime_role_async(conn) -> None:
+    await conn.execute(text(f"SET LOCAL ROLE \"{get_runtime_database_role()}\";"))
 
 
 def format_postgres_url(raw_url: Optional[str]) -> Optional[str]:
@@ -65,7 +84,7 @@ def format_async_postgres_url(raw_url: Optional[str]) -> Optional[str]:
 
 
 def get_runtime_database_url() -> Optional[str]:
-    """Runtime URL. It must resolve to orchestree_app, never service_role."""
+    """Runtime URL from deployment configuration; never expose a DB role in source."""
     return format_postgres_url(os.getenv("DATABASE_URL") or settings.DATABASE_URL)
 
 
@@ -84,10 +103,9 @@ def _require_runtime_url() -> str:
         raise DatabaseNotConfiguredError()
     parsed = urlparse(url)
     username = unquote(parsed.username or "")
-    if username != "orchestree_app":
-        raise RuntimeDatabaseRoleError(
-            "DATABASE_URL runtime wajib menunjuk langsung ke role orchestree_app; service_role/postgres/credential lain dilarang."
-        )
+    expected_role = get_runtime_database_role()
+    if username != expected_role:
+        raise RuntimeDatabaseRoleError("DATABASE_URL runtime wajib menggunakan DATABASE_RUNTIME_ROLE.")
     return url
 
 
@@ -96,9 +114,9 @@ def _assert_runtime_role(conn) -> None:
         SELECT current_user AS user_name, r.rolbypassrls, r.rolsuper
         FROM pg_roles r WHERE r.rolname = current_user
     """)).mappings().first()
-    if not row or row["user_name"] != "orchestree_app" or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
+    if not row or row["user_name"] != get_runtime_database_role() or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
         raise RuntimeDatabaseRoleError(
-            "Runtime DB connection wajib menggunakan role orchestree_app "
+            "Runtime DB connection wajib menggunakan DATABASE_RUNTIME_ROLE "
             "dengan rolbypassrls=false dan rolsuper=false."
         )
 
@@ -108,9 +126,9 @@ async def _assert_async_runtime_role(conn: AsyncConnection) -> None:
         SELECT current_user AS user_name, r.rolbypassrls, r.rolsuper
         FROM pg_roles r WHERE r.rolname = current_user
     """))).mappings().first()
-    if not row or row["user_name"] != "orchestree_app" or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
+    if not row or row["user_name"] != get_runtime_database_role() or bool(row["rolbypassrls"]) or bool(row["rolsuper"]):
         raise RuntimeDatabaseRoleError(
-            "Runtime DB connection wajib menggunakan role orchestree_app "
+            "Runtime DB connection wajib menggunakan DATABASE_RUNTIME_ROLE "
             "dengan rolbypassrls=false dan rolsuper=false."
         )
 
@@ -118,7 +136,7 @@ async def _assert_async_runtime_role(conn: AsyncConnection) -> None:
 def _set_runtime_gucs(conn, tenant_id, user_id=None, actor_type="human_user", request_id=None, membership_id=None):
     if not tenant_id:
         raise RuntimeDatabaseRoleError("Tenant context wajib tersedia untuk runtime tenant transaction.")
-    conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+    _set_local_runtime_role(conn)
     _assert_runtime_role(conn)
     for key, value in {
         "app.tenant_id": str(tenant_id),
@@ -133,7 +151,7 @@ def _set_runtime_gucs(conn, tenant_id, user_id=None, actor_type="human_user", re
 async def _set_async_runtime_gucs(conn, tenant_id, user_id=None, actor_type="human_user", request_id=None, membership_id=None):
     if not tenant_id:
         raise RuntimeDatabaseRoleError("Tenant context wajib tersedia untuk runtime tenant transaction.")
-    await conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+    await _set_local_runtime_role(conn)
     await _assert_async_runtime_role(conn)
     for key, value in {
         "app.tenant_id": str(tenant_id),
@@ -156,8 +174,10 @@ def get_database_engine() -> sa.Engine:
             try:
                 cursor.execute("SELECT current_user, r.rolbypassrls, r.rolsuper FROM pg_roles r WHERE r.rolname = current_user")
                 row = cursor.fetchone()
-                if not row or row[0] != "orchestree_app" or bool(row[1]) or bool(row[2]):
-                    raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan orchestree_app NOBYPASSRLS non-superuser.")
+                if not row or row[0] != get_runtime_database_role() or bool(row[1]) or bool(row[2]):
+                    expected_role = (os.getenv("DATABASE_RUNTIME_ROLE") or settings.DATABASE_RUNTIME_ROLE or "").strip()
+                    if not expected_role or row[0] != expected_role:
+                        raise RuntimeDatabaseRoleError("Runtime DB pool checkout wajib menggunakan DATABASE_RUNTIME_ROLE NOBYPASSRLS non-superuser.")
             finally:
                 cursor.close()
     return _engine
@@ -178,12 +198,12 @@ def get_async_database_engine() -> AsyncEngine:
 def platform_tx() -> Generator[sa.Connection, None, None]:
     """Canonical non-tenant runtime transaction for global platform reference reads.
 
-    The connection is still forced through orchestree_app and is never service_role.
+    The connection is still forced through the deployment-configured runtime role and is never service_role.
     Callers must not use this helper for tenant-owned data.
     """
     with get_database_engine().connect() as conn:
         with conn.begin():
-            conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+            _set_local_runtime_role(conn)
             _assert_runtime_role(conn)
             yield conn
 
@@ -204,7 +224,7 @@ async def platform_tx_async() -> AsyncGenerator[AsyncConnection, None]:
     """Canonical async non-tenant runtime transaction for platform reference reads."""
     async with get_async_database_engine().connect() as conn:
         async with conn.begin():
-            await conn.execute(text("SET LOCAL ROLE orchestree_app;"))
+            await _set_local_runtime_role(conn)
             await _assert_async_runtime_role(conn)
             yield conn
 
@@ -283,9 +303,9 @@ def verify_db_connection_and_role(target_url: Optional[str] = None) -> Tuple[boo
                 SELECT current_user AS user_name, r.rolbypassrls, r.rolsuper
                 FROM pg_roles r WHERE r.rolname = current_user
             """)).mappings().first()
-            if not row or row["user_name"] != "orchestree_app" or row["rolbypassrls"] or row["rolsuper"]:
-                return False, "Runtime DB wajib menggunakan orchestree_app dengan rolbypassrls=false dan rolsuper=false.", dict(row or {})
-            return True, "Runtime DB role orchestree_app terverifikasi (NOBYPASSRLS, non-superuser).", dict(row)
+            if not row or row["user_name"] != get_runtime_database_role() or row["rolbypassrls"] or row["rolsuper"]:
+                return False, "Runtime DB wajib menggunakan DATABASE_RUNTIME_ROLE dengan rolbypassrls=false dan rolsuper=false.", dict(row or {})
+            return True, "Runtime DB role terverifikasi (NOBYPASSRLS, non-superuser).", dict(row)
     except Exception as exc:
         return False, f"Gagal menghubungkan ke database: {str(exc)}", {}
 
