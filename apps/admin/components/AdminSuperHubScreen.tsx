@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   ShieldCheck,
   Users,
@@ -75,7 +76,7 @@ export function AdminSuperHubScreen({
 
   const fetchOverview = async () => {
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/admin/hub-overview`);
+      const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/hub-overview`);
       if (res.ok) {
         const data = await res.json();
         setOverview(data);
@@ -92,12 +93,12 @@ export function AdminSuperHubScreen({
       if (tab === 'overview') {
         await fetchOverview();
       } else if (tab === 'tenants') {
-        const res = await fetch(`${apiBaseUrl}/api/v1/admin/tenants`);
+        const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/tenants`);
         if (!res.ok) throw new Error('Gagal memuat data penyewa');
         const data = await res.json();
         setTenants(data.tenants || []);
       } else if (tab === 'llm-routing') {
-        const res = await fetch(`${apiBaseUrl}/api/v1/admin/llm-providers`);
+        const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/llm-providers`);
         if (!res.ok) throw new Error('Gagal memuat aturan routing LLM');
         const data = await res.json();
         setLlmModels((data.providers || []).map((p: any) => ({
@@ -110,20 +111,20 @@ export function AdminSuperHubScreen({
           output_cost_per_1k: null,
         })));
       } else if (tab === 'mcp-governance') {
-        const res = await fetch(`${apiBaseUrl}/api/v1/admin/mcp-tools`);
+        const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/mcp-tools`);
         if (!res.ok) throw new Error('Gagal memuat alat MCP');
         const data = await res.json();
         setMcpTools(data.tools || []);
       } else if (tab === 'usage-costs') {
-        const res = await fetch(`${apiBaseUrl}/api/v1/admin/usage-costs`);
+        const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/usage-costs`);
         if (!res.ok) throw new Error('Gagal memuat metrik biaya');
         const data = await res.json();
         setUsageCosts(data);
       } else if (tab === 'prospects-trial') {
         const [pRes, sRes, lRes] = await Promise.all([
-          fetch(`${apiBaseUrl}/api/v1/admin/prospects`),
-          fetch(`${apiBaseUrl}/api/v1/admin/trial-slots`),
-          fetch(`${apiBaseUrl}/api/v1/admin/web-integrity-logs?limit=10`)
+          apiClient.fetch(`${apiBaseUrl}/api/v1/admin/prospects`),
+          apiClient.fetch(`${apiBaseUrl}/api/v1/admin/trial-slots`),
+          apiClient.fetch(`${apiBaseUrl}/api/v1/admin/web-integrity-logs?limit=10`)
         ]);
         if (pRes.ok) {
           const pData = await pRes.json();
@@ -158,7 +159,7 @@ export function AdminSuperHubScreen({
     setIsAllocating(prospectId);
     setActionSuccess(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/select-trial`, {
+      const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/select-trial`, {
         method: 'PATCH'
       });
       const data = await res.json();
@@ -177,7 +178,7 @@ export function AdminSuperHubScreen({
   const handleScheduleMeeting = async (prospectId: string) => {
     if (!meetingDateInput) return;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/schedule-meeting`, {
+      const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/schedule-meeting`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,7 +200,7 @@ export function AdminSuperHubScreen({
   const handleActivateTrial = async (prospectId: string) => {
     if (!activationTenantInput) return;
     try {
-      const res = await fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/activate-trial`, {
+      const res = await apiClient.fetch(`${apiBaseUrl}/api/v1/admin/prospects/${prospectId}/activate-trial`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -501,7 +502,7 @@ export function AdminSuperHubScreen({
                                 onClick={() => {
                                   const add = prompt(`Tambahkan kredit untuk ${t.name}:`, '500');
                                   if (add && Number(add) > 0) {
-                                    fetch(`${apiBaseUrl}/api/v1/admin/tenants/${t.id}/credit-override`, {
+                                    apiClient.fetch(`${apiBaseUrl}/api/v1/admin/tenants/${t.id}/credit-override`, {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({ amount: Number(add) })
