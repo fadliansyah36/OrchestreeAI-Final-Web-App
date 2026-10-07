@@ -191,7 +191,6 @@ export default function ClientHomePage() {
       categoryCards={categoryCards}
       insightFeed={insightFeed}
       onNavigate={(route) => {
-        if (typeof window !== 'undefined') window.history.pushState({}, '', route);
         window.location.assign(route);
       }}
     />
