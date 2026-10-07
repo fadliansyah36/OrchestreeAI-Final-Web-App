@@ -10,7 +10,7 @@ const ROUTE_TO_NAV: Record<string, string> = {
   '/': 'home',
   '/overview': 'overview',
   '/workforce': 'workforce',
-  '/sales-marketing': 'omnichannel',
+  '/sales-marketing': 'sales_marketing',
   '/omnichannel': 'omnichannel',
   '/intelligence': 'intelligence',
   '/generative': 'generative',
