@@ -48,6 +48,20 @@ jobs:
       - name: Build client
         run: npm run build:client
 
+      - name: Verify public/authenticated route boundary
+        working-directory: apps/client
+        shell: bash
+        run: |
+          test ! -f app/page.tsx
+          test -f 'app/(public)/page.tsx'
+          test -f 'app/(public)/layout.tsx'
+          test -f components/ClientRouteBoundary.tsx
+          if grep -R --line-number --fixed-strings "ClientAppShell" 'app/(public)' ; then
+            echo "Public route group must not import or render ClientAppShell."
+            exit 1
+          fi
+          echo "Public landing owns /; authenticated shell remains outside the public route group."
+
       - name: Verify required app routes
         working-directory: apps/client
         shell: bash
