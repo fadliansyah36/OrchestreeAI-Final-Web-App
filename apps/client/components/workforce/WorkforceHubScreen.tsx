@@ -1374,7 +1374,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         ) : activeTab === 'job_titles' ? (
           <JobTitleReconciliationPanel
             tenantId={tenantId}
-            userRole={testRole}
+            userRole={userRole}
             onRefreshParent={loadAllData}
           />
         ) : activeTab === 'kanban' ? (
