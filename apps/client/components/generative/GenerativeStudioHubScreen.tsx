@@ -625,6 +625,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                     Image/design memakai model OpenAI yang dikonfigurasi server. Content/document/video memakai jalur OpenAI generative yang sama; browser tidak memilih model/provider atau menerima API key.
                   </p>
                 </div>
+              </div>
 
               {/* Opsi Pengujian Penegakan Brand Lock */}
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
