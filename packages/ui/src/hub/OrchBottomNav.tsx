@@ -6,6 +6,7 @@ import {
   Home,
   Briefcase,
   Sparkles,
+  BarChart3,
   Bell,
   User,
   ShieldCheck,
@@ -43,7 +44,7 @@ export function OrchBottomNav({
   const clientItems: BottomNavItem[] = [
     { id: 'home', label: locale === 'en' ? 'Home' : 'Beranda', icon: Home },
     { id: 'work', label: locale === 'en' ? 'Work' : 'Kerja', icon: Briefcase, badgeCount: pendingTasksCount },
-    { id: 'ask_ai', label: locale === 'en' ? 'Ask AI' : 'Tanya AI', icon: Sparkles, isSpecialAction: true },
+    { id: 'overview', label: locale === 'en' ? 'Overview' : 'Ringkasan', icon: BarChart3 },
     { id: 'activity', label: locale === 'en' ? 'Activity' : 'Aktivitas', icon: Bell, badgeCount: unreadCount },
     { id: 'account', label: locale === 'en' ? 'Account' : 'Akun', icon: User }
   ];
