@@ -26,6 +26,10 @@ jobs:
     name: Next.js build + required route manifest
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Canonical Railway API used by the production client service.
+      # This is public endpoint configuration, not a secret.
+      BACKEND_API_URL: https://orchestreeapi-production.up.railway.app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
