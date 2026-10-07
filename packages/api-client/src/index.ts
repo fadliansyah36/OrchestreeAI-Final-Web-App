@@ -39,7 +39,7 @@ async function parseBody(response: Response): Promise<unknown> {
   return response.text().catch(() => null);
 }
 
-async function request(input: string, init: ApiRequestOptions = {}): Promise<Response> {
+async function rawRequest(input: string, init: ApiRequestOptions = {}): Promise<Response> {
   const { baseUrl, headers, ...requestInit } = init;
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has('Accept')) mergedHeaders.set('Accept', 'application/json');
@@ -63,6 +63,20 @@ async function request(input: string, init: ApiRequestOptions = {}): Promise<Res
     throw new ApiClientError(message, response.status, input, body);
   }
 
+  return response;
+}
+
+async function request(input: string, init: ApiRequestOptions = {}): Promise<Response> {
+  const response = await rawRequest(input, init);
+  if (!response.ok) {
+    const body = await parseBody(response);
+    const detail =
+      typeof body === 'object' && body !== null
+        ? ((body as Record<string, unknown>).detail ?? (body as Record<string, unknown>).message ?? (body as Record<string, unknown>).error)
+        : undefined;
+    const message = typeof detail === 'string' ? detail : `Backend request failed (${response.status})`;
+    throw new ApiClientError(message, response.status, input, body);
+  }
   return response;
 }
 
