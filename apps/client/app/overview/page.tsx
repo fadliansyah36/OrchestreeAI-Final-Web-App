@@ -3,13 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthSession } from '../../lib/useAuthSession';
 import { EmptyState } from '@orchestree/ui';
-import { Activity, ArrowLeft, Bot, Building2, CreditCard, ShieldAlert, Users } from 'lucide-react';
+import { Activity, ArrowLeft, Bot, Building2, ShieldAlert, Users } from 'lucide-react';
 
 type CountState = {
   departments: number | null;
   staff: number | null;
   agents: number | null;
-  walletAvailable: number | null;
 };
 
 export default function OverviewPage() {
@@ -18,7 +17,6 @@ export default function OverviewPage() {
     departments: null,
     staff: null,
     agents: null,
-    walletAvailable: null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +35,6 @@ export default function OverviewPage() {
         fetch(`/api/v1/tenants/${tenantId}/departments`, { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/v1/tenants/${tenantId}/staff`, { credentials: 'include', cache: 'no-store' }),
         fetch(`/api/v1/tenants/${tenantId}/agents`, { credentials: 'include', cache: 'no-store' }),
-        fetch('/api/v1/billing/wallet/summary', { credentials: 'include', cache: 'no-store' }),
       ]);
 
       if (!active) return;
@@ -62,16 +59,8 @@ export default function OverviewPage() {
       next.staff = await parseArray(requests[1], 'staf');
       next.agents = await parseArray(requests[2], 'AI agent');
 
-      const wallet = requests[3];
-      if (wallet.status === 'fulfilled' && wallet.value.ok) {
-        const value = await wallet.value.json();
-        next.walletAvailable = typeof value.available === 'number' ? value.available : null;
-      } else {
-        failures.push('kredit');
-      }
-
       setData(next);
-      if (failures.length === 4) {
+      if (failures.length === 3) {
         setError('Data workspace belum dapat dimuat dari layanan backend.');
       } else if (failures.length > 0) {
         setError(`Sebagian data belum tersedia: ${failures.join(', ')}.`);
@@ -142,11 +131,10 @@ export default function OverviewPage() {
             {loading ? (
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-sm text-slate-500">Memuat data operasional...</div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <MetricCard label="Departemen" value={data.departments} icon={Building2} />
                 <MetricCard label="Staf" value={data.staff} icon={Users} />
                 <MetricCard label="AI Agent" value={data.agents} icon={Bot} />
-                <MetricCard label="Kredit tersedia" value={data.walletAvailable} icon={CreditCard} />
               </div>
             )}
 
