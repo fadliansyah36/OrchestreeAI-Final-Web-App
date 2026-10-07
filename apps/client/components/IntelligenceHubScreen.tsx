@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   Radar,
   Globe2,
@@ -219,7 +220,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setIsLoadingInventory(true);
     try {
       const q = search !== undefined ? search : inventorySearch;
-      const res = await fetch(`/api/v1/tenants/${tenantId}/brain/inventory/live?search=${encodeURIComponent(q)}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/brain/inventory/live?search=${encodeURIComponent(q)}`);
       const json = await res.json();
       if (res.ok && json.data) {
         setLiveInventory(json.data);
@@ -235,7 +236,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setIsSyncingCatalog(true);
     setCatalogSyncMsg(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/brain/sync-catalog`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/brain/sync-catalog`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -256,10 +257,10 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setIsLoadingCompetitor(true);
     try {
       const [tRes, cRes, iRes, rRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/competitor/targets`),
-        fetch(`/api/v1/tenants/${tenantId}/competitor/changes`),
-        fetch(`/api/v1/tenants/${tenantId}/competitor/insights`),
-        fetch(`/api/v1/tenants/${tenantId}/competitor/reports`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/targets`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/changes`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/insights`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/reports`),
       ]);
 
       if (tRes.ok) {
@@ -288,7 +289,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const fetchWorldSignals = async () => {
     setIsLoadingWorld(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/intelligence/world-monitor`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/intelligence/world-monitor`);
       if (res.ok) {
         const d = await res.json();
         setWorldSignals(d.signals || []);
@@ -303,7 +304,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const fetchVibeProspects = async () => {
     setIsLoadingVibe(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/intelligence/vibe-prospecting`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/intelligence/vibe-prospecting`);
       if (res.ok) {
         const d = await res.json();
         setVibeProspects(d.radar_items || []);
@@ -319,7 +320,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setCrawlingTargetId(targetId);
     setCrawlFeedback(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/competitor/targets/${targetId}/crawl`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/targets/${targetId}/crawl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ force_refresh: force }),
@@ -357,7 +358,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
 
     setIsSavingTarget(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/competitor/targets`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/targets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -386,7 +387,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const handleDispatchInsight = async (insightId: string) => {
     setDispatchingInsightId(insightId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/competitor/insights/${insightId}/dispatch`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/insights/${insightId}/dispatch`, {
         method: 'POST',
       });
       if (res.ok) {
@@ -403,7 +404,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     e.preventDefault();
     setIsGeneratingReport(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/competitor/reports/generate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/competitor/reports/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -429,7 +430,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setIsLoadingDocs(true);
     setDocsError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/memory/documents`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/memory/documents`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: Gagal memuat daftar memori`);
       const data = await res.json();
       setDocuments(Array.isArray(data) ? data : []);
@@ -449,7 +450,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     const start = performance.now();
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/memory/search`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/memory/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -479,7 +480,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
     setIngestError(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/memory/documents`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/memory/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -506,7 +507,7 @@ export const IntelligenceHubScreen: React.FC<IntelligenceHubScreenProps> = ({
   const handleConsolidateDecay = async () => {
     setIsConsolidating(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/memory/consolidate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/memory/consolidate`, {
         method: 'POST',
       });
       if (res.ok) {
