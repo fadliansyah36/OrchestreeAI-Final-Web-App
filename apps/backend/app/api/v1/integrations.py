@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel, Field
 import sqlalchemy as sa
 from app.core.database import get_database_engine
+from app.core.security import AuthenticatedTenantContext, get_current_tenant_context
 
 from app.domains.integrations.health import (
     IntegrationHealthChecker,
@@ -38,8 +39,6 @@ class ConnectAppRequest(BaseModel):
 
 
 class TransparencyConsentRequest(BaseModel):
-    user_id: str
-    user_role: str
     accept_metadata_only: bool = True
 
 
@@ -517,8 +516,13 @@ async def consent_transparency_notice(
     tenant_id: str,
     connection_id: str,
     payload: TransparencyConsentRequest,
+    context: AuthenticatedTenantContext = Depends(get_current_tenant_context),
 ):
     """Mencatat persetujuan transparansi observasi (metadata-only) untuk integrasi pihak ketiga."""
+    if not payload.accept_metadata_only:
+        raise HTTPException(status_code=400, detail="Persetujuan metadata-only wajib eksplisit.")
+    if context.tenant_id != tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context tidak sesuai dengan target integrasi.")
     engine = get_database_engine()
     with engine.connect() as conn:
         with conn.begin():
@@ -536,7 +540,7 @@ async def consent_transparency_notice(
                         updated_at = now()
                     WHERE tenant_id = :tenant_id AND id = :connection_id
                 """),
-                {"tenant_id": tenant_id, "connection_id": connection_id, "uid": payload.user_id}
+                {"tenant_id": tenant_id, "connection_id": connection_id, "uid": context.user_id}
             )
             return {
                 "status": "ok",
