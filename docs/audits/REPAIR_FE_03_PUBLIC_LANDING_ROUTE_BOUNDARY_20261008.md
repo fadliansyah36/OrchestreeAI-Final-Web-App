@@ -77,8 +77,13 @@ No visual redesign was introduced by FE-03.
 - [x] Authenticated routes retain existing shell boundary.
 - [x] No Supabase migration.
 - [x] No Auth implementation change.
-- [ ] Client TypeScript/build CI pass.
-- [ ] Route manifest verification pass.
+- [x] Client TypeScript/build CI pass (run #55).
+- [x] Route manifest verification pass (run #55).
 - [ ] Production runtime verification after merge/deploy.
 
 FE-03 should only be merged after the CI gates above pass.
+
+
+## CI correction
+
+The first FE-03 CI attempt (run #54) correctly passed type-check, build and the new boundary assertions, but the existing route-manifest assertion only accepted `/page`. Next.js emitted the root route under the `/(public)/page` route-group key. The assertion was corrected to accept the canonical public route-group key; run #55 then passed all client build and route checks.
