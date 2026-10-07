@@ -2,43 +2,22 @@
 
 import React from 'react';
 import { ProactiveChannelsScreen } from '../../components/ProactiveChannelsScreen';
-import { useAuthSession } from '../../lib/useAuthSession';
-import { ShieldAlert } from 'lucide-react';
-
-import { EmptyState } from '@orchestree/ui';
+import { ClientDomainRoute } from '../../components/ClientDomainRoute';
 
 export default function ClientProactivePage() {
-  const { session: activeTenant, loading } = useAuthSession();
-
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-[#0B1220] pb-16">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 pt-6">
-        {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">Memverifikasi sesi aman...</div>
-        ) : activeTenant ? (
+    <ClientDomainRoute
+      title="Agen Proaktif"
+      description="Konfigurasi kanal proaktif dan pekerjaan terjadwal organisasi."
+    >
+      {(session) => (
+        <div className="mx-auto max-w-[1440px] px-4 pt-6 sm:px-6 lg:px-8">
           <ProactiveChannelsScreen
-            tenant={activeTenant}
-            onBack={() => {
-              if (typeof window !== 'undefined') {
-                window.location.href = '/overview';
-              }
-            }}
+            tenant={session}
+            onBack={() => window.location.assign('/overview')}
           />
-        ) : (
-          <div className="max-w-xl mx-auto pt-16">
-            <EmptyState
-              id="auth-required-proactive"
-              icon={ShieldAlert}
-              title="Sesi Terautentikasi Diperlukan"
-              description="Konfigurasi kanal proaktif organisasi hanya dapat diakses melalui portal resmi dengan sesi valid."
-              actionLabel="Masuk ke Portal Resmi"
-              onAction={() => {
-                window.location.href = '/';
-              }}
-            />
-          </div>
-        )}
-      </div>
-    </main>
+        </div>
+      )}
+    </ClientDomainRoute>
   );
 }
