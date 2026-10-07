@@ -45,7 +45,7 @@ Canonical sources:
 3. Home Hub category cards cover the currently exposed domain routes.
 4. Enterprise card no longer uses a client-side lock; entitlement remains a server/backend concern.
 5. Route CI gate now verifies all Home Hub target routes: `/`, `/overview`, `/workforce`, `/sales-marketing`, `/intelligence`, `/enterprise`, `/generative`, `/selection`, `/billing`, `/inbox`, `/omnichannel`, `/proactive`, `/integrations`, `/permissions`, `/settings`.
-6. Overview was replaced with a truthful real-data aggregation using existing domain endpoints for departments, staff, agents, and billing wallet. Missing/unavailable data is displayed as unavailable, never synthesized.
+6. Overview was replaced with a truthful real-data aggregation using existing domain endpoints for departments, staff, and agents. Billing wallet is intentionally not queried from the browser because the current billing endpoint still requires a separate authenticated server-context repair. Missing/unavailable data is displayed as unavailable, never synthesized.
 7. Workforce role simulation and forged authorization headers were removed.
 8. HomeOverview Ask AI no longer reports fabricated success when orchestration fails.
 9. Fixed the pre-existing Generative Studio JSX structure error in the canonical server-side model-router gateway block so the client build can proceed.
@@ -73,3 +73,15 @@ Not GREEN until:
 Auth is intentionally parked and is not being used as a reason to fabricate domain success.
 
 Allpha Universe is out of scope and was not touched.
+
+## FE-01A — TypeScript / Frontend Build Repair
+
+The first Client Build & Route Gate run against the FE-01 merge ref exposed three TypeScript errors after the UI foundation changes:
+- `apps/client/app/overview/page.tsx`: stale `walletAvailable` property not present in `CountState`.
+- `apps/client/components/workforce/WorkforceHubScreen.tsx`: two stale `testRole` references remained after removal of the client-side role simulator.
+
+Repairs applied:
+- Removed the stale `walletAvailable` field from the `CountState` initialization.
+- Derived `userRole` from the authenticated `TenantRegistrationResponse.role` and replaced the stale `testRole` references. No role simulation was restored.
+
+Acceptance remains pending the next GitHub Client Build & Route Gate run. No Supabase schema change is required and no Railway deployment is performed before merge.
