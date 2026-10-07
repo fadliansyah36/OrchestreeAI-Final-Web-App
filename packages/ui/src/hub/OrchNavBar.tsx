@@ -171,6 +171,14 @@ export function OrchNavBar({
 
     // 2. Kelompok Penjualan & Komunikasi (Standar Platform: Omnichannel dan Proactive DIPISAHKAN TOTAL)
     {
+      id: 'sales_marketing',
+      label: 'Sales & Marketing',
+      description: 'Hub penjualan, pemasaran, CRM, dan operasi customer yang tersedia.',
+      icon: TrendingUp,
+      route: '/sales-marketing',
+      category: 'Penjualan & Komunikasi'
+    },
+    {
       id: 'omnichannel',
       label: 'Penjualan & Omnichannel',
       description: 'Pipeline CRM 8 tingkat status, AI handoff, inbox komunikasi pelanggan multi-kanal',
@@ -605,7 +613,7 @@ export function OrchNavBar({
                         }}
                         disabled={item.isLocked || item.isAvailable === false}
                         className={`w-full flex items-start gap-3.5 p-3 rounded-xl text-left transition-all cursor-pointer ${
-                          item.isLocked
+                          item.isLocked || item.isAvailable === false
                             ? 'opacity-60 bg-slate-50/60 dark:bg-slate-900/40 cursor-not-allowed'
                             : isActive
                             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border border-emerald-500/30'
@@ -614,7 +622,7 @@ export function OrchNavBar({
                       >
                         <div
                           className={`p-2 rounded-lg shrink-0 ${
-                            item.isLocked
+                            item.isLocked || item.isAvailable === false
                               ? 'bg-slate-200 dark:bg-slate-800 text-slate-400'
                               : isActive
                               ? 'bg-emerald-600 text-white shadow-sm'
