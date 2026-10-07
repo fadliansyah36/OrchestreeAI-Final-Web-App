@@ -161,21 +161,21 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
       const catRes = await apiClient.fetch('/api/v1/integrations/catalog');
       if (catRes.ok) {
         const catJson = await catRes.json();
-        setCatalog(catJson.data || []);
+        setCatalog(catJson.catalog || catJson.data || []);
       }
 
       // 2. Fetch Tenant Connections
       const connRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections`);
       if (connRes.ok) {
         const connJson = await connRes.json();
-        setConnections(connJson.data || []);
+        setConnections(connJson.connections || connJson.data || []);
       }
 
       // 3. Fetch Sync Logs
       const logsRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/sync-logs?limit=40`);
       if (logsRes.ok) {
         const logsJson = await logsRes.json();
-        setSyncLogs(logsJson.data || []);
+        setSyncLogs(logsJson.logs || logsJson.data || []);
       }
     } catch (err: any) {
       console.error('Failed to load integrations data:', err);
