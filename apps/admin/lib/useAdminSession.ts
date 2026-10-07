@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiClient } from '@orchestree/api-client';
 
 export interface AdminSession {
   authenticated: boolean;
@@ -18,15 +19,8 @@ export function useAdminSession() {
 
   useEffect(() => {
     let active = true;
-    fetch('/api/v1/auth/session', {
-      credentials: 'include',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as AdminSession;
-      })
+    apiClient
+      .get<AdminSession>('/api/v1/auth/session', { cache: 'no-store' })
       .then((value) => {
         if (active) setSession(value?.authenticated ? value : null);
       })
@@ -36,7 +30,10 @@ export function useAdminSession() {
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const isPlatformAdmin = Boolean(
