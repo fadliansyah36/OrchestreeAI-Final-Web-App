@@ -60,6 +60,14 @@ jobs:
             '/enterprise',
             '/settings',
             '/integrations',
+            '/overview',
+            '/generative',
+            '/selection',
+            '/billing',
+            '/inbox',
+            '/omnichannel',
+            '/proactive',
+            '/permissions',
           ];
           const missing = required.filter((route) => {
             const key = route === '/' ? '/page' : route + '/page';
