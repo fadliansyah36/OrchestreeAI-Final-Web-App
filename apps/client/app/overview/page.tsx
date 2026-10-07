@@ -39,7 +39,7 @@ export default function OverviewPage() {
 
       if (!active) return;
 
-      const next: CountState = { departments: null, staff: null, agents: null, walletAvailable: null };
+      const next: CountState = { departments: null, staff: null, agents: null };
       const failures: string[] = [];
 
       const parseArray = async (result: PromiseSettledResult<Response>, label: string) => {
