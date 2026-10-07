@@ -128,8 +128,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   defaultCategory = 'all',
 }) => {
   const tenantId = tenant?.tenant_id || '';
-  const userRole = tenant?.role || 'TENANT_OWNER';
-
   // Navigation & Tabs
   const [activeTab, setActiveTab] = useState<'client_connections' | 'sync_logs'>('client_connections');
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory);
@@ -335,8 +333,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: tenant?.user_id || tenant?.membership_id || '',
-            user_role: userRole,
+            accept_metadata_only: true,
           }),
         }
       );
