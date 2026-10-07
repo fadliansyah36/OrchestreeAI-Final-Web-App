@@ -89,14 +89,10 @@ export function ClientAppShell({ children }: { children: React.ReactNode }) {
     const routes: Record<string, string> = {
       home: '/',
       work: '/workforce',
+      overview: '/overview',
       activity: '/inbox',
       account: '/settings',
     };
-
-    if (id === 'ask_ai') {
-      navigate('/proactive');
-      return;
-    }
 
     const route = routes[id];
     if (route) navigate(route);
