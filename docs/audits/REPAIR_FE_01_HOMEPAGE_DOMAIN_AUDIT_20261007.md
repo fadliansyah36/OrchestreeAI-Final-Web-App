@@ -29,6 +29,17 @@ Canonical sources:
 
 ## Implemented
 
+### FE-01 Home / Route Foundation
+- Added a shared `ClientAppShell` mounted from the canonical Next.js root layout.
+- App shell now owns the full navigation drawer, mobile bottom navigation, theme toggle, workspace identity, and active-route state.
+- Bottom navigation is limited to active routes: Home, Work, Overview, Activity, Account.
+- Full navigation normalizes route paths and marks domain entries whose route does not exist in the current App Router as `Belum tersedia` instead of navigating to a 404.
+- Feature Hub now groups modules by domain section and uses the canonical design-token CSS variables for surface, text, border, radius, and elevation.
+- Shared `ClientDomainRoute` standardizes loading/authentication/error framing for domain pages.
+- Selection, Billing, Inbox, Omnichannel, Permissions, Generative, Workforce, Sales/Marketing, Intelligence, Enterprise, Integrations, Settings, and Proactive no longer use `orchestree_active_tenant` localStorage as tenant authority.
+- Domain pages now consume the existing server-backed `useAuthSession` context.
+- The browser never selects a tenant by localStorage for these routes.
+
 1. Home Hub now reads workspace identity from useAuthSession.
 2. Home Hub shows loading, authenticated workspace, and unauthenticated states explicitly.
 3. Home Hub category cards cover the currently exposed domain routes.
@@ -37,6 +48,7 @@ Canonical sources:
 6. Overview was replaced with a truthful real-data aggregation using existing domain endpoints for departments, staff, agents, and billing wallet. Missing/unavailable data is displayed as unavailable, never synthesized.
 7. Workforce role simulation and forged authorization headers were removed.
 8. HomeOverview Ask AI no longer reports fabricated success when orchestration fails.
+9. Fixed the pre-existing Generative Studio JSX structure error in the canonical server-side model-router gateway block so the client build can proceed.
 
 ## Supabase
 
