@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { FeatureHubScreen, CategoryCard, EmptyState } from '@orchestree/ui';
 import { Activity, Sparkles, ShieldAlert, Loader2, ArrowUpRight } from 'lucide-react';
 import { useAuthSession } from '../lib/useAuthSession';
 
 export default function ClientHomePage() {
+  const router = useRouter();
   const { session, loading } = useAuthSession();
 
   const workspaceName =
@@ -191,7 +193,7 @@ export default function ClientHomePage() {
       categoryCards={categoryCards}
       insightFeed={insightFeed}
       onNavigate={(route) => {
-        window.location.assign(route);
+        router.push(route);
       }}
     />
   );
