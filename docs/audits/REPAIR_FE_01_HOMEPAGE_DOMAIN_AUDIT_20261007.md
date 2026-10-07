@@ -84,4 +84,4 @@ Repairs applied:
 - Removed the stale `walletAvailable` field from the `CountState` initialization.
 - Derived `userRole` from the authenticated `TenantRegistrationResponse.role` and replaced the stale `testRole` references. No role simulation was restored.
 
-Acceptance remains pending the next GitHub Client Build & Route Gate run. No Supabase schema change is required and no Railway deployment is performed before merge.
+Acceptance remains pending the next GitHub Client Build & Route Gate run. The build gate also now supplies the same canonical public Railway API endpoint required by `apps/client/next.config.mjs`, matching the configured `BACKEND_API_URL` / `NEXT_PUBLIC_BACKEND_API_URL` variables on the production client service. No Supabase schema change is required and no Railway deployment is performed before merge.
