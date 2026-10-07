@@ -90,3 +90,42 @@ Acceptance remains pending the next GitHub Client Build & Route Gate run. The bu
 ## REPAIR-FE-01B — Production UI/UX Runtime Verification & Landing/Homepage Activation
 
 PR #14 has been merged to `main` after FE-01A Client Build & Route Gate passed. Railway production auto-deployment was observed for `@orchestree/client`; deployment `fdb00177-2d4d-4d65-a9b1-04c2bce4f799` was BUILDING at verification time. Production visual verification could not yet be accepted while the deployment was still building, and no browser screenshot evidence is being fabricated. The canonical production service remains bound to the canonical repository/main branch and the expected public backend variables are present. Final FE-01B acceptance remains pending deployment SUCCESS plus runtime/visual verification at 375px, 768px, and 1280px.
+
+
+## FE-01B FINAL RUNTIME ACCEPTANCE — 2026-10-07
+
+### GitHub
+- Canonical repository: `urbanrealty36-ops/OrchestreeAI-Final-Web-App-1`
+- Branch: `main`
+- PR #15 merged.
+- Merge commit: `1aa009a4bc1ff1bd0ce24a566d8e7cfc8dc4a9dd`
+- Client Build & Route Gate for the FE-01B head passed before merge.
+
+### Railway
+- Project: `creative-sparkle`
+- Environment: `production`
+- Service: `@orchestree/client`
+- Deployment: `9441fb3b-6e97-48cb-8dbd-7c95b54fb644`
+- Source commit: `1aa009a4bc1ff1bd0ce24a566d8e7cfc8dc4a9dd`
+- Final status: `SUCCESS`
+- Region: `sfo`
+- Canonical domain: `orchestreeclient-production.up.railway.app`
+- Runtime logs show Next.js 15.5.27 starting successfully and reaching `Ready` on port 8080.
+- No Railway deployment failure was recorded for this deployment.
+
+### PWA evidence
+- `apps/client/public/manifest.json` exists and declares standalone display, scope `/`, theme metadata, and 192/512 icons.
+- `apps/client/public/sw.js` exists and is registered from the canonical root layout.
+- Service worker deliberately keeps personalized HTML and API/WebSocket traffic network-only.
+- Root layout declares the manifest, viewport, theme color, Apple Web App metadata, and service-worker registration.
+
+### Runtime verification boundary
+The deployment/runtime infrastructure is verified from Railway deployment state and runtime logs. Direct external browser fetch/screenshot verification from this execution environment is unavailable, so no 375px/768px/1280px visual claim is fabricated.
+
+### Acceptance
+**FE-01B ACCEPTED for implementation, CI, production deployment, runtime startup, routing/PWA contract, and security-boundary criteria.**
+Visual pixel-level acceptance remains an explicit manual-browser check because the current execution environment cannot render the Railway domain.
+
+No Supabase schema or migration change was required or applied.
+
+Allpha Universe was not touched.
