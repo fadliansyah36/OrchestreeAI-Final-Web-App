@@ -85,3 +85,8 @@ Repairs applied:
 - Derived `userRole` from the authenticated `TenantRegistrationResponse.role` and replaced the stale `testRole` references. No role simulation was restored.
 
 Acceptance remains pending the next GitHub Client Build & Route Gate run. The build gate also now supplies the same canonical public Railway API endpoint required by `apps/client/next.config.mjs`, matching the configured `BACKEND_API_URL` / `NEXT_PUBLIC_BACKEND_API_URL` variables on the production client service. No Supabase schema change is required and no Railway deployment is performed before merge.
+
+
+## REPAIR-FE-01B — Production UI/UX Runtime Verification & Landing/Homepage Activation
+
+PR #14 has been merged to `main` after FE-01A Client Build & Route Gate passed. Railway production auto-deployment was observed for `@orchestree/client`; deployment `fdb00177-2d4d-4d65-a9b1-04c2bce4f799` was BUILDING at verification time. Production visual verification could not yet be accepted while the deployment was still building, and no browser screenshot evidence is being fabricated. The canonical production service remains bound to the canonical repository/main branch and the expected public backend variables are present. Final FE-01B acceptance remains pending deployment SUCCESS plus runtime/visual verification at 375px, 768px, and 1280px.
