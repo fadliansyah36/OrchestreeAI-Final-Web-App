@@ -53,6 +53,7 @@ export interface NavDomainItem {
   isLocked?: boolean;
   tierRequired?: 'STARTER' | 'GROWTH' | 'ENTERPRISE';
   badge?: string;
+  isAvailable?: boolean;
 }
 
 export interface OrchNavBarProps {
@@ -81,7 +82,35 @@ export function OrchNavBar({
   const { locale, toggleLocale } = useLocaleContext();
   const [searchQuery, setSearchQuery] = useState('');
 
+  const clientAvailableRoutes = new Set([
+    '/',
+    '/overview',
+    '/workforce',
+    '/sales-marketing',
+    '/omnichannel',
+    '/intelligence',
+    '/selection',
+    '/generative',
+    '/enterprise',
+    '/integrations',
+    '/billing',
+    '/permissions',
+    '/settings',
+    '/inbox',
+    '/proactive'
+  ]);
+
+  const normalizeRoute = (route: string) => route.startsWith('/') ? route : `/${route}`;
+
   const clientDomains: NavDomainItem[] = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      description: 'Ringkasan workspace dan status operasional yang tersedia.',
+      icon: BarChart3,
+      route: '/overview',
+      category: 'Workspace & Beranda'
+    },
     // 1. Kelompok Kerja & Tim (Standar Platform Resmi)
     {
       id: 'workforce',
@@ -141,6 +170,14 @@ export function OrchNavBar({
     },
 
     // 2. Kelompok Penjualan & Komunikasi (Standar Platform: Omnichannel dan Proactive DIPISAHKAN TOTAL)
+    {
+      id: 'sales_marketing',
+      label: 'Sales & Marketing',
+      description: 'Hub penjualan, pemasaran, CRM, dan operasi customer yang tersedia.',
+      icon: TrendingUp,
+      route: '/sales-marketing',
+      category: 'Penjualan & Komunikasi'
+    },
     {
       id: 'omnichannel',
       label: 'Penjualan & Omnichannel',
@@ -437,8 +474,12 @@ export function OrchNavBar({
       if (d.tierRequired === 'ENTERPRISE' && tenantTier !== 'ENTERPRISE') {
         isLocked = true;
       }
+      const normalizedRoute = normalizeRoute(d.route);
+      const isAvailable = mode === 'client' ? clientAvailableRoutes.has(normalizedRoute) : true;
       return {
         ...d,
+        route: normalizedRoute,
+        isAvailable,
         isLocked: isLocked || d.isLocked
       };
     });
@@ -559,20 +600,20 @@ export function OrchNavBar({
                 <div className="space-y-1">
                   {items.map((item) => {
                     const Icon = item.icon;
-                    const isActive = currentRoute === item.route;
+                    const isActive = normalizeRoute(currentRoute) === normalizeRoute(item.route);
 
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          if (item.isLocked) return;
-                          onNavigate(item.route);
+                          if (item.isLocked || item.isAvailable === false) return;
+                          onNavigate(normalizeRoute(item.route));
                           onClose();
                         }}
-                        disabled={item.isLocked}
+                        disabled={item.isLocked || item.isAvailable === false}
                         className={`w-full flex items-start gap-3.5 p-3 rounded-xl text-left transition-all cursor-pointer ${
-                          item.isLocked
+                          item.isLocked || item.isAvailable === false
                             ? 'opacity-60 bg-slate-50/60 dark:bg-slate-900/40 cursor-not-allowed'
                             : isActive
                             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 border border-emerald-500/30'
@@ -581,7 +622,7 @@ export function OrchNavBar({
                       >
                         <div
                           className={`p-2 rounded-lg shrink-0 ${
-                            item.isLocked
+                            item.isLocked || item.isAvailable === false
                               ? 'bg-slate-200 dark:bg-slate-800 text-slate-400'
                               : isActive
                               ? 'bg-emerald-600 text-white shadow-sm'
@@ -595,10 +636,10 @@ export function OrchNavBar({
                             <span className="text-sm font-semibold truncate leading-snug">
                               {item.label}
                             </span>
-                            {item.isLocked && (
+                            {(item.isLocked || item.isAvailable === false) && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
                                 <Lock className="w-2.5 h-2.5" />
-                                {item.tierRequired || 'Terkunci'}
+                                {item.isAvailable === false ? 'Belum tersedia' : item.tierRequired || 'Terkunci'}
                               </span>
                             )}
                           </div>

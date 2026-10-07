@@ -616,8 +616,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                   </select>
                 </div>
 
-                <div>
-                  <div className="md:col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-400 mb-1">LLM Generation Gateway</label>
                   <div className="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-300">
                     OpenAI Generative Model Router

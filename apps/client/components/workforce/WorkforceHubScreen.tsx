@@ -132,8 +132,6 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   onBack,
 }) => {
   const [activeTab, setActiveTab] = useState<'hub' | 'performance' | 'departments' | 'staff' | 'agents' | 'job_titles' | 'org_chart' | 'kanban' | 'attendance' | 'enterprise_command'>('hub');
-  const [testRole, setTestRole] = useState<'TENANT_OWNER' | 'DEPT_MANAGER' | 'STAFF_HUMAN'>('TENANT_OWNER');
-
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
   const [staffList, setStaffList] = useState<StaffItem[]>([]);
   const [agentList, setAgentList] = useState<AgentItem[]>([]);
@@ -171,15 +169,12 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
 
   const tenantId = tenant?.tenant_id || '';
+  // Role comes from the authenticated tenant membership context; no client-side role simulator.
+  const userRole = tenant?.role || 'STAFF_HUMAN';
 
-  const getHeaders = useCallback(() => {
-    return {
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': tenantId,
-      'X-User-Role': testRole,
-      'X-User-Id': tenant?.membership_id || tenant?.user_id || '',
-    };
-  }, [tenantId, testRole, tenant?.membership_id, tenant?.user_id]);
+  const getHeaders = useCallback(() => ({
+    'Content-Type': 'application/json',
+  }), []);
 
   const loadAllData = useCallback(async () => {
     setLoading(true);
@@ -524,7 +519,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         <div className="text-2xl font-bold text-slate-900 dark:text-white mt-2">
           {agentList.length}
         </div>
-        <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium mt-1 block">Siap dieksekusi</span>
+        <span className="text-[11px] text-purple-600 dark:text-purple-400 font-medium mt-1 block">Terdaftar pada workspace</span>
       </div>
 
       <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -534,9 +529,9 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         </div>
         <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-2 flex items-center gap-1.5">
           <CheckCircle2 className="w-4 h-4" />
-          <span>Isolasi RLS Aktif</span>
+          <span>Akses tenant dikendalikan server</span>
         </div>
-        <span className="text-[11px] text-slate-400 mt-1 block">Evaluasi PDP Terpadu</span>
+        <span className="text-[11px] text-slate-400 mt-1 block">Tidak berasal dari header browser</span>
       </div>
     </div>
   );
@@ -568,45 +563,11 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
           </div>
         </div>
 
-        {/* Role Switcher for Verification */}
         <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-500 px-2 flex items-center gap-1">
             <Shield className="w-3.5 h-3.5 text-emerald-500" />
-            Peran Simulasi:
+            Otorisasi ditentukan oleh sesi server
           </span>
-          <button
-            type="button"
-            onClick={() => setTestRole('TENANT_OWNER')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              testRole === 'TENANT_OWNER'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Owner
-          </button>
-          <button
-            type="button"
-            onClick={() => setTestRole('DEPT_MANAGER')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              testRole === 'DEPT_MANAGER'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Dept Manager
-          </button>
-          <button
-            type="button"
-            onClick={() => setTestRole('STAFF_HUMAN')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              testRole === 'STAFF_HUMAN'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Staff Human
-          </button>
           <button
             type="button"
             onClick={loadAllData}
@@ -1148,7 +1109,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
               <div className="mb-6">
                 <AgentCreationScreen
                   tenantId={tenantId}
-                  userRole={testRole}
+                  userRole={userRole}
                   onSuccess={async (newAgent) => {
                     setShowAgentModal(false);
                     setSuccessMsg(`Staf AI '${newAgent.display_name}' berhasil didaftarkan dengan jabatan '${newAgent.job_title_name || 'Katalog Resmi'}'.`);
@@ -1413,7 +1374,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
         ) : activeTab === 'job_titles' ? (
           <JobTitleReconciliationPanel
             tenantId={tenantId}
-            userRole={testRole}
+            userRole={userRole}
             onRefreshParent={loadAllData}
           />
         ) : activeTab === 'kanban' ? (

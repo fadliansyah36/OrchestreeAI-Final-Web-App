@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Users,
   Briefcase,
@@ -22,6 +22,8 @@ export interface CategoryCard {
   label: string;
   icon: string;
   route: string;
+  section?: string;
+  description?: string;
   badgeCount?: number;
   isLocked?: boolean;
   tierRequired?: 'STARTER' | 'GROWTH' | 'ENTERPRISE';
@@ -30,6 +32,8 @@ export interface CategoryCard {
 
 export interface FeatureHubScreenProps {
   domain: string;
+  description?: string;
+  eyebrow?: string;
   analyticsSlot: React.ReactNode;
   categoryCards: CategoryCard[];
   insightFeed?: React.ReactNode;
@@ -61,135 +65,132 @@ export function CategoryCardTile({
 
   const handleClick = () => {
     if (card.isLocked) {
-      if (card.onUpgradeClick) {
-        card.onUpgradeClick();
-      }
+      card.onUpgradeClick?.();
       return;
     }
     onClick?.();
   };
 
   return (
-    <div
+    <button
       id={`hub-category-${card.key}`}
+      type="button"
       onClick={handleClick}
-      className={`group relative flex flex-col justify-between text-left p-5 rounded-2xl border transition-all duration-200 ${
-        card.isLocked
-          ? 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-purple-900/40 cursor-pointer shadow-sm hover:border-purple-500/50'
-          : 'bg-white dark:bg-[#0B1220] border-slate-200/80 dark:border-slate-800/80 hover:border-emerald-500/60 dark:hover:border-emerald-400/60 shadow-sm hover:shadow-md cursor-pointer'
-      }`}
+      className="group relative flex min-h-[164px] w-full flex-col justify-between rounded-[var(--orch-radius-md)] border border-[var(--orch-border)] bg-[var(--orch-surface-elevated)] p-5 text-left shadow-[var(--orch-shadow-1)] transition duration-200 hover:-translate-y-0.5 hover:border-[var(--orch-primary-green)] hover:shadow-[var(--orch-shadow-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--orch-primary-green)] disabled:cursor-not-allowed"
     >
-      <div className="flex items-start justify-between w-full mb-3">
-        <div
-          className={`p-2.5 rounded-xl ${
-            card.isLocked
-              ? 'bg-purple-950/40 text-purple-400 border border-purple-800/30'
-              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors'
-          }`}
+      <div className="flex w-full items-start justify-between gap-3">
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--orch-radius-sm)] border border-[var(--orch-border)] bg-[var(--orch-surface-muted)] text-[var(--orch-primary-green)] transition-colors group-hover:bg-[var(--orch-primary-green)] group-hover:text-white"
+          aria-hidden="true"
         >
-          <IconComponent className="w-5 h-5" />
-        </div>
+          <IconComponent className="h-5 w-5" />
+        </span>
+
         {card.isLocked ? (
-          <div className="flex items-center gap-1.5">
-            {card.tierRequired === 'ENTERPRISE' ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-sm">
-                <Lock className="w-3 h-3 text-purple-400" />
-                Enterprise
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                <Lock className="w-3 h-3" />
-                Terkunci
-              </span>
-            )}
-          </div>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[var(--orch-border)] bg-[var(--orch-surface-muted)] px-2 py-1 text-[11px] font-semibold text-[var(--orch-text-secondary)]">
+            <Lock className="h-3 w-3" />
+            {card.tierRequired || 'Terkunci'}
+          </span>
         ) : typeof card.badgeCount === 'number' && card.badgeCount > 0 ? (
-          <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
-            {card.badgeCount}
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--orch-primary-green)] px-2 py-1 text-[11px] font-bold text-white">
+            {card.badgeCount > 99 ? '99+' : card.badgeCount}
           </span>
         ) : null}
       </div>
 
-      <div>
-        <h4 className="font-semibold text-slate-900 dark:text-white text-base tracking-tight mb-1">
+      <span className="mt-5 block">
+        <span className="block text-[15px] font-bold tracking-tight text-[var(--orch-text-primary)]">
           {card.label}
-        </h4>
-        {card.isLocked && card.tierRequired === 'ENTERPRISE' ? (
-          <div className="mt-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
-            <span className="text-[11px] text-purple-600 dark:text-purple-300/80 font-medium">Eksklusif Enterprise</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (card.onUpgradeClick) {
-                  card.onUpgradeClick();
-                } else if (onClick) {
-                  onClick();
-                }
-              }}
-              className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-            >
-              Tingkatkan ke Enterprise
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center text-xs text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 font-medium pt-1">
-            <span>{card.isLocked ? 'Terkunci Paket' : 'Buka modul'}</span>
-            <ChevronRight className="w-3.5 h-3.5 ml-1 transition-transform group-hover:translate-x-0.5" />
-          </div>
-        )}
-      </div>
-    </div>
+        </span>
+        <span className="mt-1 flex items-center text-xs font-medium text-[var(--orch-text-muted)] transition-colors group-hover:text-[var(--orch-primary-green)]">
+          <span>{card.isLocked ? 'Paket diperlukan' : 'Buka modul'}</span>
+          <ChevronRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+        {card.description ? (
+          <span className="mt-2 block line-clamp-2 text-xs leading-5 text-[var(--orch-text-secondary)]">
+            {card.description}
+          </span>
+        ) : null}
+      </span>
+    </button>
   );
 }
 
 export function FeatureHubScreen({
   domain,
+  description = 'Pusat kendali dan visibilitas operasional.',
+  eyebrow = 'Workspace',
   analyticsSlot,
   categoryCards,
   insightFeed,
   onNavigate
 }: FeatureHubScreenProps) {
+  const groupedCards = useMemo(() => {
+    const groups = new Map<string, CategoryCard[]>();
+    categoryCards.forEach((card) => {
+      const key = card.section || 'Kategori layanan';
+      groups.set(key, [...(groups.get(key) || []), card]);
+    });
+    return Array.from(groups.entries());
+  }, [categoryCards]);
+
   return (
-    <div id={`feature-hub-${domain.toLowerCase().replace(/\s+/g, '-')}`} className="flex flex-col gap-6 p-4 md:p-6 max-w-7xl mx-auto w-full">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+    <main
+      id={`feature-hub-${domain.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+      className="mx-auto flex w-full max-w-[1440px] flex-col gap-7 px-4 pb-8 pt-6 sm:px-6 lg:px-8"
+    >
+      <header className="flex flex-col gap-3 border-b border-[var(--orch-border)] pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--orch-primary-green)]">
+            {eyebrow}
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--orch-text-primary)] sm:text-3xl">
             {domain}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Pusat kendali dan visibilitas operasional
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--orch-text-secondary)]">
+            {description}
           </p>
         </div>
       </header>
 
-      {/* Analytics Slot */}
-      <section aria-label="analytics" className="w-full">
+      <section aria-label="Ringkasan workspace" className="w-full">
         {analyticsSlot}
       </section>
 
-      {/* Categories Grid */}
-      <section aria-label="categories" className="w-full">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
-          Kategori Layanan
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {categoryCards.map((card) => (
-            <CategoryCardTile
-              key={card.key}
-              card={card}
-              onClick={() => onNavigate && onNavigate(card.route)}
-            />
+      <section aria-label="Domain dan modul" className="w-full">
+        <div className="space-y-7">
+          {groupedCards.map(([sectionName, cards]) => (
+            <div key={sectionName}>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--orch-text-primary)]">{sectionName}</h2>
+                  <p className="mt-0.5 text-xs text-[var(--orch-text-muted)]">
+                    Modul yang tersedia pada struktur aplikasi saat ini.
+                  </p>
+                </div>
+                <span className="text-[11px] font-semibold text-[var(--orch-text-muted)]">
+                  {cards.length} modul
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {cards.map((card) => (
+                  <CategoryCardTile
+                    key={card.key}
+                    card={card}
+                    onClick={() => onNavigate?.(card.route)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* Actionable Insight Feed */}
-      {insightFeed && (
-        <section aria-label="insights" className="w-full pt-2">
+      {insightFeed ? (
+        <section aria-label="Insight workspace" className="w-full">
           {insightFeed}
         </section>
-      )}
-    </div>
+      ) : null}
+    </main>
   );
 }

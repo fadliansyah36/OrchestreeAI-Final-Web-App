@@ -128,8 +128,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   defaultCategory = 'all',
 }) => {
   const tenantId = tenant?.tenant_id || '';
-  const userRole = tenant?.role || 'TENANT_OWNER';
-
   // Navigation & Tabs
   const [activeTab, setActiveTab] = useState<'client_connections' | 'sync_logs'>('client_connections');
   const [selectedCategory, setSelectedCategory] = useState<string>(defaultCategory);
@@ -194,6 +192,14 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
     e.preventDefault();
     if (!connectTargetApp) return;
 
+    if (!connectToken.trim()) {
+      setFeedbackMessage({
+        type: 'error',
+        message: 'Credential integrasi wajib diberikan oleh provider. Client tidak membuat token, refresh token, atau account ID sintetis.',
+      });
+      return;
+    }
+
     setActionLoadingId(connectTargetApp.app_code);
     try {
       const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections`, {
@@ -201,24 +207,22 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           app_code: connectTargetApp.app_code,
-          connection_name: connectAccountName || `${connectTargetApp.name} Utama`,
-          access_token: connectToken || `tok_live_${Math.floor(Date.now() / 1000)}`,
-          refresh_token: `ref_live_${Math.floor(Date.now() / 1000)}`,
-          expires_in_days: 60,
-          external_account_id: connectAccountId || `id_${Math.floor(Date.now() / 1000)}`,
-          external_account_name: connectAccountName || `${connectTargetApp.name} Akun Bisnis`,
+          connection_name: connectAccountName.trim() || `${connectTargetApp.name} Utama`,
+          access_token: connectToken.trim(),
+          external_account_id: connectAccountId.trim() || undefined,
+          external_account_name: connectAccountName.trim() || `${connectTargetApp.name} Akun Bisnis`,
           authorized_scopes: connectTargetApp.supported_scopes,
         }),
       });
 
       if (!res.ok) {
         const errJson = await res.json();
-        throw new Error(errJson.error || 'Gagal menghubungkan integrasi');
+        throw new Error(errJson.error || errJson.detail || 'Gagal menghubungkan integrasi');
       }
 
       setFeedbackMessage({
         type: 'success',
-        message: `Koneksi ke ${connectTargetApp.name} berhasil terhubung secara aktif.`,
+        message: `Credential ${connectTargetApp.name} berhasil diteruskan ke backend untuk diproses.`,
       });
       setConnectTargetApp(null);
       setConnectAccountName('');
@@ -231,7 +235,6 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
       setActionLoadingId(null);
     }
   };
-
   // Health-check handler
   const handleCheckHealth = async (connectionId: string, appName: string) => {
     setActionLoadingId(connectionId);
@@ -330,8 +333,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: tenant?.user_id || tenant?.membership_id || '',
-            user_role: userRole,
+            accept_metadata_only: true,
           }),
         }
       );
