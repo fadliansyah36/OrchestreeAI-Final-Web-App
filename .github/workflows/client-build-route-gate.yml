@@ -88,8 +88,13 @@ jobs:
             '/permissions',
           ];
           const missing = required.filter((route) => {
-            const key = route === '/' ? '/page' : route + '/page';
-            return !Object.prototype.hasOwnProperty.call(manifest, key);
+            const candidates =
+              route === '/'
+                ? ['/page', '/(public)/page']
+                : [route + '/page'];
+            return !candidates.some((key) =>
+              Object.prototype.hasOwnProperty.call(manifest, key)
+            );
           });
           if (missing.length) {
             console.error('Missing required routes:', missing.join(', '));
