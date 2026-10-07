@@ -169,6 +169,8 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
   const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
 
   const tenantId = tenant?.tenant_id || '';
+  // Role comes from the authenticated tenant membership context; no client-side role simulator.
+  const userRole = tenant?.role || 'STAFF_HUMAN';
 
   const getHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
@@ -1107,7 +1109,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
               <div className="mb-6">
                 <AgentCreationScreen
                   tenantId={tenantId}
-                  userRole={testRole}
+                  userRole={userRole}
                   onSuccess={async (newAgent) => {
                     setShowAgentModal(false);
                     setSuccessMsg(`Staf AI '${newAgent.display_name}' berhasil didaftarkan dengan jabatan '${newAgent.job_title_name || 'Katalog Resmi'}'.`);
