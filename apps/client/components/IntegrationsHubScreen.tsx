@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   Share2,
   CheckCircle2,
@@ -157,21 +158,21 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
     setIsLoading(true);
     try {
       // 1. Fetch Catalog
-      const catRes = await fetch('/api/v1/integrations/catalog');
+      const catRes = await apiClient.fetch('/api/v1/integrations/catalog');
       if (catRes.ok) {
         const catJson = await catRes.json();
         setCatalog(catJson.data || []);
       }
 
       // 2. Fetch Tenant Connections
-      const connRes = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections`);
+      const connRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections`);
       if (connRes.ok) {
         const connJson = await connRes.json();
         setConnections(connJson.data || []);
       }
 
       // 3. Fetch Sync Logs
-      const logsRes = await fetch(`/api/v1/tenants/${tenantId}/integrations/sync-logs?limit=40`);
+      const logsRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/sync-logs?limit=40`);
       if (logsRes.ok) {
         const logsJson = await logsRes.json();
         setSyncLogs(logsJson.data || []);
@@ -202,7 +203,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
 
     setActionLoadingId(connectTargetApp.app_code);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -239,7 +240,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   const handleCheckHealth = async (connectionId: string, appName: string) => {
     setActionLoadingId(connectionId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/health-check`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/health-check`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error('Gagal mengecek kesehatan integrasi');
@@ -260,7 +261,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   const handleRefreshToken = async (connectionId: string, appName: string) => {
     setActionLoadingId(connectionId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/refresh-token`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/refresh-token`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error('Gagal memperbarui token otentikasi');
@@ -280,7 +281,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
   const handleManualSync = async (connectionId: string, appName: string) => {
     setActionLoadingId(connectionId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/sync`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${connectionId}/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sync_type: 'manual_sync' }),
@@ -304,7 +305,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
     if (!revokeModalTarget) return;
     setActionLoadingId(revokeModalTarget.id);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${revokeModalTarget.id}/revoke`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/integrations/connections/${revokeModalTarget.id}/revoke`, {
         method: 'POST',
       });
       if (!res.ok) throw new Error('Gagal memutus koneksi integrasi');
@@ -327,7 +328,7 @@ export const IntegrationsHubScreen: React.FC<IntegrationsHubScreenProps> = ({
     if (!transparencyModalTarget || !consentCheckbox) return;
     setActionLoadingId(transparencyModalTarget.id);
     try {
-      const res = await fetch(
+      const res = await apiClient.fetch(
         `/api/v1/tenants/${tenantId}/integrations/connections/${transparencyModalTarget.id}/transparency-consent`,
         {
           method: 'POST',
