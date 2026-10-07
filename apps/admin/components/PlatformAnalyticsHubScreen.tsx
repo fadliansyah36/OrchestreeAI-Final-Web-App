@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   TrendingUp,
   DollarSign,
@@ -97,7 +98,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
       if (dateRange === 'custom' && customStart && customEnd) {
         url += `&start_date=${customStart}&end_date=${customEnd}`;
       }
-      const res = await fetch(url, {
+      const res = await apiClient.fetch(url, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -118,7 +119,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingTenants(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/tenants?sort_by=${tenantSortBy}&order=${tenantSortOrder}&limit=50`;
-      const res = await fetch(url, {
+      const res = await apiClient.fetch(url, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -138,7 +139,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingLlm(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/llm-usage?groupBy=${llmGroupBy}&range=${dateRange}`;
-      const res = await fetch(url, {
+      const res = await apiClient.fetch(url, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -159,7 +160,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setLoadingDetail(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/tenants/${tenantId}/detail`;
-      const res = await fetch(url, {
+      const res = await apiClient.fetch(url, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -179,7 +180,7 @@ export function PlatformAnalyticsHubScreen({ apiBaseUrl = '' }: PlatformAnalytic
     setIsRefreshing(true);
     try {
       const url = `${apiBaseUrl}/api/v1/admin/analytics/rollup/refresh`;
-      const res = await fetch(url, {
+      const res = await apiClient.fetch(url, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

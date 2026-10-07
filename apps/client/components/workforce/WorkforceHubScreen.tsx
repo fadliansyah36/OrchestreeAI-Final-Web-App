@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   FeatureHubScreen,
   CategoryCard,
@@ -183,10 +184,10 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
       const headers = getHeaders();
 
       const [deptRes, staffRes, agentRes, orgRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/departments`, { headers }),
-        fetch(`/api/v1/tenants/${tenantId}/staff`, { headers }),
-        fetch(`/api/v1/tenants/${tenantId}/agents`, { headers }),
-        fetch(`/api/v1/tenants/${tenantId}/org-chart`, { headers }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/departments`, { headers }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/staff`, { headers }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/agents`, { headers }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/org-chart`, { headers }),
       ]);
 
       if (deptRes.ok) {
@@ -222,7 +223,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
     setLoadingStaffDocs(true);
     setDocUploadError(null);
     try {
-      const res = await fetch(`/api/v1/workforce/${tenantId}/staff/${membershipId}/documents`, {
+      const res = await apiClient.fetch(`/api/v1/workforce/${tenantId}/staff/${membershipId}/documents`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -254,7 +255,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
 
       const headers: Record<string, string> = {};
 
-      const res = await fetch(`/api/v1/workforce/${tenantId}/staff/${selectedStaffForDocs.id}/documents/upload`, {
+      const res = await apiClient.fetch(`/api/v1/workforce/${tenantId}/staff/${selectedStaffForDocs.id}/documents/upload`, {
         method: 'POST',
         headers,
         body: formData,
@@ -282,7 +283,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/departments`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/departments`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
@@ -319,7 +320,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/departments/${deptId}`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/departments/${deptId}`, {
         method: 'PATCH',
         headers: getHeaders(),
         body: JSON.stringify({ deleted: true }),
@@ -356,7 +357,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/staff`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/staff`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
@@ -394,7 +395,7 @@ export const WorkforceHubScreen: React.FC<WorkforceHubScreenProps> = ({
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/agents`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/agents`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({

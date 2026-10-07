@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiClient } from '@orchestree/api-client';
 import {
   Sparkles,
   Lock,
@@ -165,14 +166,14 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
     setLoading(true);
     try {
       // 1. Templates
-      const tRes = await fetch(`/api/v1/tenants/${tenantId}/generative/templates`);
+      const tRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/templates`);
       if (tRes.ok) {
         const tData = await tRes.json();
         setTemplates(tData.data || []);
       }
 
       // 2. Brand locks
-      const bRes = await fetch(`/api/v1/tenants/${tenantId}/generative/brand-locks`);
+      const bRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/brand-locks`);
       if (bRes.ok) {
         const bData = await bRes.json();
         const bList: BrandAssetLock[] = bData.data || [];
@@ -184,21 +185,21 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
       }
 
       // 3. Jobs
-      const jRes = await fetch(`/api/v1/tenants/${tenantId}/generative/jobs`);
+      const jRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/jobs`);
       if (jRes.ok) {
         const jData = await jRes.json();
         setJobs(jData.data || []);
       }
 
       // 4. Artifacts
-      const aRes = await fetch(`/api/v1/tenants/${tenantId}/generative/artifacts`);
+      const aRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/artifacts`);
       if (aRes.ok) {
         const aData = await aRes.json();
         setArtifacts(aData.data || []);
       }
 
       // 5. Wallet
-      const wRes = await fetch(`/api/v1/tenants/${tenantId}/billing/wallet`);
+      const wRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/billing/wallet`);
       if (wRes.ok) {
         const wData = await wRes.json();
         setWalletBalance({
@@ -274,7 +275,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/generative/jobs`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -323,7 +324,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/generative/brand-locks`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/generative/brand-locks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1051,7 +1052,7 @@ export function GenerativeStudioHubScreen({ tenant }: { tenant: any }) {
                         onClick={async () => {
                           try {
                             let targetUrl = art.public_url;
-                            const signRes = await fetch(`/api/v1/storage/download-artifact/${art.id}?expires_seconds=300`, { credentials: 'include' });
+                            const signRes = await apiClient.fetch(`/api/v1/storage/download-artifact/${art.id}?expires_seconds=300`, { credentials: 'include' });
                             if (signRes.ok) {
                               const signData = await signRes.json();
                               if (signData.signed_download_url) {
