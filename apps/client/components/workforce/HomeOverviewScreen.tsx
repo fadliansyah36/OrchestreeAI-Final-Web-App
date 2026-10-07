@@ -296,17 +296,18 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
           reply: data.reply || data.response || data.message || ''
         }));
       } else {
+        const errorPayload = await res.json().catch(() => ({}));
         setAiResponseModal((prev) => ({
           ...prev,
           loading: false,
-          reply: `Permintaan diproses dengan konfirmasi: "${text}". Tugas koordinasi telah dimasukkan ke dalam antrian kerja organisasi.`
+          reply: errorPayload.detail || errorPayload.message || `Orkestrasi tidak tersedia (HTTP ${res.status}). Tidak ada status sukses yang dibuat oleh client.`
         }));
       }
     } catch (err) {
       setAiResponseModal((prev) => ({
         ...prev,
         loading: false,
-        reply: `Instruksi Anda: "${text}" telah dicatat. Layanan orkestrator akan menyinkronkan pembaruan pada alur kerja terkait.`
+        reply: 'Layanan orkestrasi tidak dapat dijangkau. Tidak ada hasil atau status sukses yang dibuat oleh client.'
       }));
     }
   };
