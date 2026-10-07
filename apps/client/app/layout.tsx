@@ -1,5 +1,6 @@
 import React from 'react';
 import { OrchIntlProvider, BackendConnectivityGate } from '@orchestree/ui';
+import { ClientAppShell } from '../components/ClientAppShell';
 import './globals.css';
 
 export const viewport = {
@@ -47,10 +48,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-slate-50 dark:bg-[#0B1220] text-slate-900 dark:text-white antialiased font-sans">
+      <body className="min-h-screen antialiased">
         <OrchIntlProvider>
           <BackendConnectivityGate>
-            {children}
+            <ClientAppShell>{children}</ClientAppShell>
           </BackendConnectivityGate>
         </OrchIntlProvider>
       </body>
