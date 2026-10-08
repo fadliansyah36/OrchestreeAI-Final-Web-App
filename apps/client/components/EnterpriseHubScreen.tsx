@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
@@ -138,17 +139,17 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
   const fetchDimensionsAndNodes = async () => {
     try {
-      const dimRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/dimensions`);
+      const dimRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/dimensions`);
       if (dimRes.ok) {
         const dData = await dimRes.json();
         setDimensions(dData || []);
       }
-      const nodeRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`);
+      const nodeRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`);
       if (nodeRes.ok) {
         const nData = await nodeRes.json();
         setKnowledgeNodes(nData || []);
       }
-      const polRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`);
+      const polRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`);
       if (polRes.ok) {
         const pData = await polRes.json();
         setResearchPolicy(pData);
@@ -163,7 +164,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
     try {
       setPolicyLoading(true);
       const newAllowed = !researchPolicy.allow_public_web_search;
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/research-policy`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,7 +210,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
         }
       ];
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/research-agent/query`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/research-agent/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,7 +243,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
     }
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/nodes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -278,12 +279,12 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
   const fetchContextEventsAndSignals = async () => {
     try {
-      const evRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/events`);
+      const evRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context/events`);
       if (evRes.ok) {
         const data = await evRes.json();
         setContextEvents(data.events || []);
       }
-      const sigRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`);
+      const sigRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`);
       if (sigRes.ok) {
         const data = await sigRes.json();
         setContextSignals(data.signals || []);
@@ -297,14 +298,14 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
     try {
       setLoading(true);
       // 1. Fetch Tier
-      const tierRes = await fetch(`/api/v1/tenants/${tenantId}/subscription/tier`);
+      const tierRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/subscription/tier`);
       if (tierRes.ok) {
         const tData = await tierRes.json();
         setTierInfo(tData);
       }
 
       // 2. Fetch Briefings
-      const bRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/briefings`);
+      const bRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/briefings`);
       if (bRes.ok) {
         const bData = await bRes.json();
         setBriefings(bData.briefings || []);
@@ -312,14 +313,14 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
       }
 
       // 3. Fetch Events
-      const eRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/events`);
+      const eRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/events`);
       if (eRes.ok) {
         const eData = await eRes.json();
         setEvents(eData.events || []);
       }
 
       // 4. Fetch Fabric Connectors
-      const cRes = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors`);
+      const cRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors`);
       if (cRes.ok) {
         const cData = await cRes.json();
         setConnectors(cData.connectors || []);
@@ -350,7 +351,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleChangeTier = async (targetPlan: 'GROWTH' | 'ENTERPRISE') => {
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/subscription/change-tier`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/subscription/change-tier`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan_code: targetPlan }),
@@ -380,7 +381,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/events`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -416,7 +417,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleGenerateBriefing = async () => {
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/briefings/generate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/chief-of-staff/briefings/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ briefing_date: new Date().toISOString().split('T')[0] }),
@@ -486,7 +487,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
       // Ingest 4 sinyal terlebih dahulu
       for (const s of fourSignals) {
-        await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`, {
+        await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context/signals`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(s),
@@ -494,7 +495,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
       }
 
       // Picu korelasi sinyal lintas sistem
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context/correlate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context/correlate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -541,7 +542,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
       if (newApiKey.trim()) credentials.apiKey = newApiKey.trim();
       if (newApiSecret.trim()) credentials.apiSecret = newApiSecret.trim();
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -593,7 +594,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
     setDpiaApprovalStatus('APPROVED');
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${conn.id}/dpia`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${conn.id}/dpia`);
       if (res.ok) {
         const existing = await res.json();
         setDpiaTitle(existing.assessment_title || '');
@@ -627,7 +628,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${selectedConnector.id}/dpia`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${selectedConnector.id}/dpia`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -665,7 +666,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleActivateConnector = async (conn: any) => {
     try {
       setActionLoading(true);
-      const res = await fetch(
+      const res = await apiClient.fetch(
         `/api/v1/tenants/${tenantId}/enterprise/integration-fabric/connectors/${conn.id}/activate`,
         {
           method: 'POST',
@@ -703,7 +704,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
       setActionLoading(true);
       let url = `/api/v1/tenants/${tenantId}/enterprise/integration-fabric/sync-logs`;
       if (connectorId) url += `?connector_id=${connectorId}`;
-      const res = await fetch(url);
+      const res = await apiClient.fetch(url);
       if (res.ok) {
         const data = await res.json();
         setSyncLogs(data.sync_logs || []);
@@ -722,7 +723,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleSyncConnector = async (connectorCode: string) => {
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/sync`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/integration-fabric/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connector_code: connectorCode }),
@@ -754,7 +755,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/query`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/context-fabric/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: contextQuery }),
@@ -783,7 +784,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleDispatchSpecialist = async () => {
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/specialist-agents/dispatch`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/specialist-agents/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -815,7 +816,7 @@ export const EnterpriseHubScreen: React.FC<EnterpriseHubScreenProps> = ({
   const handleRunEnforcementCheck = async () => {
     try {
       setVerifyingEnforcement(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/enterprise/enforcement-check`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/enterprise/enforcement-check`);
       const data = await res.json();
       setEnforcementResult(data);
       if (data.all_consistent) {
