@@ -47,23 +47,11 @@ async function rawRequest(input: string, init: ApiRequestOptions = {}): Promise<
     mergedHeaders.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(resolveUrl(input, baseUrl), {
+  return fetch(resolveUrl(input, baseUrl), {
     ...requestInit,
     credentials: requestInit.credentials ?? 'include',
     headers: mergedHeaders,
   });
-
-  if (!response.ok) {
-    const body = await parseBody(response);
-    const detail =
-      typeof body === 'object' && body !== null
-        ? ((body as Record<string, unknown>).detail ?? (body as Record<string, unknown>).message ?? (body as Record<string, unknown>).error)
-        : undefined;
-    const message = typeof detail === 'string' ? detail : `Backend request failed (${response.status})`;
-    throw new ApiClientError(message, response.status, input, body);
-  }
-
-  return response;
 }
 
 async function request(input: string, init: ApiRequestOptions = {}): Promise<Response> {
@@ -82,7 +70,7 @@ async function request(input: string, init: ApiRequestOptions = {}): Promise<Res
 
 export const apiClient = {
   request,
-  fetch: request,
+  // `fetch` preserves native Response semantics for existing components that inspect ok/status/body.\n  fetch: rawRequest,
   get<T = unknown>(input: ApiPath, init?: ApiRequestOptions) {
     return request(String(input), { ...init, method: 'GET' }).then((r) => r.json() as Promise<T>);
   },
