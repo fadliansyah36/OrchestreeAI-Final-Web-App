@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -32,9 +33,9 @@ export default function OverviewPage() {
       setError(null);
 
       const requests = await Promise.allSettled([
-        fetch(`/api/v1/tenants/${tenantId}/departments`, { credentials: 'include', cache: 'no-store' }),
-        fetch(`/api/v1/tenants/${tenantId}/staff`, { credentials: 'include', cache: 'no-store' }),
-        fetch(`/api/v1/tenants/${tenantId}/agents`, { credentials: 'include', cache: 'no-store' }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/departments`, { credentials: 'include', cache: 'no-store' }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/staff`, { credentials: 'include', cache: 'no-store' }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/agents`, { credentials: 'include', cache: 'no-store' }),
       ]);
 
       if (!active) return;
