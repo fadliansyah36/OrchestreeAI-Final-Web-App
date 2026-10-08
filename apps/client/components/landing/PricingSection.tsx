@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   Check,
@@ -55,8 +56,8 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
     setError(null);
     try {
       const [plansRes, matrixRes] = await Promise.all([
-        fetch('/api/v1/public/subscription-plans'),
-        fetch('/api/v1/public/plan-facility-matrix'),
+        apiClient.fetch('/api/v1/public/subscription-plans'),
+        apiClient.fetch('/api/v1/public/plan-facility-matrix'),
       ]);
 
       if (!plansRes.ok) {
