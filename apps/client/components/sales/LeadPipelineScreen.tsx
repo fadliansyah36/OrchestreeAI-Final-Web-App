@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -138,7 +139,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
   const fetchPipeline = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/pipeline`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/pipeline`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: Gagal memuat pipeline.`);
       const json = await res.json();
       if (json.data) {
@@ -164,8 +165,8 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
     setLoadingDetail(true);
     try {
       const [detailRes, timelineRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}`),
-        fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/timeline`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/timeline`),
       ]);
       if (detailRes.ok) {
         const detailJson = await detailRes.json();
@@ -184,7 +185,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
 
   const handleStageChange = async (leadId: string, newStage: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/stage`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/stage`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage }),
@@ -204,7 +205,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
     if (!answerText.trim()) return;
     setSubmittingAnswer(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/qualification`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/qualification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -229,7 +230,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
 
   const handleManualRecalculate = async (leadId: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/recalculate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads/${leadId}/recalculate`, {
         method: 'POST',
       });
       if (res.ok) {
@@ -246,7 +247,7 @@ export const LeadPipelineScreen: React.FC<{ tenantId: string; onOpenPersonas?: (
     if (!newLeadTitle || !newLeadContact) return;
     setCreatingLead(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/leads`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
