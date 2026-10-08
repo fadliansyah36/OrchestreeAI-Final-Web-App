@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -12,7 +13,7 @@ export default function AdminHomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/v1/admin/hub-overview', {
+    apiClient.fetch('/api/v1/admin/hub-overview', {
       credentials: 'include',
       cache: 'no-store',
     })
