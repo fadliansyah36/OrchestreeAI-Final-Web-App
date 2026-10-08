@@ -115,3 +115,23 @@ REPAIR-FE-04 is accepted only after:
 - existing component visual/UI composition remains unchanged by the transport migration.
 
 This phase does not declare the product GREEN and does not claim authenticated runtime success.
+
+
+## Evidence after merge
+
+- PR #19 merged to `main`: squash commit `4e3c327578a53b57440389a578dc31e03207e50d`.
+- REPAIR-FE-04 API client domain gate: workflow run `37719779263` — SUCCESS.
+  - transport scan: SUCCESS
+  - client type-check: SUCCESS
+  - admin type-check: SUCCESS
+- Client Build & Route Gate: workflow run `37719779212` — SUCCESS.
+  - client type-check: SUCCESS
+  - Next.js production build: SUCCESS
+  - public/authenticated route boundary verification: SUCCESS
+  - required app routes verification: SUCCESS
+- Railway production deployment was automatically triggered from `main` commit `4e3c327578a53b57440389a578dc31e03207e50d` for:
+  - `@orchestree/client`: deployment `ed1f1720-45dd-4e5a-a46d-4ae4a4db7ffd` — BUILDING at verification time.
+  - `@orchestree/admin`: deployment `807d90d3-c848-49a7-b2e7-0dc574882dc7` — BUILDING at verification time.
+- Supabase: no migration/schema change in REPAIR-FE-04.
+- Auth: no repair/change in REPAIR-FE-04; the separate Authenticated Runtime E2E workflow remains outside this phase.
+- Product GREEN status: not declared.
