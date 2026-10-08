@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -128,7 +129,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
       const q = new URLSearchParams();
       if (selectedStatus && selectedStatus !== 'ALL') q.set('status', selectedStatus);
       if (selectedCategory && selectedCategory !== 'ALL') q.set('category', selectedCategory);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/service/requests?${q.toString()}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/requests?${q.toString()}`);
       if (res.ok) {
         const json = await res.json();
         setRequests(json.tickets || []);
@@ -146,7 +147,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
   // Fetch abandoned carts
   const fetchAbandonedCarts = async () => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/service/abandoned-carts`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/abandoned-carts`);
       if (res.ok) {
         const json = await res.json();
         setAbandonedCarts(json.data || []);
@@ -178,7 +179,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
 
     // Call backend API if running
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/service/requests`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,7 +245,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
 
     try {
       const endpoint = modalAction === 'APPROVE' ? 'approve' : 'reject';
-      await fetch(`/api/v1/tenants/${tenantId}/service/requests/${selectedTicket.id}/${endpoint}`, {
+      await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/requests/${selectedTicket.id}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -280,7 +281,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
     setIsHumanizing(true);
     setHumanizeError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/service/humanize`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/humanize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -310,7 +311,7 @@ export const ServiceRequestScreen: React.FC<ServiceRequestScreenProps> = ({
   const handleDispatchAbandonedCarts = async () => {
     setIsProcessingCarts(true);
     try {
-      await fetch(`/api/v1/tenants/${tenantId}/service/abandoned-carts/process`, {
+      await apiClient.fetch(`/api/v1/tenants/${tenantId}/service/abandoned-carts/process`, {
         method: 'POST',
       });
     } catch (e) {
