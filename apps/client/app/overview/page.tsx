@@ -1,5 +1,6 @@
-import { apiClient } from '@orchestree/api-client';
 'use client';
+
+import { apiClient } from '@orchestree/api-client';
 
 import React, { useEffect, useState } from 'react';
 import { useAuthSession } from '../../lib/useAuthSession';
