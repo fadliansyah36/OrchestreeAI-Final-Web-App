@@ -1,5 +1,7 @@
 'use client';
 
+import { apiClient } from '@orchestree/api-client';
+
 import React, { useState, useEffect } from 'react';
 import {
   FileCheck2,
@@ -214,7 +216,7 @@ export function UniversalSelectionHubScreen({
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs`);
       if (res.ok) {
         const json = await res.json();
         const list: SelectionJob[] = json.data || [];
@@ -233,7 +235,7 @@ export function UniversalSelectionHubScreen({
   const fetchJobDetail = async (jobId: string) => {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${jobId}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${jobId}`);
       if (res.ok) {
         const json = await res.json();
         const detail: SelectionJob = json.data;
@@ -258,9 +260,9 @@ export function UniversalSelectionHubScreen({
     try {
       setAnalyticsLoading(true);
       const [anaRes, vizRes, insRes] = await Promise.all([
-        fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/analytics`),
-        fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/visualizations`),
-        fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/insights`),
+        apiClient.fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/analytics`),
+        apiClient.fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/visualizations`),
+        apiClient.fetch(`/api/v1/selection/tenants/${tenantId}/jobs/${jobId}/insights`),
       ]);
       if (anaRes.ok) {
         const j = await anaRes.json();
@@ -283,7 +285,7 @@ export function UniversalSelectionHubScreen({
 
   const fetchJobResults = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${jobId}/results`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${jobId}/results`);
       if (res.ok) {
         const j = await res.json();
         setJobResults(j.data || []);
@@ -295,7 +297,7 @@ export function UniversalSelectionHubScreen({
 
   const fetchCalibrationProfiles = async () => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/calibration-profiles`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/calibration-profiles`);
       if (res.ok) {
         const j = await res.json();
         setCalibrationProfiles(j.data || []);
@@ -322,7 +324,7 @@ export function UniversalSelectionHubScreen({
     if (!currentJob) return;
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/score`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model_used: 'meta-llama/llama-3.3-70b-instruct' })
@@ -362,7 +364,7 @@ export function UniversalSelectionHubScreen({
         payload.override_score = parseFloat(reviewOverrideScore);
       }
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/scores/${reviewModalTarget.id}/review`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/scores/${reviewModalTarget.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -394,7 +396,7 @@ export function UniversalSelectionHubScreen({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/finalize`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -429,7 +431,7 @@ export function UniversalSelectionHubScreen({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/calibrate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/calibrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -462,7 +464,7 @@ export function UniversalSelectionHubScreen({
 
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -510,7 +512,7 @@ export function UniversalSelectionHubScreen({
         if (docCandidateEmail) formData.append('candidate_email', docCandidateEmail);
         if (docCandidatePhone) formData.append('candidate_phone', docCandidatePhone);
 
-        const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/upload-document-file`, {
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/upload-document-file`, {
           method: 'POST',
           body: formData,
         });
@@ -534,7 +536,7 @@ export function UniversalSelectionHubScreen({
           showFeedback('Nama berkas wajib diisi.', 'error');
           return;
         }
-        const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/documents`, {
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/documents`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -572,7 +574,7 @@ export function UniversalSelectionHubScreen({
     if (!currentJob) return;
     try {
       setActionLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/export`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/selection/jobs/${currentJob.id}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

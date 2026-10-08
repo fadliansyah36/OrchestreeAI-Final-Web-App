@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   Package,
@@ -99,13 +100,13 @@ export const ProductCatalogScreen: React.FC<{
   const fetchCatalogData = async () => {
     setLoading(true);
     try {
-      const pRes = await fetch(`/api/v1/tenants/${tenantId}/commerce/products`);
+      const pRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/products`);
       const pData = await pRes.json();
       if (pData.status === 'ok') {
         setProducts(pData.data || []);
       }
 
-      const prRes = await fetch(`/api/v1/tenants/${tenantId}/commerce/promotions`);
+      const prRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/promotions`);
       const prData = await prRes.json();
       if (prData.status === 'ok') {
         setPromotions(prData.data || []);
@@ -129,7 +130,7 @@ export const ProductCatalogScreen: React.FC<{
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/products`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +163,7 @@ export const ProductCatalogScreen: React.FC<{
 
   const handleUpdateStock = async () => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/products/${stockToUpdate.id}/stock`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/products/${stockToUpdate.id}/stock`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quantity: Number(newStockVal) }),
@@ -181,7 +182,7 @@ export const ProductCatalogScreen: React.FC<{
   const handleCreatePromotion = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/promotions`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/promotions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

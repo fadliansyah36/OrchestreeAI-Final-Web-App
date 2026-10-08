@@ -1,0 +1,42 @@
+name: REPAIR-FE-04 Existing Component API Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/client/**'
+      - 'apps/admin/**'
+      - 'packages/api-client/**'
+      - 'scripts/ci-api-client-domain-gate.js'
+      - '.github/workflows/fe-04-api-client-gate.yml'
+  pull_request:
+    paths:
+      - 'apps/client/**'
+      - 'apps/admin/**'
+      - 'packages/api-client/**'
+      - 'scripts/ci-api-client-domain-gate.js'
+      - '.github/workflows/fe-04-api-client-gate.yml'
+
+jobs:
+  api-client-domain-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify existing component transport
+        run: node scripts/ci-api-client-domain-gate.js
+
+      - name: Type-check client
+        run: npm run type-check:client
+
+      - name: Type-check admin
+        run: npm run type-check:admin

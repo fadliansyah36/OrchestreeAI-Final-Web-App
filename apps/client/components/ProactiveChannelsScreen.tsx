@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
@@ -84,7 +85,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch(
+        const res = await apiClient.fetch(
           `/api/v1/proactive/verification/${tgVerificationId}/status?tenant_id=${tenantId}`
         );
         if (res.ok) {
@@ -112,7 +113,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
   const fetchSubscriptions = async () => {
     try {
-      const res = await fetch(`/api/v1/proactive/subscriptions?tenant_id=${tenantId}&membership_id=${membershipId}`);
+      const res = await apiClient.fetch(`/api/v1/proactive/subscriptions?tenant_id=${tenantId}&membership_id=${membershipId}`);
       if (res.ok) {
         const data = await res.json();
         const subs = data.subscriptions || data.data || [];
@@ -133,7 +134,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch(`/api/v1/proactive/notifications?tenant_id=${tenantId}&membership_id=${membershipId}&unread_only=${unreadOnly}`);
+      const res = await apiClient.fetch(`/api/v1/proactive/notifications?tenant_id=${tenantId}&membership_id=${membershipId}&unread_only=${unreadOnly}`);
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || data.data || []);
@@ -145,7 +146,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch(`/api/v1/proactive/logs?tenant_id=${tenantId}&limit=20`);
+      const res = await apiClient.fetch(`/api/v1/proactive/logs?tenant_id=${tenantId}&limit=20`);
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || data.data || []);
@@ -164,7 +165,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
     setWaLoading(true);
     setWaMessage(null);
     try {
-      const res = await fetch('/api/v1/proactive/channels/whatsapp/request-otp', {
+      const res = await apiClient.fetch('/api/v1/proactive/channels/whatsapp/request-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,7 +197,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
     setWaLoading(true);
     setWaMessage(null);
     try {
-      const res = await fetch('/api/v1/proactive/channels/whatsapp/verify-otp', {
+      const res = await apiClient.fetch('/api/v1/proactive/channels/whatsapp/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -225,7 +226,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   const handleGenerateTelegramLink = async () => {
     setTgLoading(true);
     try {
-      const res = await fetch('/api/v1/proactive/channels/telegram/deeplink', {
+      const res = await apiClient.fetch('/api/v1/proactive/channels/telegram/deeplink', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -254,7 +255,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   const handleTriggerScheduler = async () => {
     setSchedulerLoading(true);
     try {
-      const res = await fetch('/api/v1/proactive/scheduler/trigger', {
+      const res = await apiClient.fetch('/api/v1/proactive/scheduler/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -271,7 +272,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
   // Mark all notifications read
   const handleMarkAllRead = async () => {
     try {
-      await fetch('/api/v1/proactive/notifications/read-all', {
+      await apiClient.fetch('/api/v1/proactive/notifications/read-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant_id: tenantId, membership_id: membershipId }),
@@ -294,7 +295,7 @@ export const ProactiveChannelsScreen: React.FC<ProactiveChannelsScreenProps> = (
     setChatMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const response = await fetch('/api/v1/chat/messages', {
+      const response = await apiClient.fetch('/api/v1/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

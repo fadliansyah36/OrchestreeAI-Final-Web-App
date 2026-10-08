@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   FlaskConical,
@@ -61,7 +62,7 @@ export function MessageExperimentScreen({ tenantId }: { tenantId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/message-experiments`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/message-experiments`);
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.error || 'Gagal memuat eksperimen pesan.');
@@ -83,7 +84,7 @@ export function MessageExperimentScreen({ tenantId }: { tenantId: string }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/message-experiments`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/message-experiments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,7 +117,7 @@ export function MessageExperimentScreen({ tenantId }: { tenantId: string }) {
 
   const handleConclude = async (expId: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/message-experiments/${expId}/conclude`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/message-experiments/${expId}/conclude`, {
         method: 'POST',
       });
       const json = await res.json();

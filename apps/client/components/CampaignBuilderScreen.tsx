@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Megaphone,
@@ -94,7 +95,7 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
     let isMounted = true;
     const fetchAudiences = async () => {
       try {
-        const res = await fetch(`/api/v1/tenants/${tenantId}/crm/pipeline`);
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/pipeline`);
         if (res.ok) {
           const data = await res.json();
           const allLeads: any[] = [];
@@ -128,7 +129,7 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
     const fetchCalendar = async () => {
       setLoadingCalendar(true);
       try {
-        const res = await fetch(`/api/v1/tenants/${tenantId}/marketing/calendar`);
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/marketing/calendar`);
         if (res.ok) {
           const json = await res.json();
           if (isMounted && Array.isArray(json.data)) {
@@ -157,7 +158,7 @@ export const CampaignBuilderScreen: React.FC<CampaignBuilderScreenProps> = ({
     const fetchMarketplaces = async () => {
       setLoadingMarketplaces(true);
       try {
-        const res = await fetch(`/api/v1/tenants/${tenantId}/marketing/marketplaces`);
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/marketing/marketplaces`);
         if (res.ok) {
           const json = await res.json();
           if (isMounted && Array.isArray(json.data)) {

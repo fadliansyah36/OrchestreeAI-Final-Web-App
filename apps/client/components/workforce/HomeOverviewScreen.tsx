@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ResponsiveContainer,
@@ -200,7 +201,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/performance/overview?period=${period}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/performance/overview?period=${period}`);
       if (!res.ok) {
         throw new Error(`Gagal memuat data ringkasan kinerja (Status ${res.status})`);
       }
@@ -282,7 +283,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
     setAskAiPrompt('');
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/orchestration/chat`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/orchestration/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, channel: 'dashboard' })
@@ -316,7 +317,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
     setIsCalculating(true);
     setSuccessToast(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/performance/scoring/trigger`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/performance/scoring/trigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period: selectedPeriod }),
@@ -337,7 +338,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
 
   const handleAcknowledgeAlert = async (alertId: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/performance/alerts/${alertId}/acknowledge`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/performance/alerts/${alertId}/acknowledge`, {
         method: 'PATCH',
       });
       if (res.ok) {
@@ -357,7 +358,7 @@ export const HomeOverviewScreen: React.FC<HomeOverviewScreenProps> = ({
     setAuditTarget(worker);
     setLoadingAudit(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/performance/daily`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/performance/daily`);
       if (res.ok) {
         const data = await res.json();
         const filtered = (data.metrics || []).filter((m: any) =>

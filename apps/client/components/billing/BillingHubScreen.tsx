@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   CreditCard,
@@ -105,14 +106,14 @@ export function BillingHubScreen({
       };
 
       const [sRes, tRes, rRes, iRes, pRes, pkgRes, actRes, reconRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/credit-wallet/summary`, { headers }),
-        fetch('/api/v1/billing/transactions', { headers }),
-        fetch('/api/v1/billing/reservations', { headers }),
-        fetch('/api/v1/billing/invoices', { headers }),
-        fetch('/api/v1/billing/plans'),
-        fetch('/api/v1/billing/topup-packages'),
-        fetch('/api/v1/billing/activity-types'),
-        fetch('/api/v1/billing/reconciliation/cases', { headers }),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/credit-wallet/summary`, { headers }),
+        apiClient.fetch('/api/v1/billing/transactions', { headers }),
+        apiClient.fetch('/api/v1/billing/reservations', { headers }),
+        apiClient.fetch('/api/v1/billing/invoices', { headers }),
+        apiClient.fetch('/api/v1/billing/plans'),
+        apiClient.fetch('/api/v1/billing/topup-packages'),
+        apiClient.fetch('/api/v1/billing/activity-types'),
+        apiClient.fetch('/api/v1/billing/reconciliation/cases', { headers }),
       ]);
 
       if (sRes.ok) {
@@ -164,7 +165,7 @@ export function BillingHubScreen({
   const handleRunEstimation = async () => {
     setCalcLoading(true);
     try {
-      const res = await fetch('/api/v1/billing/estimate', {
+      const res = await apiClient.fetch('/api/v1/billing/estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -190,7 +191,7 @@ export function BillingHubScreen({
     setSettlingInvoiceNumber(invoiceNumber);
     setSettleFeedback(null);
     try {
-      const res = await fetch('/api/v1/billing/sandbox-settle', {
+      const res = await apiClient.fetch('/api/v1/billing/sandbox-settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +218,7 @@ export function BillingHubScreen({
     setSettlingInvoiceNumber(invoiceNumber);
     setSettleFeedback(null);
     try {
-      const res = await fetch('/api/v1/billing/reconciliation/report-payment', {
+      const res = await apiClient.fetch('/api/v1/billing/reconciliation/report-payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

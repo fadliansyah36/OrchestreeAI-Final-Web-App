@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   ShoppingBag,
@@ -129,7 +130,7 @@ export const OrderManagementScreen: React.FC<{
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/orders`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/orders`);
       const data = await res.json();
       if (data.status === 'ok') {
         setOrders(data.data || []);
@@ -153,7 +154,7 @@ export const OrderManagementScreen: React.FC<{
   const handleGenerateWaybill = async () => {
     if (!orderForWaybill) return;
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/orders/${orderForWaybill.id}/waybill`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/orders/${orderForWaybill.id}/waybill`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,7 +178,7 @@ export const OrderManagementScreen: React.FC<{
 
   const handleViewTracking = async (order: Order) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/shipping/tracking?order_number=${order.order_number}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/shipping/tracking?order_number=${order.order_number}`);
       const data = await res.json();
       if (data.status === 'ok') {
         setTrackingData(data.data);
@@ -193,12 +194,12 @@ export const OrderManagementScreen: React.FC<{
     try {
       const grossAmount = order.total_amount.toFixed(0);
       // Dapatkan signature SHA-512 resmi dari server
-      const sigRes = await fetch(`/api/v1/commerce/webhook-signature?order_id=${encodeURIComponent(order.order_number)}&status_code=200&gross_amount=${grossAmount}`);
+      const sigRes = await apiClient.fetch(`/api/v1/commerce/webhook-signature?order_id=${encodeURIComponent(order.order_number)}&status_code=200&gross_amount=${grossAmount}`);
       const sigData = await sigRes.json();
       const signatureKey = sigData.signature_key || '';
 
       // Panggil backend webhook route resmi
-      const res = await fetch('/api/v1/webhooks/payment/midtrans', {
+      const res = await apiClient.fetch('/api/v1/webhooks/payment/midtrans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -236,7 +237,7 @@ export const OrderManagementScreen: React.FC<{
     // Jika customer menanyakan resi / tracking
     if (userText.toLowerCase().includes('resi') || userText.toLowerCase().includes('sampai mana')) {
       try {
-        const res = await fetch(`/api/v1/tenants/${tenantId}/commerce/shipping/tracking`);
+        const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/shipping/tracking`);
         const tData = await res.json();
         const reply = tData.status === 'ok' && tData.data.found
           ? tData.data.message
@@ -252,7 +253,7 @@ export const OrderManagementScreen: React.FC<{
     } else {
       // Grounding Enforcement API call
       try {
-        const gRes = await fetch(`/api/v1/tenants/${tenantId}/commerce/validate-grounding`, {
+        const gRes = await apiClient.fetch(`/api/v1/tenants/${tenantId}/commerce/validate-grounding`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: `Rekomendasi harga Rp 150.000 untuk Kemeja Oxford.` }),
@@ -794,11 +795,11 @@ export const OrderManagementScreen: React.FC<{
                                 try {
                                   const ordNum = 'ORD-2026-SIM-001';
                                   const grossAmt = '150000';
-                                  const sigRes = await fetch(`/api/v1/commerce/webhook-signature?order_id=${ordNum}&status_code=200&gross_amount=${grossAmt}`);
+                                  const sigRes = await apiClient.fetch(`/api/v1/commerce/webhook-signature?order_id=${ordNum}&status_code=200&gross_amount=${grossAmt}`);
                                   const sigData = await sigRes.json();
                                   const sigKey = sigData.signature_key || '';
 
-                                  const whRes = await fetch('/api/v1/webhooks/payment/midtrans', {
+                                  const whRes = await apiClient.fetch('/api/v1/webhooks/payment/midtrans', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({

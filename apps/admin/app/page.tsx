@@ -1,5 +1,7 @@
 'use client';
 
+import { apiClient } from '@orchestree/api-client';
+
 import React, { useEffect, useState } from 'react';
 import { EmptyState } from '@orchestree/ui';
 import { AdminSuperHubScreen } from '../components/AdminSuperHubScreen';
@@ -12,7 +14,7 @@ export default function AdminHomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch('/api/v1/admin/hub-overview', {
+    apiClient.fetch('/api/v1/admin/hub-overview', {
       credentials: 'include',
       cache: 'no-store',
     })

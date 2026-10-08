@@ -1,5 +1,7 @@
 'use client';
 
+import { apiClient } from '@orchestree/api-client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Share2, Plus, QrCode, Power, ShieldAlert, CheckCircle2,
@@ -47,7 +49,7 @@ export const ChannelAccountsScreen: React.FC<ChannelAccountsScreenProps> = ({ te
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/channel-accounts`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/channel-accounts`);
       if (!res.ok) throw new Error('Gagal mengambil daftar akun kanal');
       const data = await res.json();
       setAccounts(data);
@@ -67,7 +69,7 @@ export const ChannelAccountsScreen: React.FC<ChannelAccountsScreenProps> = ({ te
     if (!accountLabel || !externalIdentifier) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/channel-accounts`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/channel-accounts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,7 +107,7 @@ export const ChannelAccountsScreen: React.FC<ChannelAccountsScreenProps> = ({ te
       return;
     }
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/channel-accounts/${caId}/qr-session`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/channel-accounts/${caId}/qr-session`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Gagal mencabut sesi Telegram');
