@@ -1,5 +1,6 @@
-import { apiClient } from '@orchestree/api-client';
 'use client';
+
+import { apiClient } from '@orchestree/api-client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Users, CheckCircle2, RotateCcw, XCircle, AlertTriangle, ShieldCheck, ArrowRight, RefreshCw, Eye } from 'lucide-react';
