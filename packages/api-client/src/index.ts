@@ -70,7 +70,8 @@ async function request(input: string, init: ApiRequestOptions = {}): Promise<Res
 
 export const apiClient = {
   request,
-  // `fetch` preserves native Response semantics for existing components that inspect ok/status/body.\n  fetch: rawRequest,
+  // `fetch` preserves native Response semantics for existing components that inspect ok/status/body.
+  fetch: rawRequest,
   get<T = unknown>(input: ApiPath, init?: ApiRequestOptions) {
     return request(String(input), { ...init, method: 'GET' }).then((r) => r.json() as Promise<T>);
   },
