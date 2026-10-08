@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
@@ -52,7 +53,7 @@ export function RevenueIntelligenceScreen({ tenantId }: { tenantId: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/revenue-intelligence/attribution`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/revenue-intelligence/attribution`);
       const json = await res.json();
       if (!res.ok) {
         throw new Error(json.error || 'Gagal memuat analitik pendapatan.');
