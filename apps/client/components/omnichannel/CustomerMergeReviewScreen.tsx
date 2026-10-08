@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -39,7 +40,7 @@ export const CustomerMergeReviewScreen: React.FC<CustomerMergeReviewScreenProps>
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews?status=${activeTab}`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews?status=${activeTab}`);
       if (!res.ok) {
         throw new Error('Gagal memuat daftar peninjauan penggabungan profil pelanggan.');
       }
@@ -59,7 +60,7 @@ export const CustomerMergeReviewScreen: React.FC<CustomerMergeReviewScreenProps>
   const handleApprove = async (logId: string) => {
     setActionLoading(logId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews/${logId}/approve`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews/${logId}/approve`, {
         method: 'POST',
       });
       if (!res.ok) {
@@ -79,7 +80,7 @@ export const CustomerMergeReviewScreen: React.FC<CustomerMergeReviewScreenProps>
     if (!confirm('Apakah Anda yakin ingin membatalkan penggabungan profil pelanggan ini (rollback)?')) return;
     setActionLoading(logId);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews/${logId}/rollback`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/customers/merge-reviews/${logId}/rollback`, {
         method: 'POST',
       });
       if (!res.ok) {
