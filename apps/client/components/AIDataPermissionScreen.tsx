@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Shield,
@@ -138,7 +139,7 @@ export const AIDataPermissionScreen: React.FC<AIDataPermissionScreenProps> = ({
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/permissions/matrix`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/permissions/matrix`);
       if (!res.ok) {
         throw new Error(`Gagal memuat matriks izin data: HTTP ${res.status}`);
       }
@@ -157,7 +158,7 @@ export const AIDataPermissionScreen: React.FC<AIDataPermissionScreenProps> = ({
   const fetchAuditLogs = async () => {
     try {
       setAuditLoading(true);
-      const res = await fetch(`/api/v1/tenants/${tenantId}/permissions/audit-logs?limit=40`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/permissions/audit-logs?limit=40`);
       if (res.ok) {
         const data = await res.json();
         setAuditLogs(data.logs || []);
@@ -189,7 +190,7 @@ export const AIDataPermissionScreen: React.FC<AIDataPermissionScreenProps> = ({
     setSavingCell(cellKey);
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/permissions/matrix/cell`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/permissions/matrix/cell`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -255,7 +256,7 @@ export const AIDataPermissionScreen: React.FC<AIDataPermissionScreenProps> = ({
 
     setSimLoading(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/permissions/evaluate-test`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/permissions/evaluate-test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
