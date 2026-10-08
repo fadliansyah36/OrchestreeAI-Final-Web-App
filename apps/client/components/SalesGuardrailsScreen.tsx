@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
@@ -110,10 +111,10 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
     setLoading(true);
     try {
       const [rulesRes, approvalsRes, auditRes, mcpRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/sales/guardrails`),
-        fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/approvals`),
-        fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/audit-logs?limit=30`),
-        fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/mcp-tools`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/approvals`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/audit-logs?limit=30`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/mcp-tools`),
       ]);
 
       const [rulesJson, approvalsJson, auditJson, mcpJson] = await Promise.all([
@@ -145,7 +146,7 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
   const handleUpdateDiscountLimit = async () => {
     setSavingLimit(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/DISCOUNT`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/DISCOUNT`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ max_autonomous_discount_pct: Number(newDiscountLimit) }),
@@ -189,7 +190,7 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
     }
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/evaluate`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,7 +220,7 @@ export function SalesGuardrailsScreen({ tenantId }: { tenantId: string }) {
     if (!selectedApproval) return;
     setSubmittingReview(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/approvals/${selectedApproval.id}/review`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/sales/guardrails/approvals/${selectedApproval.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
