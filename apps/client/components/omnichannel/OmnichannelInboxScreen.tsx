@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -69,7 +70,7 @@ export const OmnichannelInboxScreen: React.FC<OmnichannelInboxScreenProps> = ({
       if (filterChannel !== 'ALL') {
         url += `?channel_type=${filterChannel}`;
       }
-      const res = await fetch(url);
+      const res = await apiClient.fetch(url);
       if (!res.ok) return;
       const data = await res.json();
       setConversations(data);
@@ -95,7 +96,7 @@ export const OmnichannelInboxScreen: React.FC<OmnichannelInboxScreenProps> = ({
     if (!tenantId || !convId) return;
     setLoadingMessages(true);
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/conversations/${convId}/messages`);
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/conversations/${convId}/messages`);
       if (!res.ok) return;
       const data = await res.json();
       setMessages(data);
@@ -144,7 +145,7 @@ export const OmnichannelInboxScreen: React.FC<OmnichannelInboxScreenProps> = ({
     setInputText('');
 
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/conversations/${selectedConvId}/messages`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/conversations/${selectedConvId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content_text: textToSend }),
@@ -180,7 +181,7 @@ export const OmnichannelInboxScreen: React.FC<OmnichannelInboxScreenProps> = ({
     if (!selectedConvId) return;
     const nextType = currentType === 'AI' ? 'HUMAN' : 'AI';
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/conversations/${selectedConvId}/handover`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/conversations/${selectedConvId}/handover`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
