@@ -1,3 +1,4 @@
+import { apiClient } from '@orchestree/api-client';
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -117,9 +118,9 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
     try {
       setLoading(true);
       const [personasRes, rulesRes, handoversRes] = await Promise.all([
-        fetch(`/api/v1/tenants/${tenantId}/crm/personas`),
-        fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules`),
-        fetch(`/api/v1/tenants/${tenantId}/crm/persona-handovers?limit=30`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/personas`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules`),
+        apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/persona-handovers?limit=30`),
       ]);
 
       if (personasRes.ok) {
@@ -183,7 +184,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
         handoff_instruction: editingInstruction,
       };
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/personas/${selectedAgent.id}/config`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/personas/${selectedAgent.id}/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -223,7 +224,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
         is_active: true,
       };
 
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -243,7 +244,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
 
   const handleDeleteRule = async (ruleId: string) => {
     try {
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules/${ruleId}`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/persona-rules/${ruleId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -258,7 +259,7 @@ export const PersonaConfigurationScreen: React.FC<{ tenantId: string; onBackToPi
     setTestingHandover(true);
     try {
       const threadConvId = crypto.randomUUID();
-      const res = await fetch(`/api/v1/tenants/${tenantId}/crm/persona-handovers`, {
+      const res = await apiClient.fetch(`/api/v1/tenants/${tenantId}/crm/persona-handovers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
