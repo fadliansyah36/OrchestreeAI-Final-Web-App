@@ -36,7 +36,7 @@ for (const relative of targets) {
     continue;
   }
   const content = fs.readFileSync(file, 'utf8');
-  const rawFetch = /(^|[^A-Za-z0-9_$.])fetch\\s*\\(/m.test(content);
+  const rawFetch = /(^|[^A-Za-z0-9_$.])fetch\s*\(/m.test(content);
   if (rawFetch) {
     errors.push(`direct fetch remains: ${relative}`);
   }
